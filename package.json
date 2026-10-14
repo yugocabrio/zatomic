@@ -1,0 +1,7 @@
+{
+  "name": "shielded-swap-devtools",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pinned Solidity compiler for local contract verification",
+  "devDependencies": { "solc": "0.8.25" }
+}

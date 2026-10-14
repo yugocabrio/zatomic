@@ -1,0 +1,48 @@
+{
+  "scope": "bounded timing model, no chain transactions",
+  "policy": {
+    "eth_expiry": 6,
+    "zec_refund_time": 11,
+    "eth_delivery": 2,
+    "observation": 1,
+    "zec_delivery": 2,
+    "zec_clock_lead": 1,
+    "native_lock_enabled": true
+  },
+  "honest_alice_cases": 12,
+  "honest_bob_cases": 72,
+  "safe_cases": 84,
+  "counterexamples": {
+    "shielded_only_refund_lock_is_ineffective": {
+      "reveal": 0,
+      "observe": 0,
+      "zec_delay": 0,
+      "clock_lead": 0,
+      "zec_claim": 0,
+      "zec_refund": 0,
+      "safe": false
+    },
+    "inter_chain_gap_too_short": {
+      "reveal": 4,
+      "observe": 1,
+      "zec_delay": 2,
+      "clock_lead": 1,
+      "zec_claim": 7,
+      "zec_refund": 7,
+      "safe": false
+    }
+  },
+  "assumptions": [
+    "bounded inclusion/observation",
+    "no deep reorg",
+    "valid prepared native claim/refund",
+    "fresh matching Pallas witness",
+    "verified funding and immutable ETH escrow",
+    "honest client cutoff/monitoring"
+  ],
+  "not_proved": [
+    "cryptographic composition security",
+    "real network timing bounds",
+    "native consensus acceptance"
+  ]
+}

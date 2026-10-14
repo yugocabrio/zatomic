@@ -1,0 +1,13 @@
+[profile.default]
+src = "contracts/src"
+test = "contracts/test"
+out = ".local/forge-out"
+cache_path = ".local/forge-cache"
+solc = "scripts/solc.cjs"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "cancun"
+
+[fuzz]
+runs = 128

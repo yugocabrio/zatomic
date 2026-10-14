@@ -1,0 +1,101 @@
+# ZEC / ETH point-lock swap — draft v1
+
+Status: implementing; no end-to-end or audited security claim yet.
+Target: native Ironwood ZEC (v6, NU7 isolated regtest/public testnet) ↔ ETH
+(local Anvil, then Sepolia). No token approvals or wrapped ZEC. One fixed pair,
+two parties, one immutable escrow contract. Mainnet is not supported by the demo.
+
+## Construction
+
+Alice sells ZEC; Bob sells ETH. Alice chooses a fresh uniform nonzero Pallas
+scalar t and publishes T=tG, with G the RedPallas SpendAuth basepoint. The EVM
+escrow checks tG=T directly. No cross-curve DLEQ, hash/scalar correspondence
+proof, oracle or bridge light client is required. This is a proposed composition
+of existing techniques, not a claim to have invented PTLC swaps.
+
+Zcash funding uses a fresh 2-of-2 FROST DKG spend key. Neither party holds the
+whole spending key. Both obtain shared viewing data and can prove spends.
+The FROST adaptor extension is custom and unaudited; upstream FROST security
+does NOT automatically establish security of this modified protocol.
+
+## Transaction order
+
+1. Agree canonical terms: both networks/genesis/branches, deployed ETH code
+   and address, destinations, amounts/fees, T, refund times, confirmation
+   policy and unique salt. Authenticate peers and messages.
+2. Prepare Zcash funding F to the joint note. Before broadcast, Alice receives
+   a fully signed refund R to her shielded destination; Bob receives and verifies
+   an adaptor pre-signature for claim C to his shielded destination. Both C and
+   R spend precisely F's joint note and bind all output/fee/expiry fields.
+3. R includes an Alice-owned, dedicated transparent auxiliary UTXO with
+   non-final sequence; nLockTime=tZ. Without it the native locktime is disabled.
+   This auxiliary coin is separate from the shielded principal and cannot be
+   a third party's coin. Claim C has no transparent component.
+4. Alice broadcasts F only after independently checking the prepared paths.
+   Bob waits for authenticated confirmation of the exact note and obtains all
+   data needed to prove C. He verifies R cannot become spendable too soon.
+5. Bob locks the exact ETH amount in PointEscrow, bound to T, Alice's ETH
+   recipient, terms digest and expiry tE. Alice checks the exact contract code,
+   state and confirmation policy, with sufficient time remaining.
+6. Alice submits t before the conservative reveal cutoff. Anyone may relay
+   claim, but it credits only the fixed Alice recipient. Withdrawal is separate
+   so a receiving contract that rejects ETH cannot revert a valid claim.
+7. Bob obtains t from calldata/event, checks T, completes C and proves/broadcasts
+   it. Bob monitors confirmation and rebroadcasts/reanchors as required.
+
+No expiry on C/R is intended within the swap horizon; crossing a network upgrade
+must be refused. Exact builder/consensus behavior still needs native tests.
+In v6 the signature does not bind anchors/witness/proof, permitting pre-signing
+before F is mined. This property must be exercised, not merely cited.
+
+## Recovery
+
+| Stop/failure | Result under the stated assumptions |
+|---|---|
+| Either party refuses setup | No protocol funding should have occurred |
+| Alice funds, Bob does not lock ETH | Alice broadcasts R after tZ |
+| Bob locks, Alice never reveals | Bob refunds ETH at tE; Alice refunds ZEC after tZ |
+| Alice stops after a valid timely ETH claim is sent | Bob observes t and completes C; Alice's ETH is credited |
+| Bob stops after locking ETH | Safe only if Bob resumes/uses a relay before the Zcash recovery window ends |
+| Bob sees t in a failed/late EVM transaction | t cannot be made secret again; Alice must enforce cutoff and valid-call checks |
+| Reorg/censorship exceeds configured bounds | Safety is not guaranteed by this bounded-timelock construction |
+
+This is a monitored atomic-swap design, not indefinite offline safety. The honest
+party needs bounded observation/inclusion latency and sufficient fee reserves.
+Confirmations reduce reorg risk; they do not make PoW finality mathematical.
+
+Let ΔE bound ETH inclusion; ΔO bound secret observation; ΔZ bound Zcash
+inclusion; κZ bound early Zcash block timestamps. Require conservatively
+`tZ - κZ > tE + ΔO + ΔZ`; Alice reveals only when `now + ΔE < tE`.
+Deployed-network policy must account for clock error, node lag, fees, confirmation
+depth and upgrades. Regtest parameters are not public-network defaults.
+Native timestamps use block time, not an assumed MTP rule; see pinned Zebra.
+
+scripts/check_swap_model.py reproduces theft when the refund lock is ineffective
+or the safety gap too short. This finite model is not a complete security proof.
+
+## Visibility
+
+- Zcash observers: normal shielded funding/claim metadata, no public principal
+  or shielded address. Refund exposes an auxiliary transparent outpoint/amount
+  and time; it may link that auxiliary coin to the refund.
+- EVM observers: ETH amount, maker/recipient, T, t after reveal, deadlines,
+  terms commitment and timing. ETH-side privacy is not claimed.
+- Counterparty: agreed amounts/destinations and shared-note viewing/proving data.
+  One-time DKG and fresh viewing keys prevent viewing unrelated swaps.
+- Local fixture runner: both clients' synthetic secrets on one host; not evidence
+  of independent operators or production secret isolation.
+
+## References
+
+- [ZIP 374](https://zips.z.cash/zip-0374): v6 deferred anchors/proofs.
+- [ZIP 312](https://zips.z.cash/zip-0312): rerandomized FROST.
+- [Zebra accessor](https://github.com/ZcashFoundation/zebra/blob/6cc6d360e51fe07e661c26f02230e06d81b468c7/zebra-chain/src/transaction.rs#L128): non-final transparent input required.
+- [Zebra check](https://github.com/ZcashFoundation/zebra/blob/6cc6d360e51fe07e661c26f02230e06d81b468c7/zebra-consensus/src/transaction/check.rs#L71): strict block time/height comparison.
+- [ASMR recovery](https://github.com/MerosCrypto/asmr/blob/f7623dda07d052835acb35ff11338e1d98d93f97/src/tests/swap/client/funded_get_scripted.rs): different BTC/Sapling construction with counter-asset recovery. Read, not executed/imported.
+- [RFC 9591](https://www.rfc-editor.org/rfc/rfc9591.html): FROST, not a proof for our extension.
+- [EFD](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html): formulas checked against pasta_curves vectors.
+
+Next gate: valid native C/R pre-authorized before funding, node rejection of R
+before its deadline, and C completed from an actual EVM witness. No UI or
+marketing may describe that gate as completed yet.

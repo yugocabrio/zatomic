@@ -1,0 +1,11 @@
+{
+  "scope": "local primitives and bounded model; no cross-chain settlement yet",
+  "date": "2026-10-15 Europe/Zagreb",
+  "rust": "rustc 1.93.0",
+  "commands": ["cargo test --offline --locked -j 2", "cargo clippy --offline --locked --all-targets -- -D warnings", "forge test -vv", "python3 scripts/check_swap_model.py"],
+  "native_signature_tests": {"passed": 3, "randomized_dkg_roundtrips": 8, "verifier": "reddsa 0.6.1", "funded_notes": false},
+  "solidity": {"version": "0.8.25", "via_ir": true, "optimizer_runs": 200, "tests_passed": 22, "independent_pasta_vectors": 15, "full_width_vector_test_gas_range": [500684, 514229], "gas_scope": "Foundry test function including positive and corrupted-coordinate negative checks, not exact transaction gas"},
+  "timing_model": {"safe_cases": 84, "unsafe_designs_with_counterexamples": 2, "scope": "finite timing model under explicit bounds"},
+  "failures_fixed": ["FROST BindingFactor API uses serialized scalar", "Solidity stack depth required via-IR compilation", "conservative timing inequality rejected equality; model safety gap increased"],
+  "not_claimed": ["complete swap", "real Zcash transaction", "node acceptance", "public testnet", "audit", "cryptographic security proof"]
+}

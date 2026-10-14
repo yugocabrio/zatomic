@@ -1,0 +1,14 @@
+/target/
+**/target/
+/.local/
+/.deps/
+/research/sources/*-tree.json
+/research/sources/downloads/
+**/__pycache__/
+.DS_Store
+.env
+.env.*
+*.pczt
+*.wallet
+*.log
+/node_modules/
