@@ -1,0 +1,28 @@
+[package]
+name = "shielded-swap-native"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+shielded-swap-crypto = { path = "../swap-crypto" }
+ff = "=0.14.0"
+group = "=0.14.0"
+ff_old = { package = "ff", version = "=0.13.1" }
+group_old = { package = "group", version = "=0.13.0" }
+pasta_old = { package = "pasta_curves", version = "=0.5.2" }
+pasta_curves = "=0.6.0"
+rand = "=0.10.0"
+rand_core = { version = "=0.6.4", features = ["getrandom"] }
+orchard = { version = "=0.16.0", features = ["unstable-frost"] }
+incrementalmerkletree = { version = "=0.9.0", features = ["legacy-api"] }
+hex = "=0.4.3"
+serde_json = "=1.0.149"
+pczt = { git = "https://github.com/zcash/librustzcash.git", rev = "9c5705f56517c040c50f96d29f1ff15a9383f3e0", features = ["zcp-builder", "io-finalizer", "prover", "signer", "spend-finalizer", "tx-extractor"] }
+zcash_primitives = { git = "https://github.com/zcash/librustzcash.git", rev = "9c5705f56517c040c50f96d29f1ff15a9383f3e0", features = ["transparent-inputs"] }
+zcash_protocol = { git = "https://github.com/zcash/librustzcash.git", rev = "9c5705f56517c040c50f96d29f1ff15a9383f3e0" }
+zcash_address = { git = "https://github.com/zcash/librustzcash.git", rev = "9c5705f56517c040c50f96d29f1ff15a9383f3e0" }
+zcash_transparent = { git = "https://github.com/zcash/librustzcash.git", rev = "9c5705f56517c040c50f96d29f1ff15a9383f3e0", features = ["transparent-inputs"] }
+secp256k1 = "=0.33.1"

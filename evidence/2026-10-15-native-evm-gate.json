@@ -1,0 +1,38 @@
+{
+  "scope": "Anvil real transactions + synthetic Zcash note/proof",
+  "public_network": false,
+  "native_chain_acceptance": false,
+  "prepare": {
+    "dkg": "2-of-2, same host, no full ask",
+    "later_anchor_differs": true,
+    "message": "1a9774f894675b3ae82d934d2a62c245f9b3c575f772fb0cf83b765b72426015",
+    "presigned_without_anchor_witness_or_proof": true,
+    "scope": "synthetic funding; no broadcast"
+  },
+  "native": {
+    "chain_acceptance": false,
+    "later_anchor_changed": true,
+    "native_proof_and_adapted_signature_valid": true,
+    "preauthorization_without_anchor_witness_proof": true,
+    "proof_seconds": 2.211824625,
+    "recipient_decrypted_expected_amount": true,
+    "scope": "synthetic note/proof, NEVER broadcast",
+    "shielded_principal": true,
+    "total_seconds": 8.264483916,
+    "transaction_bytes": 9166,
+    "transparent_components": false,
+    "txid": "156042725b763bf80cfb72f775c5b3f945c2622a4d932de83a5b6794f874971a"
+  },
+  "evm": {
+    "chain_id": 31338,
+    "contract": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+    "order_id": "0x5a688d571ba303345022d1848a42a9260fb7870c33795fcad0ddcd4b819e66dd",
+    "lock_tx": "0xe7945b720b845a7d3a42ed75fb4f58d4c57c37215216cca91b5ecbc750b27fe9",
+    "claim_tx": "0xe7548cf23ed6bb0c7d874ec9febfc06ef3b5c434cb2b0cb6e67784e69241ae4c",
+    "withdraw_tx": "0x9470535c1742e8abea5e5aa2153bc2cceb00c3ecd60ef0fb0da3bdd4eddd8cdf",
+    "fixed_recipient": true,
+    "withdrawn_wei": 10000000000000000,
+    "claim_gas": 500143
+  },
+  "bob_used_public_evm_event": true
+}

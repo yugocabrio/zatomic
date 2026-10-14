@@ -1,6 +1,7 @@
 # ZEC / ETH point-lock swap — draft v1
 
-Status: implementing; no end-to-end or audited security claim yet.
+Status: isolated-chain success and refund demonstrated; no public-network or
+audited security claim. Fixture setup remains same-host.
 Target: native Ironwood ZEC (v6, NU7 isolated regtest/public testnet) ↔ ETH
 (local Anvil, then Sepolia). No token approvals or wrapped ZEC. One fixed pair,
 two parties, one immutable escrow contract. Mainnet is not supported by the demo.
@@ -96,6 +97,10 @@ or the safety gap too short. This finite model is not a complete security proof.
 - [RFC 9591](https://www.rfc-editor.org/rfc/rfc9591.html): FROST, not a proof for our extension.
 - [EFD](https://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html): formulas checked against pasta_curves vectors.
 
-Next gate: valid native C/R pre-authorized before funding, node rejection of R
-before its deadline, and C completed from an actual EVM witness. No UI or
-marketing may describe that gate as completed yet.
+The first native gate now passes on isolated Zebra + Anvil: C/R pre-authorized
+before funding, R rejected before its height, C completed from an actual EVM
+witness, and competing R rejected after C. A separate no-reveal run returns
+both assets. See evidence/2026-10-15-chain-{success,refund}.json. The fixture uses
+controlled block heights/times; it does not implement the public timing policy
+above. Independent setup, restart/replay handling and public-network execution
+remain separate acceptance gates.

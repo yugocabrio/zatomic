@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/swap-crypto"]
+members = ["crates/swap-crypto", "crates/swap-native"]
 resolver = "2"
 
 [workspace.package]
@@ -10,4 +10,3 @@ license = "MIT"
 [profile.release]
 debug = 0
 incremental = false
-
