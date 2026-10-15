@@ -6,6 +6,9 @@ mod funding_consent;
 mod observed_transaction;
 mod participants;
 mod public_graph;
+mod public_presign;
+mod public_review;
+mod public_setup;
 mod recovery_bundle;
 mod refund_lock;
 mod regtest_swap;
@@ -430,6 +433,33 @@ fn main() -> Result<()> {
     let value = match a.get(1).map(String::as_str) {
         Some("otc-verify-offer") if a.len() == 3 => trade::inspect(Path::new(&a[2]), false)?,
         Some("otc-verify-acceptance") if a.len() == 3 => trade::inspect(Path::new(&a[2]), true)?,
+        Some("testnet-otc-verify-offer" | "testnet-otc-verify-acceptance") if a.len() == 3 => {
+            let packet = storage::json(Path::new(&a[2]))?;
+            let amounts = trade::verify_testnet(&packet, a[1].ends_with("acceptance"))?;
+            serde_json::json!({"quote_digest":funding_consent::hash(&packet["offer"]["payload"])?,
+                "principal_zatoshi":amounts.principal,"payout_zatoshi":amounts.payout,
+                "eth_amount_wei":amounts.eth,"funding_authorized":false})
+        }
+        Some("testnet-owner-setup") if a.len() == 4 || a.len() == 5 => {
+            public_setup::run(Path::new(&a[2]), &a[3], a.get(4).map(Path::new))?
+        }
+        Some("testnet-setup-verify") if a.len() == 3 => public_setup::inspect(Path::new(&a[2]))?,
+        Some("testnet-export-review") if a.len() == 6 => public_review::export(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            Path::new(&a[4]),
+            Path::new(&a[5]),
+        )?,
+        Some("testnet-owner-review") if a.len() == 4 => {
+            public_review::review(Path::new(&a[2]), Path::new(&a[3]))?
+        }
+        Some("testnet-owner-signer") if a.len() == 3 => {
+            public_presign::serve(Path::new(&a[2]))?;
+            return Ok(());
+        }
+        Some("testnet-presign-review") if a.len() == 4 => {
+            public_presign::prepare(Path::new(&a[2]), Path::new(&a[3]))?
+        }
         Some("evm-key-init") if a.len() == 3 => evm_key::init(Path::new(&a[2]))?,
         Some("evm-sign-digest") if a.len() == 3 => evm_key::sign_stdin(Path::new(&a[2]))?,
         Some("regtest-init") if a.len() == 3 => wallet::init(Path::new(&a[2]))?,
@@ -453,8 +483,8 @@ fn main() -> Result<()> {
             Path::new(&a[4]),
             Path::new(&a[5]),
         )?,
-        Some("check-unsigned-graph-synthetic") if a.len() == 3 => {
-            public_graph::synthetic(Path::new(&a[2]))?
+        Some("check-unsigned-graph-synthetic") if a.len() == 3 || a.len() == 4 => {
+            public_graph::synthetic(Path::new(&a[2]), a.get(3).map(Path::new))?
         }
         Some("regtest-export-compact") if a.len() == 4 => {
             compact_wallet::export_regtest(Path::new(&a[2]), Path::new(&a[3]))?

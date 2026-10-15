@@ -216,8 +216,9 @@ def replay_graph(folder, roles_digest):
 def graph(directory, destinations):
     """Build at most one unsigned graph for this reservation under sync.lock.
 
-    Public final consent, authenticated destination exchange and all real-input
-    signing are separate, still-disabled steps. Expiry cannot release inputs.
+    Both destination receipts and the quote are verified before construction.
+    Final graph/plan consent and real-input signing remain separate, disabled
+    steps. Expiry cannot release inputs.
     """
     saved = read(directory/'source-reservation.json')
     previous = replay(directory, saved['plan_digest'], saved['principal_zatoshi'])
@@ -227,11 +228,9 @@ def graph(directory, destinations):
     plan = read(folder/'plan.json')
     timestamp_policy.validate(plan)
     roles = read(destinations)
-    expected = {'format','native_genesis','native_branch','eth_chain_id','joint_fvk','alice_fvk','bob_fvk'}
-    if (set(roles) != expected or roles['format'] != 'latch-graph-destinations-v1'
-            or roles['native_genesis'] != GENESIS or roles['native_branch'] != '77190ad9'
-            or type(roles['eth_chain_id']) is not int or roles['eth_chain_id'] != 11155111):
-        raise RuntimeError('explicit testnet graph destinations required')
+    checked = invoke(NATIVE,'testnet-setup-verify',destinations)
+    if checked['principal_zatoshi'] != saved['principal_zatoshi']:
+        raise RuntimeError('reserved amount differs from owner-accepted quote')
     roles_digest = hashlib.sha256(json.dumps(roles,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     existing = replay_graph(folder,roles_digest)
     if existing:

@@ -22,13 +22,27 @@ fn digest(domain: &[u8], payload: &Value) -> Result<[u8; 32]> {
 }
 
 pub fn verify(packet: &Value, accepted: bool) -> Result<Amounts> {
+    verify_domain(packet, accepted, false)
+}
+
+pub fn verify_testnet(packet: &Value, accepted: bool) -> Result<Amounts> {
+    verify_domain(packet, accepted, true)
+}
+
+fn verify_domain(packet: &Value, accepted: bool, testnet: bool) -> Result<Amounts> {
+    let genesis = if testnet {
+        crate::compact_wallet::TESTNET_GENESIS
+    } else {
+        wallet::GENESIS
+    };
+    let chain = if testnet { 11155111 } else { 31338 };
     let offer = &packet["offer"];
     let p = &offer["payload"];
     if p.as_object().is_none_or(|p| p.len() != 10)
         || p["version"] != 1
-        || p["native_genesis"] != wallet::GENESIS
+        || p["native_genesis"] != genesis
         || p["native_branch"] != "77190ad9"
-        || p["eth_chain_id"] != 31338
+        || p["eth_chain_id"] != chain
         || p["claim_fee_zatoshi"] != CLAIM_FEE
         || p["refund_aux_fee_zatoshi"] != 5_000
         || crate::decode::<32>(p, "quote_id").is_err()
@@ -37,7 +51,7 @@ pub fn verify(packet: &Value, accepted: bool) -> Result<Amounts> {
     }
     let pins = &p["owners"];
     for role in ["alice", "bob"] {
-        if pins[role]["role"] != role || pins[role]["chain_id"] != 31338 {
+        if pins[role]["role"] != role || pins[role]["chain_id"] != chain {
             return Err("OTC owner domain".into());
         }
     }
@@ -61,7 +75,7 @@ pub fn verify(packet: &Value, accepted: bool) -> Result<Amounts> {
         .as_u64()
         .ok_or("integer ETH amount required")?;
     if payout == 0 || eth == 0 || eth > MAX_ETH {
-        return Err("positive amounts within the isolated profile required".into());
+        return Err("positive amounts within the supported quote cap required".into());
     }
     evm_key::verify(
         &pins["alice"],

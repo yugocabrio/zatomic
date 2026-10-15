@@ -40,6 +40,17 @@ contract identity, salt, deadlines and the exact funding graph still require
 final consent. See [OTC offers](otc-offers.md). The legacy browser profile retains
 its fixed amounts, and all current execution profiles remain isolated chains.
 
+The public preparation path now has a separate [owner setup](public-owner-setup.md)
+CLI. Independently pinned identity keys sign an exact public-profile quote,
+authenticated DKG messages and matching destination receipts. The unsigned
+testnet graph verifies those receipts and its reserved principal against the
+quote. These setup approvals are distinct from transaction consent. Each public
+owner can now verify a source-redacted graph packet and participate in C/R
+shielded spend presigning using its local DKG share. The native R signature is
+not a complete refund until the dedicated auxiliary input is signed and the
+full recovery bundle is verified/delivered. Final consent to the graph/clock/
+escrow and public source/ETH gates remain unfinished. No public sender is enabled.
+
 ## Transaction order
 
 1. Agree canonical terms: both networks/genesis/branches, deployed ETH code

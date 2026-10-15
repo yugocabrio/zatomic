@@ -48,6 +48,32 @@ pub(crate) fn validate(
     public: &keys::PublicKeyPackage,
     target: [u8; 32],
 ) -> Result<(Context, usize)> {
+    let amounts = crate::trade::amounts(policy)?;
+    validate_amounts(pczt, policy, own, id, public, target, amounts)
+}
+
+/// Explicit public preparation verifier. The legacy signer never calls this.
+pub(crate) fn validate_testnet(
+    pczt: Pczt,
+    policy: &Value,
+    own: &FullViewingKey,
+    id: u16,
+    public: &keys::PublicKeyPackage,
+    target: [u8; 32],
+) -> Result<(Context, usize)> {
+    let amounts = crate::trade::verify_testnet(&policy["trade"], true)?;
+    validate_amounts(pczt, policy, own, id, public, target, amounts)
+}
+
+fn validate_amounts(
+    pczt: Pczt,
+    policy: &Value,
+    own: &FullViewingKey,
+    id: u16,
+    public: &keys::PublicKeyPackage,
+    target: [u8; 32],
+    amounts: crate::trade::Amounts,
+) -> Result<(Context, usize)> {
     let joint = fvk(policy, "joint_fvk")?;
     if joint.to_bytes()[..32] != public.verifying_key().serialize().map_err(err)? {
         return Err("joint key not our DKG".into());
@@ -72,7 +98,6 @@ pub(crate) fn validate(
     if !is_claim && target != shielded_swap_crypto::generator().to_bytes() {
         return Err("refund must be immediately completable".into());
     }
-    let amounts = crate::trade::amounts(policy)?;
     let pending = wallet::parse_note(&policy["pending"])?;
     if pending.value().inner() != amounts.principal
         || pending.recipient() != joint.address_at(0u32, Scope::External)
@@ -550,6 +575,42 @@ pub struct Pair {
     pub point_y: Value,
 }
 impl Pair {
+    /// Explicitly configured owner-local public signer commands only. No DKG is
+    /// repeated here, and no legacy/default participant path is selected.
+    pub fn public_review(dir: &Path, packet: &Value) -> Result<Self> {
+        if std::env::var_os("LATCH_SIGNER_COMMANDS").is_none() {
+            return Err("public owner signer commands must be explicitly configured".into());
+        }
+        let (alice, a) = Process::start(&dir.join("alice"), 1)?;
+        let (bob, b) = Process::start(&dir.join("bob"), 2)?;
+        let setup = &packet["destinations"]["setup"];
+        for hello in [&a, &b] {
+            if hello["format"] != "latch-public-reviewed-signer-v1"
+                || hello["review_packet_digest"] != crate::funding_consent::hash(packet)?
+                || hello["public"] != setup["public"]
+            {
+                return Err("public signers disagree on reviewed graph/DKG".into());
+            }
+        }
+        if a["id"] != 1
+            || b["id"] != 2
+            || a["recipient_fvk"] != setup["destinations"]["alice_fvk"]
+            || b["recipient_fvk"] != setup["destinations"]["bob_fvk"]
+        {
+            return Err("public signer identities/destinations differ".into());
+        }
+        Ok(Self {
+            alice,
+            bob,
+            public: keys::PublicKeyPackage::deserialize(&bytes(setup, "public")?).map_err(err)?,
+            alice_fvk: fvk(&a, "recipient_fvk")?,
+            bob_fvk: fvk(&b, "recipient_fvk")?,
+            point: decode(setup, "adaptor_point")?,
+            point_x: setup["point_x"].clone(),
+            point_y: setup["point_y"].clone(),
+        })
+    }
+
     pub fn start(dir: &Path) -> Result<Self> {
         let (mut alice, a) = Process::start(&dir.join("alice"), 1)?;
         let (mut bob, b) = Process::start(&dir.join("bob"), 2)?;

@@ -86,7 +86,7 @@ fn package(bank: &Path, folder: &Path) -> Result<Value> {
     Ok(manifest)
 }
 
-fn unsigned(pczt: &Pczt, transparent: bool) -> Result<()> {
+pub(crate) fn unsigned(pczt: &Pczt, transparent: bool) -> Result<()> {
     // Dummy spends have valid signatures from the IO finalizer. Exactly one real
     // Ironwood spend must remain unsigned, as must the refund auxiliary.
     if pczt
@@ -228,7 +228,7 @@ fn build(draft: Draft, output: &Path, binding: Value) -> Result<Value> {
         "exit_proof_anchors":"provisional tree containing the exact pending note; not chain anchors",
         "participant_consents_present":false,"live_revalidated":false,
         "funding_authorized":false,"broadcast":false,
-        "scope":"unsigned native graph only; destinations are not yet authenticated by owner consent"});
+        "scope":"unsigned native graph only; setup receipts do not authorize this graph or funding"});
     draft.lock.attach(&mut graph);
     let digest = sha(&serde_json::to_vec(&graph)?);
     storage::atomic_json(&output.join("graph.json"), &graph)?;
@@ -244,7 +244,9 @@ pub fn prepare(bank: &Path, folder: &Path, destinations: &Path, output: &Path) -
     let manifest = package(bank, folder)?;
     let source = storage::json(&folder.join("source.json"))?;
     let plan = storage::json(&folder.join("plan.json"))?;
-    let roles = storage::json(destinations)?;
+    let authenticated = storage::json(destinations)?;
+    let setup = crate::public_setup::authenticate(&authenticated)?;
+    let roles = &setup["destinations"];
     let principal = amount(&manifest, "principal_zatoshi")?;
     let height = u32::try_from(amount(&source, "height")?)?;
     let lock = RefundLock::parse(&json!({"refund_lock":plan["native_refund_lock"]}))?;
@@ -255,6 +257,7 @@ pub fn prepare(bank: &Path, folder: &Path, destinations: &Path, output: &Path) -
         || source["genesis"] != TESTNET_GENESIS
         || source["branch"] != "77190ad9"
         || source["principal_zatoshi"] != principal
+        || setup["principal_zatoshi"] != principal
         || source["notes"]
             .as_array()
             .is_none_or(|notes| notes.len() != 1)
@@ -291,9 +294,9 @@ pub fn prepare(bank: &Path, folder: &Path, destinations: &Path, output: &Path) -
     {
         return Err("reserved auxiliary outpoint mismatch".into());
     }
-    let joint = parse_fvk(&roles, "joint_fvk")?;
-    let alice = parse_fvk(&roles, "alice_fvk")?;
-    let bob = parse_fvk(&roles, "bob_fvk")?;
+    let joint = parse_fvk(roles, "joint_fvk")?;
+    let alice = parse_fvk(roles, "alice_fvk")?;
+    let bob = parse_fvk(roles, "bob_fvk")?;
     if joint == alice || joint == bob || alice == bob {
         return Err("distinct graph destinations required".into());
     }
@@ -310,16 +313,43 @@ pub fn prepare(bank: &Path, folder: &Path, destinations: &Path, output: &Path) -
         },
         output,
         json!({"manifest_sha256":sha(&storage::read(&folder.join("manifest.json"),50_000_000)?),
-            "plan_digest":manifest["plan_digest"],"destinations_sha256":sha(&serde_json::to_vec(&roles)?),
+            "plan_digest":manifest["plan_digest"],"destinations_sha256":hash_setup(&authenticated)?,
+            "quote_digest":setup["quote_digest"],"destinations_authenticated":true,
             "synthetic":false,"live_revalidated":false}),
     )
 }
 
+fn hash_setup(setup: &Value) -> Result<String> {
+    Ok(sha(&serde_json::to_vec(setup)?))
+}
+
 /// Explicit synthetic diagnostic, never an alternate input path to prepare().
-pub fn synthetic(output: &Path) -> Result<Value> {
+pub fn synthetic(output: &Path, authenticated: Option<&Path>) -> Result<Value> {
     let mut rng = rand::rng();
+    let mut binding = json!({"synthetic":true,"scope":"nonexistent note/UTXO; no chain acceptance or wallet reservation"});
+    let (principal, joint, alice, bob) = if let Some(path) = authenticated {
+        let descriptor = storage::json(path)?;
+        let checked = crate::public_setup::authenticate(&descriptor)?;
+        binding["destinations_sha256"] = json!(hash_setup(&descriptor)?);
+        binding["quote_digest"] = checked["quote_digest"].clone();
+        binding["destinations_authenticated"] = json!(true);
+        let roles = &checked["destinations"];
+        (
+            amount(&checked, "principal_zatoshi")?,
+            parse_fvk(roles, "joint_fvk")?,
+            parse_fvk(roles, "alice_fvk")?,
+            parse_fvk(roles, "bob_fvk")?,
+        )
+    } else {
+        (
+            1_010_000,
+            FullViewingKey::from(&crate::random_key(&mut rng)),
+            FullViewingKey::from(&crate::random_key(&mut rng)),
+            FullViewingKey::from(&crate::random_key(&mut rng)),
+        )
+    };
     let source_fvk = FullViewingKey::from(&crate::random_key(&mut rng));
-    let note = crate::note(&source_fvk, 2_000_000, &mut rng);
+    let note = crate::note(&source_fvk, principal + 10_001, &mut rng);
     let path = MerklePath::from_parts(
         0,
         std::array::from_fn(|i| MerkleHashOrchard::empty_root((i as u8).into())),
@@ -350,16 +380,16 @@ pub fn synthetic(output: &Path) -> Result<Value> {
                 note,
                 path,
             },
-            principal: 1_010_000,
+            principal,
             height,
-            joint: FullViewingKey::from(&crate::random_key(&mut rng)),
-            alice: FullViewingKey::from(&crate::random_key(&mut rng)),
-            bob: FullViewingKey::from(&crate::random_key(&mut rng)),
+            joint,
+            alice,
+            bob,
             auxiliary,
             lock: RefundLock::timestamp(1_800_000_000)?,
         },
         output,
-        json!({"synthetic":true,"scope":"nonexistent note/UTXO; no chain acceptance or wallet reservation"}),
+        binding,
     )?;
     report["synthetic"] = json!(true);
     Ok(report)

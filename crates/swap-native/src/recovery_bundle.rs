@@ -38,7 +38,7 @@ fn index(terms: &Value, field: &str) -> Result<usize> {
 /// A valid proof for the same public effects does not establish that the saved
 /// exit includes the private inputs needed to re-prove it at the mined anchor.
 /// Require identical material after removing only the temporary proof/witness.
-fn verify_reproving_material(deferred: &Pczt, checked: &Pczt) -> Result<()> {
+pub(crate) fn verify_reproving_material(deferred: &Pczt, checked: &Pczt) -> Result<()> {
     let stripped = Redactor::new(checked.clone())
         .redact_ironwood_with(|mut b| {
             b.clear_anchor();

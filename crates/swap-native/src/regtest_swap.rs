@@ -195,7 +195,7 @@ pub(crate) fn verify_claim_proof(proven: Pczt) -> Result<()> {
         .verify_proof(&VerifyingKey::build(OrchardCircuitVersion::PostNu6_3))
         .map_err(|e| err(e).into())
 }
-fn pre_json(pre: &PreSignature) -> Value {
+pub(crate) fn pre_json(pre: &PreSignature) -> Value {
     json!({"r_hat":hex::encode(pre.r_hat),"s_hat":hex::encode(pre.s_hat),"key":hex::encode(pre.key),
         "message":hex::encode(pre.message),"adaptor_point":hex::encode(pre.adaptor_point)})
 }

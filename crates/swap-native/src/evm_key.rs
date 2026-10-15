@@ -48,6 +48,11 @@ pub fn sign_stdin(dir: &Path) -> Result<Value> {
     let digest = hex::decode(&input[..64])?
         .try_into()
         .map_err(|_| "digest length")?;
+    sign_digest(dir, digest)
+}
+
+/// Internal policy-checked callers only; never a remotely callable operation.
+pub(crate) fn sign_digest(dir: &Path, digest: [u8; 32]) -> Result<Value> {
     let bytes = storage::read(&dir.join("ethereum-key.bin"), 32)?
         .try_into()
         .map_err(|_| "Ethereum key length")?;

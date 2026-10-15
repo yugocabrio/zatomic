@@ -19,6 +19,16 @@ def read(path):
     return json.loads(private_file(path, 200_000))
 
 
+def profile(directory):
+    chain = read(directory / 'identity.json')['chain_id']
+    if chain == 31338:
+        return GENESIS, chain, ''
+    if chain == 11155111:
+        from testnet_wallet import GENESIS as testnet_genesis
+        return testnet_genesis, chain, 'testnet-'
+    raise RuntimeError('unsupported quote identity network')
+
+
 def digest(domain, payload):
     return hashlib.sha256(domain + json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).digest()
 
@@ -47,7 +57,8 @@ def owners(directory):
 def verify(directory, packet, accepted=False):
     candidate = directory / ('otc-message-' + digest(b'', packet).hex() + '.json')
     save(candidate, packet)
-    result = native('otc-verify-acceptance' if accepted else 'otc-verify-offer', candidate)
+    _, _, prefix = profile(directory)
+    result = native(prefix + ('otc-verify-acceptance' if accepted else 'otc-verify-offer'), candidate)
     _, expected = owners(directory)
     if packet['offer']['payload']['owners'] != expected:
         raise RuntimeError('OTC identities differ from authenticated local pins')
@@ -70,11 +81,12 @@ def summary(packet, result):
 
 def execute(directory, action, packet):
     own, pins = owners(directory)
+    genesis, chain, _ = profile(directory)
     if action == 'offer-create':
         if own['role'] != 'alice':
             raise RuntimeError('only the ZEC seller creates an OTC quote')
-        p = {'version': 1, 'native_genesis': GENESIS, 'native_branch': BRANCH,
-            'eth_chain_id': 31338, 'owners': pins, 'quote_id': os.urandom(32).hex(),
+        p = {'version': 1, 'native_genesis': genesis, 'native_branch': BRANCH,
+            'eth_chain_id': chain, 'owners': pins, 'quote_id': os.urandom(32).hex(),
             'payout_zatoshi': units(packet['zec_amount'], 8, 21_000_000 * 10**8 - 20_000),
             'eth_amount_wei': units(packet['eth_amount'], 18, 10 * 10**18),
             'claim_fee_zatoshi': 10_000, 'refund_aux_fee_zatoshi': 5_000}
