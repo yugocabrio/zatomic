@@ -50,6 +50,11 @@ in `89d58f9`. Each record identifies its own commands and limitations. The publi
 opening monitor was committed in `0393076`. Use Git history to inspect the code
 alongside its evidence; a JSON `true` field alone is not an independent check.
 
+The [clean-checkout release check](../evidence/2026-10-15-clean-reproduction.json)
+rebuilt `9b978e3`, passed make verify and executed fresh exchange/refund/replay
+using new private state and its own node. The original node remained unchanged.
+It is same-host reproducibility, not independent-host administration.
+
 ## Reproduce, in order
 
 1. Follow [prerequisites and local reproduction](reproduce.md). `make doctor`

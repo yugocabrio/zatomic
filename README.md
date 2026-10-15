@@ -19,6 +19,10 @@ or an audited protocol.
 [Watch the two-minute walkthrough](docs/demo/latch-2min.mp4) — actual local-chain
 screen checkpoints with captions; waits omitted. [Execution record](evidence/2026-10-15-release-demo.json).
 
+[Fresh-checkout verification](evidence/2026-10-15-clean-reproduction.json) rebuilt
+`9b978e3` and completed exchange/refund/replay with new wallets and node state.
+The local release is complete; public funded execution is still pending.
+
 ## Run
 
 Prerequisites: Rust 1.93, Python 3.11+, Node/npm, Foundry 1.3.1 and running Docker.

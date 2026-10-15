@@ -1,0 +1,194 @@
+{
+  "date": "2026-10-15",
+  "scope": "clean checkout and newly generated wallets/builds/isolated chain state on the same host; existing toolchain and registry caches retained",
+  "initial": {
+    "commit": "9b978e3b635bdbfdd03b985089fc4ec30903d280",
+    "shared_objects": false,
+    "private_state_copied": false,
+    "build_outputs_copied": false,
+    "host": "same Apple Silicon host, existing toolchain and registry caches",
+    "free_disk_bytes": 5434691584,
+    "namespace": "release-reproduction",
+    "native_port": 30343
+  },
+  "toolchain": {
+    "tools": {
+      "rustc": {
+        "ready": true,
+        "version": "rustc 1.93.0 (254b59607 2026-01-19)"
+      },
+      "cargo": {
+        "ready": true,
+        "version": "cargo 1.93.0 (083ac5135 2025-12-15)"
+      },
+      "node": {
+        "ready": true,
+        "version": "v24.12.0"
+      },
+      "npm": {
+        "ready": true,
+        "version": "11.6.2"
+      },
+      "forge": {
+        "ready": true,
+        "version": "forge Version: 1.3.1-stable"
+      },
+      "anvil": {
+        "ready": true,
+        "version": "anvil Version: 1.3.1-stable"
+      },
+      "cast": {
+        "ready": true,
+        "version": "cast Version: 1.3.1-stable"
+      },
+      "docker": {
+        "ready": true,
+        "version": "28.3.2"
+      }
+    },
+    "arm64_node_bootstrap_supported": true,
+    "free_disk_gib": 5,
+    "ready": true
+  },
+  "setup_command": "LATCH_REGTEST_NAMESPACE=release-reproduction LATCH_REGTEST_PORT=30343 make setup",
+  "setup_exit_code": 0,
+  "verify_command": "make verify (same scope environment)",
+  "verify_exit_code": 0,
+  "checks": {
+    "rust_crypto_tests": 3,
+    "rust_native_tests_passed": 2,
+    "rust_native_tests_ignored": 2,
+    "clippy_warnings_denied": true,
+    "solidity_tests_passed": 22,
+    "model_eip155_rpc_decoder_checks_passed": true
+  },
+  "steps": [
+    {
+      "step": "success",
+      "command": "python3 scripts/prefunding_swap.py success .local/fresh-success",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 63.26
+    },
+    {
+      "step": "success-replay",
+      "command": "python3 scripts/prefunding_swap.py recover .local/fresh-success",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 2.3
+    },
+    {
+      "step": "refund-stop",
+      "command": "python3 scripts/prefunding_swap.py refund .local/fresh-refund --fault-after eth-locked",
+      "exit_code": 75,
+      "expected_exit_code": 75,
+      "elapsed_seconds": 47.8
+    },
+    {
+      "step": "refund-recover",
+      "command": "python3 scripts/prefunding_swap.py recover .local/fresh-refund",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 11.56
+    },
+    {
+      "step": "refund-replay",
+      "command": "python3 scripts/prefunding_swap.py recover .local/fresh-refund",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 2.76
+    }
+  ],
+  "results": {
+    "success-replay": {
+      "scope": "actual isolated chains; owner-held keys on one host",
+      "driver": "owner-clients-v1",
+      "mode": "success",
+      "native_txid": "70560c5485a5ccf7e4bbbc26f162890e35f66e4be13d98116b9ef629fdbd7984",
+      "native_amount_zatoshi": 1000000,
+      "eth_wei_received": 10000000000000000,
+      "eth_withdraw_tx": "0x9fb06761f8b49392c6d96345c30b2029adde2870974eca989b3816474b18fc25",
+      "owner_signed_eth": true,
+      "node_cannot_sign_for_owners": true,
+      "peer_offline_during_native_exit": true,
+      "coordinator_native_files_offline": true,
+      "public_testnet": false,
+      "independent_hosts": false,
+      "signed_cross_chain_consent_before_funding": true,
+      "new_native_transactions": 0,
+      "new_evm_transactions": 0,
+      "native_funding_recovery": null,
+      "peer_workspace_reconciled": null
+    },
+    "refund-recover": {
+      "scope": "actual isolated chains; owner-held keys on one host",
+      "driver": "owner-clients-v1",
+      "mode": "refund",
+      "native_txid": "2df186738fb6b8311f6c03035392eebef7f676218b1e65713e6871dca859af0f",
+      "native_amount_zatoshi": 1000000,
+      "eth_wei_received": 10000000000000000,
+      "eth_withdraw_tx": "0xb9b8ca5677635d07426b220fb39b617e156685786f1a01c49ccc869c17221f77",
+      "owner_signed_eth": true,
+      "node_cannot_sign_for_owners": true,
+      "peer_offline_during_native_exit": true,
+      "coordinator_native_files_offline": true,
+      "public_testnet": false,
+      "independent_hosts": false,
+      "signed_cross_chain_consent_before_funding": true,
+      "new_native_transactions": 1,
+      "new_evm_transactions": 2,
+      "native_funding_recovery": null,
+      "peer_workspace_reconciled": null
+    },
+    "refund-replay": {
+      "scope": "actual isolated chains; owner-held keys on one host",
+      "driver": "owner-clients-v1",
+      "mode": "refund",
+      "native_txid": "2df186738fb6b8311f6c03035392eebef7f676218b1e65713e6871dca859af0f",
+      "native_amount_zatoshi": 1000000,
+      "eth_wei_received": 10000000000000000,
+      "eth_withdraw_tx": "0xb9b8ca5677635d07426b220fb39b617e156685786f1a01c49ccc869c17221f77",
+      "owner_signed_eth": true,
+      "node_cannot_sign_for_owners": true,
+      "peer_offline_during_native_exit": true,
+      "coordinator_native_files_offline": true,
+      "public_testnet": false,
+      "independent_hosts": false,
+      "signed_cross_chain_consent_before_funding": true,
+      "new_native_transactions": 0,
+      "new_evm_transactions": 0,
+      "native_funding_recovery": null,
+      "peer_workspace_reconciled": null
+    }
+  },
+  "final_fresh_node": {
+    "scope": "isolated NU7 regtest",
+    "blocks": 237,
+    "tip": "4e2a68ae481b5e1887dc473649088446e00ca8fa1224dc65090627d4b6ec0d29",
+    "genesis": "029f11d80ef9765602235e1bc9727e3eb6ba20839319f761fee920d63401e327",
+    "branch": "77190ad9",
+    "rpc": "http://127.0.0.1:30343",
+    "container": "shielded-swap-zebra-nu7-release-reproduction"
+  },
+  "original_node": {
+    "scope": "isolated NU7 regtest",
+    "blocks": 4096,
+    "tip": "ceadaed74e47b00de37770b9e8e1694f6851ab2ac637b899525e347249c82b86",
+    "genesis": "029f11d80ef9765602235e1bc9727e3eb6ba20839319f761fee920d63401e327",
+    "branch": "77190ad9",
+    "rpc": "http://127.0.0.1:30342",
+    "container": "shielded-swap-zebra-nu7"
+  },
+  "original_node_unchanged": true,
+  "reproduction_container_stopped": true,
+  "private_wallets_and_chain_state_preserved": true,
+  "checkout_clean_after_run": true,
+  "public_deployment": false,
+  "public_transfers": 0,
+  "independent_host": false,
+  "limitations": [
+    "Uses same administrator, OS, toolchain and package caches; not a hermetic fresh machine.",
+    "Controlled local confirmations and clocks do not prove public finality or timing.",
+    "Ignored slow unit tests were not enabled by make verify; actual F/C/R integration ran separately as listed."
+  ]
+}

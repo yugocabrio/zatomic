@@ -1,7 +1,7 @@
 # Latch — Cross-chain submission draft
 
 Draft only. No contest submission, public deployment or announcement has been
-made. The claims below describe the working isolated-chain release candidate;
+made. The claims below describe the working isolated-chain release;
 they must not be relabeled as a public-testnet demonstration.
 
 ## One sentence
@@ -68,7 +68,9 @@ ready.
 
 ## Before submitting
 
-Confirm the final release commit, clean-checkout reproduction result and actual
-recording link. Keep any public-testnet result separate and add it only after
-authorized execution with verifiable transaction evidence. Submission itself
-requires the user's instruction.
+Settlement code `9b978e3` passed [fresh-checkout reproduction](../evidence/2026-10-15-clean-reproduction.json).
+The [two-minute presentation file](demo/latch-2min.mp4) and its reviewed source
+images are included. It is a captioned edit of actual screen checkpoints, not a
+continuous recording. Public deployment/settlement is a separate pending step;
+add that claim only after authorized execution with verifiable transaction evidence.
+Submission itself still requires the user's instruction.

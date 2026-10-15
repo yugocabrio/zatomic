@@ -6,6 +6,14 @@ local browser demo at http://127.0.0.1:8787. See docs/demo-walkthrough.md.
 The current node bootstrap targets Apple Silicon / Linux ARM64. No public
 endpoint, wallet seed, faucet, paid service or mainnet funds are used.
 
+The current release was rebuilt and executed from a fresh checkout of
+`9b978e3b635bdbfdd03b985089fc4ec30903d280`, with fresh wallets and a separately
+namespaced node. Setup, verification, actual exchange, interrupted refund and
+zero-new-payment replay passed. See [the execution record](../evidence/2026-10-15-clean-reproduction.json).
+This used the same machine and installed toolchain/package caches; no existing
+private state, node database or build outputs were copied. The original node
+remained unchanged, and the reproduction node was stopped with its data retained.
+
 The commands below reproduce the older native-funding-first fixtures. New
 browser runs use signed cross-chain consent before native source authorization;
 use [the current consent/recovery guide](funding-consent.md) for that driver.

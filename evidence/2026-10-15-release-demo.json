@@ -107,6 +107,6 @@
   "browser_warn_error_log": [],
   "public_settlement": false,
   "independent_hosts": false,
-  "fresh_checkout_reproduction": "pending separate run",
+  "fresh_checkout_reproduction": "passed separately on9b978e3; see evidence/2026-10-15-clean-reproduction.json",
   "private_fixture_paths_published": false
 }
