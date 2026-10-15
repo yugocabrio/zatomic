@@ -484,6 +484,9 @@ fn main() -> Result<()> {
         Some("testnet-inspect-recovery") if a.len() == 3 => {
             public_recovery::inspect(Path::new(&a[2]))?
         }
+        Some("testnet-inspect-exit") if a.len() == 4 => {
+            public_witness::inspect_exit(Path::new(&a[2]), Path::new(&a[3]))?
+        }
         Some("testnet-recovery-watch") if a.len() == 5 => {
             public_witness::init(Path::new(&a[2]), Path::new(&a[3]), a[4].parse()?)?
         }

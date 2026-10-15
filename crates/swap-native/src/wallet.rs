@@ -8,6 +8,7 @@ use orchard::{
     tree::{MerkleHashOrchard, MerklePath},
 };
 use serde_json::{Value, json};
+use sha2::Digest;
 use std::{collections::BTreeMap, io::Cursor, path::Path};
 use zcash_address::unified::{Address, Encoding, Receiver, Revision, Uitem};
 use zcash_primitives::{merkle_tree::read_commitment_tree, transaction::Transaction};
@@ -72,6 +73,7 @@ pub fn testnet_receivers(dir: &Path) -> Result<Value> {
     )?
     .encode(&NetworkType::Test);
     Ok(json!({"genesis":crate::compact_wallet::TESTNET_GENESIS,
+        "fvk_fingerprint":hex::encode(sha2::Sha256::digest(fvk.to_bytes())),
         "address":shielded,"aux_address":address.to_zcash_address(NetworkType::Test).to_string(),
         "aux_script":hex::encode(address.script().to_bytes()),
         "scope":"local public-testnet receiving metadata; no funding authorization"}))

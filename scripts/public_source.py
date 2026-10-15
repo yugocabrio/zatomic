@@ -16,6 +16,7 @@ from regtest_wallet import ROOT, native, save
 import source_inputs
 import testnet_wallet
 import timestamp_policy
+import public_source_guard
 
 
 @contextmanager
@@ -46,6 +47,7 @@ def exact_note(original, fresh):
 
 def prepare(wallet, bundle_path, agreement, verified, directory):
     """Caller holds sync.lock. Bind offline reservation BEFORE provider requests."""
+    authority = public_source_guard.check_locked(wallet, agreement)
     bundle = testnet_wallet.read(bundle_path)
     if eth.digest(bundle) != agreement['bundle_digest'] or bundle['synthetic_inputs'] is not False:
         raise RuntimeError('source bundle changed or contains synthetic inputs')
@@ -69,6 +71,9 @@ def prepare(wallet, bundle_path, agreement, verified, directory):
     original = testnet_wallet.read(folder/'source.json')
     if checked['selected_note_commitment'] != original['notes'][0]['cmx']:
         raise RuntimeError('reserved note commitment changed')
+    if (original['fvk_fingerprint'] != authority['source_fvk_fingerprint']
+            or expected_aux['aux_script'] != authority['source_aux_script']):
+        raise RuntimeError('reserved graph is not controlled by the source-approved wallet keys')
     # Synchronization keeps every old checkpoint; on a fork it refuses instead
     # of rewinding or replacing the reservation. Bounded batches, no busy retry.
     sync = testnet_wallet.sync(wallet, 4)
@@ -81,12 +86,14 @@ def prepare(wallet, bundle_path, agreement, verified, directory):
     fresh = testnet_wallet.read(directory/'source.json')
     exact_note(original, fresh)
     save(directory/'reserved-graph-check.json', checked)
-    return {'directory': directory, 'snapshot': fresh}
+    return {'directory': directory, 'snapshot': fresh, 'authority': authority, 'wallet': wallet}
 
 
 def observe(context, agreement):
     """Recheck the exact old anchor and the freshly scanned current tip live."""
     directory, snapshot = context['directory'], context['snapshot']
+    if public_source_guard.check_locked(context['wallet'], agreement) != context['authority']:
+        raise RuntimeError('source authority changed during observations')
     subprocess.run(['node', str(ROOT/'scripts/observe_testnet_source.mjs'),
         str(directory/'source.json'), str(directory/'canonical.json')],
         capture_output=True, text=True, timeout=150, check=True)
@@ -105,6 +112,8 @@ def observe(context, agreement):
         # observeSource has just rejected any announced nonzero upgrade height.
         'announced_upgrade': {'height': 0}}
     summary = {'exact_reserved_graph_and_source_note_checked': True,
+        'source_authority_digest': context['authority']['authority_digest'],
+        'source_wallet_and_owner_pins_bound': True,
         'observed_tip': canonical['observed_tip'], 'anchor': canonical['anchor'],
         'source_confirmations_by_provider': snapshot['source_confirmations'],
         'provider_trusted': True, 'reservation_preserved': True, 'funding_authorized': False}

@@ -4,12 +4,16 @@ use crate::{
     Result, compact_wallet, decode, err, funding_consent::hash, public_recovery, regtest_swap,
     storage, wallet,
 };
+use orchard::circuit::{OrchardCircuitVersion, VerifyingKey};
 use orchard::keys::{FullViewingKey, Scope};
 use pczt::Pczt;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{io::Cursor, os::unix::fs::PermissionsExt, path::Path};
-use zcash_primitives::transaction::Transaction;
+use zcash_primitives::transaction::{
+    Transaction, TxVersion,
+    txid::{TxIdDigester, to_txid},
+};
 use zcash_protocol::consensus::BranchId;
 
 struct Accepted {
@@ -172,6 +176,72 @@ fn pczt(v: &Value, name: &str) -> Result<Pczt> {
     Pczt::parse(&hex::decode(v[name].as_str().ok_or("exit PCZT")?)?).map_err(|e| err(e).into())
 }
 
+/// Validate saved raw bytes again, independently of a proof.json/report. V6's
+/// txid excludes authorizations/anchor: matching it alone would accept a broken
+/// proof or signature. The refund's transparent authorization is fixed by the
+/// fully verified portable bundle and must also match byte for byte.
+fn verify_exit_bytes(a: &Accepted, raw: &[u8]) -> Result<Value> {
+    let mode = match a.report["role"].as_str() {
+        Some("alice") => "refund",
+        Some("bob") => "claim",
+        _ => return Err("portable exit role".into()),
+    };
+    let expected = pczt(&a.bundle["review"], mode)?;
+    let message = regtest_swap::message(&expected)?;
+    let effects = expected.into_effects().map_err(err)?;
+    let expected_txid = to_txid(
+        effects.version(),
+        effects.consensus_branch_id(),
+        &effects.digest(TxIdDigester),
+    );
+    let mut cursor = Cursor::new(raw);
+    let tx = Transaction::read(&mut cursor, BranchId::Nu7)?;
+    if cursor.position() != raw.len() as u64
+        || tx.version() != TxVersion::V6
+        || tx.consensus_branch_id() != BranchId::Nu7
+        || tx.txid() != expected_txid
+        || tx.sapling_bundle().is_some()
+        || tx.orchard_bundle().is_some()
+    {
+        return Err("raw exit differs from agreed native effects".into());
+    }
+    if mode == "refund" {
+        // accepted() already verifies this exact P2PKH signature against the
+        // reserved value/script. The witness-independent digest is unchanged.
+        let refund = regtest_swap::extract_checked(pczt(&a.bundle, "refund_check")?)?;
+        let actual = tx.transparent_bundle().ok_or("raw refund auxiliary")?;
+        let agreed = refund
+            .transparent_bundle()
+            .ok_or("agreed refund auxiliary")?;
+        if actual.vin.len() != 1 || actual.vin[0].script_sig() != agreed.vin[0].script_sig() {
+            return Err("raw refund auxiliary authorization changed".into());
+        }
+    } else if tx.transparent_bundle().is_some() {
+        return Err("claim must be shielded only".into());
+    }
+    let bundle = tx.ironwood_bundle().ok_or("raw exit Ironwood")?;
+    let vk = VerifyingKey::build(OrchardCircuitVersion::PostNu6_3);
+    let mut validator = orchard::bundle::BatchValidator::new(&vk);
+    validator.add_bundle(bundle, message).map_err(err)?;
+    if !validator.validate(rand::rng()) {
+        return Err("raw exit proof or signature invalid".into());
+    }
+    Ok(
+        json!({"format":"latch-public-native-exit-check-v1","mode":mode,"role":a.report["role"],
+        "genesis":compact_wallet::TESTNET_GENESIS,"bundle_digest":a.report["bundle_digest"],
+        "txid":tx.txid().to_string(),"bytes_sha256":hex::encode(Sha256::digest(raw)),
+        "anchor":hex::encode(bundle.anchor().to_bytes()),"lock_time":tx.lock_time(),
+        "expiry_height":u32::from(tx.expiry_height()),"proof_and_signatures_verified":true,
+        "agreed_effects_preserved":true,"synthetic_inputs":a.report["synthetic_inputs"],
+        "spending_keys_read":false,"live_chain_checked":false,"broadcast":false,"send_authorized":false} ),
+    )
+}
+
+pub fn inspect_exit(portable: &Path, transaction: &Path) -> Result<Value> {
+    let a = accepted(portable)?;
+    verify_exit_bytes(&a, &hex::decode(storage::read(transaction, 4_000_000)?)?)
+}
+
 /// Prepare a PRIVATE fully authorized exit. Always revalidate the original
 /// checkpoints/bundle; a caller-supplied snapshot/report is not authority.
 /// Bob supplies an already observed opening in a private file, never argv/RPC.
@@ -226,6 +296,7 @@ pub fn prove(
     }
     let mut raw = Vec::new();
     tx.write(&mut raw)?;
+    verify_exit_bytes(&a, &raw)?;
     let digest = hex::encode(Sha256::digest(&raw));
     storage::create_dir(output)?;
     storage::atomic_json(&output.join("snapshot.json"), &selected)?;

@@ -58,6 +58,11 @@ A separate read-only preflight now verifies those exact consents, rejects
 synthetic inputs before network access, checks hash-pinned finalized/latest ETH
 code/order state and gas reserves, and requires twelve fresh native F
 confirmations for lock/reveal. This is preparation, never a release token.
+It binds the exact saved local decisions and identity/peer pins of the caller
+under their operator lock. The source wallet additionally requires immutable
+owner pins bound to its actual keys and supports permanent pre-release
+cancellation without deleting its reservation. Release/outgoing markers forbid
+cancellation. These guards do not yet implement public source signing or sending.
 It also derives the exact R auxiliary outpoint from the verified bundle and
 checks its current index/origin/confirmations without source-wallet key access.
 Funding preflight additionally binds the reserved note/nullifier/FVK/anchor to
@@ -68,7 +73,12 @@ watch-only recovery now connects compact note/witness acquisition to private
 native reproof of the original C/R authorizations. The native proofs have been
 exercised with synthetic public-profile blocks and a retained real isolated
 refund, not funded public recovery. Live observations are separate from offline
-proving; post-proof reconciliation and durable outgoing intents remain unfinished.
+proving. A private outgoing journal now rechecks actual native bytes against the
+accepted effects/proofs/signatures and persists each version before it can be
+used by a future sender; interrupted raw persistence can resume without replacing
+history. It requires the owner's saved acceptance and both consents. This does
+not establish non-exposure or authorize a send. Live post-proof reconciliation,
+durable send attempts and source-release signing remain unfinished.
 No public sender is enabled. See
 [public preflight and its tested scope](public-testnet.md#agreement-bound-read-only-preflight).
 

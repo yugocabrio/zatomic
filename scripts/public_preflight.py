@@ -14,26 +14,21 @@ import subprocess
 import sys
 import time
 from otc_offer import read
-from public_agreement import validate_policy
+import public_authority
 import public_evm_observation as eth
 import probe_sepolia
 import public_source
-from regtest_wallet import ROOT, native, save
+from regtest_wallet import ROOT, save
 import timestamp_policy
 
 
 def agreement_from_files(bundle, proposal, consents):
-    validate_policy()
-    agreement = read(proposal)['agreement']
-    verified = native('testnet-check-consents', bundle, proposal, consents)
-    if (verified['agreement_digest'] != eth.digest(agreement)
-            or verified['bundle_digest'] != agreement['bundle_digest']
-            or verified['both_owner_signatures_verified'] is not True):
-        raise RuntimeError('conditional agreement changed during validation')
+    files, verified = public_authority.verified_files(bundle, proposal, consents)
+    agreement = files['proposal']['agreement']
     if verified['synthetic_inputs'] is not False or agreement['synthetic_inputs'] is not False:
         raise RuntimeError('synthetic inputs cannot enter public execution observations')
     timestamp_policy.require_agreement_binding(agreement['execution_plan'], agreement)
-    return agreement, verified
+    return agreement, verified, files
 
 
 def native_funding(agreement, observation, now):
@@ -93,16 +88,27 @@ def native_auxiliary(agreement, expected, observation, now):
         'mempool_conflicts_excluded': False}
 
 
-def preflight(bundle, proposal, consents, phase, directory, endpoint, source_wallet=None):
-    agreement, verified = agreement_from_files(bundle, proposal, consents)
-    if phase == 'funding':
-        if source_wallet is None:
-            raise RuntimeError('funding preflight requires the reserved source wallet')
-        with public_source.locked(source_wallet):
-            return observe_verified(bundle, agreement, verified, phase, directory, endpoint, source_wallet)
-    if source_wallet is not None:
-        raise RuntimeError('source wallet is used only before native funding')
-    return observe_verified(bundle, agreement, verified, phase, directory, endpoint, None)
+def preflight(bundle, proposal, consents, phase, directory, endpoint, source_wallet=None, owner=None):
+    agreement, verified, files = agreement_from_files(bundle, proposal, consents)
+    if owner is None:
+        raise RuntimeError('public preflight requires the calling owner local state')
+    # Fixed lock ordering: owner operator.lock, then source sync.lock if funding.
+    with public_authority.owner_locked(owner):
+        caller = public_authority.bind_owner(owner, files, verified, phase)
+        if phase == 'funding':
+            if source_wallet is None:
+                raise RuntimeError('funding preflight requires the reserved source wallet')
+            with public_source.locked(source_wallet):
+                result = observe_verified(bundle, agreement, verified, phase, directory, endpoint, source_wallet)
+        else:
+            if source_wallet is not None:
+                raise RuntimeError('source wallet is used only before native funding')
+            result = observe_verified(bundle, agreement, verified, phase, directory, endpoint, None)
+        if public_authority.bind_owner(owner, files, verified, phase) != caller:
+            raise RuntimeError('caller acceptance changed during observations')
+        result['caller'] = caller
+        save(directory/'report.json', result)
+        return result
 
 
 def observe_verified(bundle, agreement, verified, phase, directory, endpoint, source_wallet):
@@ -149,12 +155,11 @@ def observe_verified(bundle, agreement, verified, phase, directory, endpoint, so
         'phase': phase, 'both_conditional_consents_verified': True,
         'eth_exact_code_state_reserves_checked': True, 'native_funding': funding,
         'native_auxiliary': auxiliary, 'native_source': source_check,
-        'remaining_gates': ['caller-identity-and-public-source-release-guard',
-            'public-sender-intent-and-reconciliation', 'mined-witness-public-recovery',
+        'remaining_gates': ['durable-public-source-release-and-outgoing-intents',
+            'public-sender-reconciliation', 'funded-public-recovery-and-post-proof-checks',
             'public-deployment-and-transfer-authorization'],
         'execution_enabled': False, 'funding_authorized': False, 'reveal_authorized': False,
         'broadcast': False, 'deployment': False, 'provider_trusted': True}
-    save(directory/'report.json', result)
     return result
 
 
@@ -166,10 +171,11 @@ def main():
     p.add_argument('directory', type=Path, help='new private observation directory')
     p.add_argument('--eth-rpc', default=probe_sepolia.ENDPOINT, help='explicit trusted HTTPS Sepolia provider; never auto-fallback')
     p.add_argument('--source-wallet', type=Path, help='reserved source wallet; required only for funding preflight')
+    p.add_argument('--owner', type=Path, required=True, help='caller local owner state: Alice for funding/reveal, Bob for ETH lock')
     a = p.parse_args()
     os.umask(0o077)
     result = preflight(a.bundle, a.proposal, a.consents, a.phase, a.directory.resolve(), a.eth_rpc,
-        a.source_wallet.absolute() if a.source_wallet is not None else None)
+        a.source_wallet.absolute() if a.source_wallet is not None else None, a.owner.absolute())
     print(json.dumps(result, indent=2))
     return 2  # Partial preparation, including when every implemented check passes.
 
