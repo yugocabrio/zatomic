@@ -105,8 +105,14 @@ exposure across restart. A combined native recovery reader holds the owner lock,
 prioritizes native settlement, lets an already authorized Bob claim proceed
 without an ETH read, and checks Alice's local exposure history, terminal/empty
 ETH state, mature timestamp and exact auxiliary before a refund decision.
-These decisions never authorize sending. Durable send attempts, ETH refund/
-withdrawal and receipt/replay integration remain unfinished.
+These decisions never authorize sending. Private ETH refund and withdrawal now
+use the same owner journal, fresh pinned order/credit/reserve checks and a fixed
+owner withdrawal address. A transport primitive persists possible delivery
+before submission; receipt reconciliation checks exact signed effects, canonical
+block membership, agreed runtime and the expected event. Actual isolated ETH
+execution/withdrawal and a post-send SIGKILL pass on synthetic native agreements.
+Public integration of the transport with both-chain first-send/replay policy,
+native delivery and fee replacement remains unfinished.
 The private source signer is an offline native primitive behind the live
 preflight wrapper, not an independent verifier of live chain observations. The integrated
 positive public path has not run with funded public inputs.

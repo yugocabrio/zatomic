@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Owner-local Sepolia lock/claim authorization, never a broadcaster.
+"""Owner-local Sepolia action authorization, never a broadcaster.
 
 An immutable claim decision precedes reading the opening or signing. Missing raw
 bytes/receipts never clear possible exposure. Only the live prepare wrapper can
@@ -31,13 +31,26 @@ PHASE = {'lock': 'eth_lock', 'claim': 'first_reveal'}
 ROLE = {'lock': 'bob', 'claim': 'alice'}
 
 
-def context(owner, consents):
+def action_role(kind, role=None):
+    expected = {'lock': 'bob', 'claim': 'alice', 'refund': 'bob', 'withdraw': role}.get(kind)
+    if expected not in ('alice', 'bob') or (role is not None and role != expected):
+        raise RuntimeError('wrong owner action')
+    return expected
+
+
+def context(owner, consents, action=None):
     files, checked = authority.verified_files(owner/'public-native-recovery.json',
         owner/'public-consent-proposal.json', consents)
     role = read(owner/'identity.json')['role']
-    kind = {'alice': 'claim', 'bob': 'lock'}[role]
-    caller = authority.bind_owner(owner, files, checked, PHASE[kind])
+    kind = action or {'alice': 'claim', 'bob': 'lock'}[role]
+    action_role(kind, role)
+    caller = authority.bind_owner(owner, files, checked, action_phase(kind, role))
     return files, checked, caller, kind
+
+
+def action_phase(kind, role):
+    action_role(kind, role)
+    return PHASE[kind] if kind in PHASE else {'alice': 'native_refund', 'bob': 'native_claim'}[role]
 
 
 def workspace(owner, files, checked, role):
@@ -82,8 +95,12 @@ def require_no_local_claim(owner, files, checked):
     return status
 
 
-def prefix(agreement, kind):
+def prefix(agreement, kind, role=None):
     if kind == 'claim': return opening.CLAIM_SELECTOR + eth.order_id(agreement)[2:]
+    if kind == 'refund': return '0x'+evm_wallet.keccak(b'refund(bytes32)')[:4].hex()+eth.order_id(agreement)[2:]
+    if kind == 'withdraw':
+        address = agreement['owners'][action_role(kind, role)]['address']
+        return '0x'+evm_wallet.keccak(b'withdraw(address)')[:4].hex()+eth.data(address, 20).hex().rjust(64, '0')
     if kind != 'lock': raise RuntimeError('unsupported public ETH action')
     selector = evm_wallet.keccak(b'lock(bytes32,address,uint64,(uint256,uint256),bytes32)')[:4].hex()
     return '0x'+selector+agreement['escrow']['salt'][2:]+agreement['recipient'][2:].rjust(64, '0')+''.join(
@@ -91,9 +108,9 @@ def prefix(agreement, kind):
         int(agreement['point_x'], 16), int(agreement['point_y'], 16), int(eth.digest(agreement), 16)))
 
 
-def transaction_base(agreement, kind, reserve):
+def transaction_base(agreement, kind, reserve, role=None):
     p = fee_policy.policy(agreement)
-    role = ROLE[kind]; address = agreement['owners'][role]['address']
+    role = action_role(kind, role); address = agreement['owners'][role]['address']
     if (agreement['eth_chain_id'] != CHAIN or reserve['address'] != address or reserve['action'] != kind
             or type(reserve['nonce']) is not int or not 0 <= reserve['nonce'] < 2**64
             or type(reserve['gas_price_wei']) is not int or not 0 < reserve['gas_price_wei'] <= p['max_gas_price_wei']
@@ -112,9 +129,9 @@ def commit(directory, binding, agreement, kind, reserve, observation):
     A transcript is useful in diagnostics, but this function never establishes
     chain state or grants send authority. No opening/key is read here.
     """
-    if ROLE[kind] != binding['role']: raise RuntimeError('wrong owner action')
+    role = action_role(kind, binding['role'])
     value = {'format': 'latch-public-eth-decision-v1', 'binding_digest': eth.digest(binding), 'kind': kind,
-        'transaction_base': transaction_base(agreement, kind, reserve), 'calldata_prefix': prefix(agreement, kind),
+        'transaction_base': transaction_base(agreement, kind, reserve, role), 'calldata_prefix': prefix(agreement, kind, role),
         'observation': observation, 'possible_secret_exposure': kind == 'claim', 'send_authorized': False}
     action = directory/kind; outgoing.private_directory(action)
     outgoing.immutable(action/'decision.json', value)
@@ -124,12 +141,13 @@ def commit(directory, binding, agreement, kind, reserve, observation):
 def decision(directory, binding, agreement, kind):
     action = directory/kind; outgoing.private_directory(action)
     value = read(action/'decision.json'); tx = value['transaction_base']; p = fee_policy.policy(agreement)
+    role = action_role(kind, binding['role'])
     if (value['format'] != 'latch-public-eth-decision-v1' or value['kind'] != kind
-            or value['binding_digest'] != eth.digest(binding) or ROLE[kind] != binding['role']
-            or value['calldata_prefix'] != prefix(agreement, kind)
+            or value['binding_digest'] != eth.digest(binding)
+            or value['calldata_prefix'] != prefix(agreement, kind, role)
             or value['possible_secret_exposure'] is not (kind == 'claim') or value['send_authorized'] is not False
             or set(tx) != {'from', 'to', 'chainId', 'type', 'nonce', 'gasPrice', 'gas', 'value'}
-            or tx['from'] != agreement['owners'][ROLE[kind]]['address'] or tx['to'] != agreement['escrow']['contract']
+            or tx['from'] != agreement['owners'][role]['address'] or tx['to'] != agreement['escrow']['contract']
             or tx['chainId'] != hex(CHAIN) or tx['type'] != '0x0'
             or fee_policy.quantity(tx['nonce']) >= 2**64
             or not 0 < fee_policy.quantity(tx['gasPrice']) <= p['max_gas_price_wei']
@@ -171,8 +189,8 @@ def verify_raw(action, value, files, checked, raw):
             or actual['signer'].lower() != tx['from'] or actual['to'].lower() != tx['to']):
         raise RuntimeError('signed ETH bytes differ from committed transaction/signer')
     payload = actual['input'].lower()
-    if kind == 'lock':
-        if payload != value['calldata_prefix']: raise RuntimeError('signed ETH lock effects changed')
+    if kind != 'claim':
+        if payload != value['calldata_prefix']: raise RuntimeError('signed ETH action effects changed')
     else:
         if not re.fullmatch(value['calldata_prefix']+'[0-9a-f]{64}', payload):
             raise RuntimeError('signed ETH claim effects changed')
@@ -215,29 +233,46 @@ def finish(owner, directory, binding, files, checked, kind, inspect=False):
         'possible_secret_exposure': kind == 'claim', 'broadcast': False, 'send_authorized': False}
 
 
-def operate(operation, owner, consents, endpoint=probe_sepolia.ENDPOINT):
+def operate(operation, owner, consents, endpoint=probe_sepolia.ENDPOINT, action=None):
     with authority.owner_locked(owner):
-        files, checked, caller, kind = context(owner, consents)
+        files, checked, caller, kind = context(owner, consents, action)
+        role = read(owner/'identity.json')['role']
         if operation == 'prepare' and checked['synthetic_inputs'] is not False:
             raise RuntimeError('synthetic inputs cannot enter public ETH preparation')
         if operation != 'init' and not (owner/JOURNAL/'binding.json').exists():
             raise RuntimeError('initialize exact ETH execution history first')
-        directory, binding = workspace(owner, files, checked, ROLE[kind])
+        directory, binding = workspace(owner, files, checked, role)
         if operation == 'init': return exposure(owner, files, checked)
         existing = (directory/kind).exists() or (directory/kind).is_symlink()
         if operation == 'prepare' and not existing:
             observed = directory/('observation-'+uuid.uuid4().hex)
-            report = preflight.observe_verified(directory/'bundle.json', files['proposal']['agreement'], checked,
-                PHASE[kind], observed, endpoint, None)
-            publish(observed/'report.json', report)
-            reserves = read(observed/'eth.json')['reserves']
-            if authority.bind_owner(owner, files, checked, PHASE[kind]) != caller or read(consents) != files['consents']:
+            if kind in PHASE:
+                report = preflight.observe_verified(directory/'bundle.json', files['proposal']['agreement'], checked,
+                    PHASE[kind], observed, endpoint, None)
+                publish(observed/'report.json', report)
+                reserve = read(observed/'eth.json')['reserves'][role]
+            else:
+                # Same owner lock and shared sticky claim history as the read-only
+                # reconciler; never turn a later negative read into no exposure.
+                import public_eth_reconcile
+                report = public_eth_reconcile.observe_locked(owner, consents, endpoint, action=kind)
+                require_recovery_action(kind, report)
+                reserve = report['action_checks']['reserve']
+                observed = Path(report['observation_directory'])
+            if authority.bind_owner(owner, files, checked, action_phase(kind, role)) != caller or read(consents) != files['consents']:
                 raise RuntimeError('owner acceptance changed before ETH decision')
-            commit(directory, binding, files['proposal']['agreement'], kind, reserves[ROLE[kind]],
-                {'directory': observed.name, 'report_digest': eth.digest(report), 'live_checks_in_this_invocation': True})
+            commit(directory, binding, files['proposal']['agreement'], kind, reserve,
+                {'directory': str(observed.relative_to(owner)), 'report_digest': eth.digest(report), 'live_checks_in_this_invocation': True})
         elif not existing:
             raise RuntimeError('no committed ETH action; use prepare for fresh checks')
         return finish(owner, directory, binding, files, checked, kind, operation == 'inspect')
+
+
+def require_recovery_action(kind, report):
+    if report['action_checks']['action'] != kind:
+        raise RuntimeError('recovery action observation mismatch')
+    if kind == 'refund' and (report['claim_seen_ever'] or report['verified_native_opening_available']):
+        raise RuntimeError('known claim/opening forbids ETH refund fallback; retain native recovery')
 
 
 def main():
@@ -246,8 +281,9 @@ def main():
     p.add_argument('operation', choices=('init', 'prepare', 'resume', 'inspect'))
     p.add_argument('owner', type=Path); p.add_argument('consents', type=Path)
     p.add_argument('--eth-rpc', default=probe_sepolia.ENDPOINT)
+    p.add_argument('--action', choices=('lock', 'claim', 'refund', 'withdraw'))
     a = p.parse_args()
-    print(json.dumps(operate(a.operation, a.owner, a.consents, a.eth_rpc), indent=2))
+    print(json.dumps(operate(a.operation, a.owner, a.consents, a.eth_rpc, a.action), indent=2))
     return 2
 
 

@@ -16,7 +16,7 @@ CHAIN_ID = 11155111
 GENESIS = '0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9'
 ALLOWED = {'eth_chainId', 'eth_getBlockByNumber', 'eth_maxPriorityFeePerGas',
     'eth_getCode', 'eth_call', 'eth_getBalance', 'eth_getTransactionCount', 'eth_gasPrice',
-    'eth_getTransactionByHash', 'eth_getLogs'}
+    'eth_getTransactionByHash', 'eth_getTransactionReceipt', 'eth_getLogs'}
 CLAIM_TOPIC = '0x169b739a046258cd705133851f0d46ac08a0cbc8b1b35f2c486df6965302296f'
 
 
@@ -35,14 +35,14 @@ def read_method(method, params):
     if method not in ALLOWED:
         raise ValueError('read-only Sepolia RPC method required')
     # An eth_call must never accidentally disclose a claim witness. The only
-    # supported call is the public orders(bytes32) getter; no arbitrary calldata.
+    # supported calls are orders(bytes32) and credits(address), no arbitrary calldata.
     if method == 'eth_call':
         if (len(params) != 2 or not isinstance(params[0], dict)
                 or set(params[0]) != {'to', 'data'}
                 or not re.fullmatch(r'0x[0-9a-f]{40}', params[0]['to'])
-                or not re.fullmatch(r'0x9c3f1e90[0-9a-f]{64}', params[0]['data'])):
-            raise ValueError('only the public order getter is permitted')
-    if method == 'eth_getTransactionByHash':
+                or not re.fullmatch(r'0x(?:9c3f1e90[0-9a-f]{64}|fe5ff4680{24}[0-9a-f]{40})', params[0]['data'])):
+            raise ValueError('only the public order/credit getters are permitted')
+    if method in ('eth_getTransactionByHash', 'eth_getTransactionReceipt'):
         if len(params) != 1 or not isinstance(params[0], str) or not re.fullmatch(r'0x[0-9a-f]{64}', params[0]):
             raise ValueError('one exact public transaction hash required')
     if method == 'eth_getLogs':

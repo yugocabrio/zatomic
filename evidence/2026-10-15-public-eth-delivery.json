@@ -1,0 +1,93 @@
+{
+  "actual_recipient_balance_increase_equals_credit_minus_gas_both_roles": true,
+  "actual_sigkill_after_claim_submission_before_checkpoint": true,
+  "changed_withdrawal_destination_and_missing_event_refused": true,
+  "claim_success_withdrawal": {
+    "block_hash": "0x7fee0a476569adaa5c490d289702ed14b12b90cf53bebd5c3d8c457f171dd7dd",
+    "block_height": 4,
+    "broadcast": false,
+    "expected_event_verified": true,
+    "kind": "withdraw",
+    "possible_secret_exposure": false,
+    "provider_finalized": true,
+    "provider_trusted": true,
+    "receipt_status": 1,
+    "send_authorized": false,
+    "state": "confirmed-by-provider",
+    "txid": "0xd895c4bfe7e517a7ea79597c564b7c3f943932049a457c654798256fcef58b0e",
+    "withdrawal_verified": true
+  },
+  "compiled_runtime_installed_in_owned_evm": true,
+  "exact_receipt_recovery_without_resubmission": true,
+  "known_opening_or_claim_history_refuses_refund": true,
+  "local_reorg_preserves_claim_exposure_and_previous_receipts": true,
+  "mature_refund_and_exact_dedicated_credit_checked": true,
+  "new_native_proofs": 0,
+  "public_deployment": false,
+  "public_funded_preflight": false,
+  "public_synthetic_and_wrong_genesis_guards_pass": true,
+  "public_transfers": false,
+  "refund_withdrawal": {
+    "block_hash": "0xdaa2cb2ea32f12eab32c511702ff81c2d4f5e734483474421e3465bf19635ba2",
+    "block_height": 5,
+    "broadcast": false,
+    "expected_event_verified": true,
+    "kind": "withdraw",
+    "possible_secret_exposure": false,
+    "provider_finalized": true,
+    "provider_trusted": true,
+    "receipt_status": 1,
+    "send_authorized": false,
+    "state": "confirmed-by-provider",
+    "txid": "0xe1b18f0b6bee65747e799b7af8bf4582c22246801c0f35a1050de077de2ed860",
+    "withdrawal_verified": true
+  },
+  "scope": "actual signed isolated ETH execution using synthetic native agreements; modeled finality labels",
+  "withdrawal_replay_with_network_keys_and_peer_roots_denied": true,
+  "date": "2026-10-15",
+  "implementation_base": "7360600",
+  "milestone": "ETH refund/withdrawal authorization and crash-safe delivery primitives",
+  "python": "3.14.6",
+  "foundry": "1.3.1-stable (08d3a4ad4d78b62bcb897350803bf96fc2cf6cc9)",
+  "policy_regression": {
+    "prior_preflight_regression": {
+      "changed_canonical_hash_refused": true,
+      "exact_native_f_confirmation_freshness_upgrade_checks": true,
+      "explicit_transcript_only": true,
+      "hash_pinned_queries": true,
+      "identity_before_address_disclosure": true,
+      "no_send_estimate_or_secret_call_allowed": true,
+      "pending_nonce_both_balance_views_and_fee_cap_checked": true,
+      "stale_clock_refused": true
+    },
+    "prior_recovery_regression": {
+      "checked_claim_recorded_before_later_failure": true,
+      "contradictory_terminal_states_refused": true,
+      "expired_windows_do_not_block_recovery": true,
+      "no_new_action_nonce_or_balance_gate": true,
+      "prior_exposure_never_excluded": true
+    },
+    "recovery_actions": {
+      "expired_window_recovery_action_checks": true,
+      "explicit_model_only": true,
+      "other_credit_pending_nonce_inconsistent_state_stale_clock_refused": true
+    }
+  },
+  "commands": [
+    "python3 scripts/check_public_eth_delivery.py .local/public-eth-delivery-002 .local/public-source-release-001",
+    "PYTHONPATH=scripts python3: check_public_eth_delivery.recovery_models, check_public_observation.model_checks and recovery_model_checks using the retained source-release agreement and compiled PointEscrow runtime; saved .local/public-eth-delivery-002/policy-regression.json",
+    "python3 -m py_compile scripts/public_eth_outgoing.py scripts/public_eth_delivery.py scripts/public_eth_reconcile.py scripts/public_evm_observation.py scripts/probe_sepolia.py scripts/check_public_eth_delivery.py",
+    "git diff --check"
+  ],
+  "limitations": [
+    "Native graph inputs are explicitly synthetic. Actual native consent/proof/adaptor checks and EIP-155 signatures ran; no new native funding, node acceptance or proof generation occurred.",
+    "Owned ephemeral Anvil used chain ID 11155111 but a different genesis. The production identity gate rejected it. Only the lower-level transport/receipt primitives ran against it.",
+    "Exact compiled runtime was installed at the agreed address with anvil_setCode. This is not a public deployment. Provider-finalized fields in isolated results are modeled using real local block hashes, not Sepolia finality.",
+    "Actual signed claim reached the isolated EVM before the exact test child SIGKILLed itself. Its durable intent remained without a result; receipt reconciliation recognized it and the test guard refused a duplicate submission. That guard is an isolated test, not production cross-chain send policy.",
+    "A controlled snapshot/revert removed claim/withdrawal receipts. Current observation became unobserved while prior checked receipts and possible claim exposure remained. No unrestricted reorg or mempool coverage guarantee.",
+    "Public prepare/receipt wrappers reject synthetic provenance before RPC. Public funded positive preparation and receipt integration remain unexecuted. Public sender, native delivery and fee replacement remain unfinished.",
+    "Withdrawal raw replay denied network, original fixture, peer roots and identity/opening keys on this single host. This is not independently administered hosts.",
+    "No public transfer, public contract deployment or external message. Private keys, raw claim calldata, native packets and receipt responses remain ignored under .local.",
+    "Initial run -001 stopped before Anvil startup because the diagnostic used a private-file reader for the public compiled artifact; fixed to read the known local build artifact without changing permissions."
+  ]
+}

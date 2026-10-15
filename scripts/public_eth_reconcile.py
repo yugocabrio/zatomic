@@ -48,11 +48,12 @@ def observe(owner, consents, endpoint=ENDPOINT):
         return observe_locked(owner, consents, endpoint)
 
 
-def observe_locked(owner, consents, endpoint=ENDPOINT):
+def observe_locked(owner, consents, endpoint=ENDPOINT, action=None):
     """Caller holds the owner's operator.lock across both chain readers."""
     files, checked = authority.verified_files(owner/'public-native-recovery.json',
         owner/'public-consent-proposal.json', consents)
     role = read(owner/'identity.json')['role']
+    if action is not None: public_eth_outgoing.action_role(action, role)
     phase = {'alice': 'native_refund', 'bob': 'native_claim'}[role]
     caller = authority.bind_owner(owner, files, checked, phase)
     if checked['synthetic_inputs'] is not False:
@@ -63,6 +64,13 @@ def observe_locked(owner, consents, endpoint=ENDPOINT):
     opening_path = owner/'public-observed-opening'
     if role == 'bob' and (opening_path.exists() or opening_path.is_symlink()):
         observed_opening = public_opening.accepted(public_opening.workspace(owner, files, checked), checked)
+    native_claim_prepared = False
+    native_path = owner/'public-native-outgoing'
+    if action == 'refund' and (native_path.exists() or native_path.is_symlink()):
+        # An already prepared C is evidence of an opening even if its original
+        # observation directory is later unavailable. Never choose both assets.
+        import public_outgoing
+        native_claim_prepared = bool(public_outgoing.verified_journal_locked(owner)['versions'])
     rpc = ReadOnlyRpc(endpoint) # Validate configuration before any directory/query.
     parent = owner/'public-eth-observations'
     prior = history(parent, checked['agreement_digest'])
@@ -73,12 +81,12 @@ def observe_locked(owner, consents, endpoint=ENDPOINT):
         'role': role, 'endpoint': endpoint, 'prior': prior, 'local_claim_history': local_exposure, 'broadcast': False})
     def record(label, state):
         publish(directory/(label+'.json'), {'agreement_digest': checked['agreement_digest'], 'state': state})
-    result = eth.observe_recovery(agreement, rpc, endpoint, record)
+    result = eth.observe_recovery(agreement, rpc, endpoint, record, action, role)
     if authority.bind_owner(owner, files, checked, phase) != caller or read(consents) != files['consents']:
         raise RuntimeError('owner acceptance/consents changed during ETH observation')
     result.update(prior=prior, claim_seen_ever=prior['claim_seen_before'] or result['claim_observed_by_provider'],
         local_claim_history=local_exposure,
-        verified_native_opening_available=observed_opening is not None,
+        verified_native_opening_available=observed_opening is not None or native_claim_prepared,
         scope='ETH order status plus locally reverified opening if already captured; no mempool completeness, withdrawal or send authorization')
     publish(directory/'report.json', result)
     return dict(result, observation_directory=str(directory))

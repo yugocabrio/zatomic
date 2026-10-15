@@ -86,27 +86,71 @@ def balances(agreement, call, latest, phase):
     price = sepolia.quantity(call('eth_gasPrice', []))
     if not 0 < price <= p['max_gas_price_wei'] or price < latest['base_fee_wei']:
         raise RuntimeError('gas price outside signed cap or below pinned base fee')
-    at = {'blockHash': latest['hash'], 'requireCanonical': True}
-    roles = [('alice', 'recipient', 'claim')]
+    roles = [('alice', 'claim')]
     if phase != 'first_reveal':
-        roles.append(('bob', 'maker', 'lock'))
+        roles.append(('bob', 'lock'))
     result = {}
-    for role, field, action in roles:
-        address = agreement[field]
-        confirmed_nonce = sepolia.quantity(call('eth_getTransactionCount', [address, at]))
-        pending_nonce = sepolia.quantity(call('eth_getTransactionCount', [address, 'pending']))
-        confirmed_balance = sepolia.quantity(call('eth_getBalance', [address, at]))
-        pending_balance = sepolia.quantity(call('eth_getBalance', [address, 'pending']))
-        required = fee_policy.required_balance(agreement, action)
-        if confirmed_nonce != pending_nonce:
-            raise RuntimeError('owner nonce changed or pending before first action')
-        if min(confirmed_balance, pending_balance) < required:
-            raise RuntimeError('owner lacks signed reserve in confirmed or pending state')
-        result[role] = {'address': address, 'action': action, 'nonce': confirmed_nonce,
-            'gas_price_wei': price, 'gas_limit': p['gas_limits'][action],
-            'required_balance_wei': required, 'confirmed_balance_wei': confirmed_balance,
-            'pending_balance_wei': pending_balance}
+    for role, action in roles:
+        result[role] = action_reserve(agreement, call, latest, role, action, price)
     return result
+
+
+def action_reserve(agreement, call, latest, role, action, price=None):
+    if role not in ('alice', 'bob') or action not in ('lock', 'claim', 'refund', 'withdraw'):
+        raise RuntimeError('unsupported owner reserve')
+    p = fee_policy.policy(agreement)
+    if price is None: price = sepolia.quantity(call('eth_gasPrice', []))
+    if not 0 < price <= p['max_gas_price_wei'] or price < latest['base_fee_wei']:
+        raise RuntimeError('gas price outside signed cap or below pinned base fee')
+    address = agreement['owners'][role]['address']
+    at = {'blockHash': latest['hash'], 'requireCanonical': True}
+    confirmed_nonce = sepolia.quantity(call('eth_getTransactionCount', [address, at]))
+    pending_nonce = sepolia.quantity(call('eth_getTransactionCount', [address, 'pending']))
+    confirmed_balance = sepolia.quantity(call('eth_getBalance', [address, at]))
+    pending_balance = sepolia.quantity(call('eth_getBalance', [address, 'pending']))
+    required = fee_policy.required_balance(agreement, action)
+    if confirmed_nonce != pending_nonce or confirmed_nonce >= 2**64:
+        raise RuntimeError('owner nonce changed or pending before first action')
+    if min(confirmed_balance, pending_balance) < required:
+        raise RuntimeError('owner lacks signed reserve in confirmed or pending state')
+    return {'address': address, 'action': action, 'nonce': confirmed_nonce,
+        'gas_price_wei': price, 'gas_limit': p['gas_limits'][action],
+        'required_balance_wei': required, 'confirmed_balance_wei': confirmed_balance,
+        'pending_balance_wei': pending_balance}
+
+
+CREDIT_SELECTOR = '0x'+keccak(b'credits(address)')[:4].hex()
+
+
+def recovery_action(agreement, call, blocks, escrow, role, action, now=None):
+    """Exact terminal credit or matured lock, before signing a recovery action.
+
+    Does not exclude historical exposure. The owner wrapper must also consult
+    sticky local history. Credits aggregate by owner: require a dedicated owner
+    and the exact agreed amount rather than silently withdrawing other orders.
+    """
+    now = int(time.time()) if now is None else now
+    if action not in ('refund', 'withdraw') or role not in ('alice', 'bob'):
+        raise RuntimeError('unsupported recovery action')
+    if action == 'refund' and role != 'bob': raise RuntimeError('only maker prepares ETH refund')
+    expected = 1 if action == 'refund' else {'alice': 2, 'bob': 3}[role]
+    if any(s['state'] != expected for s in escrow['states'].values()):
+        raise RuntimeError('recovery requires matching finalized/latest order state')
+    if action == 'refund' and (now < agreement['eth_expiry']+agreement['execution_plan']['policy']['clock_error_seconds']
+            or any(blocks[k]['timestamp'] < agreement['eth_expiry'] for k in ('provider_finalized', 'latest'))):
+        raise RuntimeError('ETH refund timestamp not mature')
+    address = agreement['owners'][role]['address']
+    credits = {}
+    for label in ('provider_finalized', 'latest'):
+        at = {'blockHash': blocks[label]['hash'], 'requireCanonical': True}
+        credits[label] = int.from_bytes(data(call('eth_call', [{'to': agreement['escrow']['contract'],
+            'data': CREDIT_SELECTOR+data(address, 20).hex().rjust(64, '0')}, at]), 32), 'big')
+    expected_credit = agreement['amount_wei'] if action == 'withdraw' else 0
+    if any(n != expected_credit for n in credits.values()):
+        raise RuntimeError('exact dedicated owner credit required; reconcile prior withdrawal or other orders')
+    return {'action': action, 'role': role, 'credit_wei': expected_credit, 'credits': credits,
+        'reserve': action_reserve(agreement, call, blocks['latest'], role, action),
+        'withdrawal_verified': False, 'send_authorized': False}
 
 
 def recheck(blocks, call):
@@ -148,7 +192,7 @@ def observe(agreement, phase, call, endpoint):
         'reveal_authorized': False}
 
 
-def observe_recovery(agreement, call, endpoint, record=None):
+def observe_recovery(agreement, call, endpoint, record=None, action=None, role=None):
     """Read the exact order after expiry too; no first-reveal or sending decision.
 
     Persist each checked state before later RPCs can fail. A claimed order means
@@ -162,13 +206,15 @@ def observe_recovery(agreement, call, endpoint, record=None):
     if not blocks['rpc_genesis_verified'] or blocks['status'] != 'observed':
         raise RuntimeError('ETH provider identity incomplete; no escrow/address request made')
     escrow = inspect_escrow(agreement, call, blocks, 'recovery', record)
+    action_checks = recovery_action(agreement, call, blocks, escrow, role, action) if action is not None else None
     recheck(blocks, call)
     now = int(time.time())
     if (time.monotonic()-start > plan['policy']['observation_max_age_seconds']
             or not -plan['policy']['clock_error_seconds'] <= now-blocks['latest']['timestamp'] <= plan['policy']['eth_tip_max_age_seconds']):
         raise RuntimeError('ETH recovery observation exceeded signed duration/clock bounds')
     return {'format': 'latch-public-escrow-recovery-observation-v1', 'agreement_digest': digest(agreement),
-        'clock': blocks, 'escrow': escrow, 'observed_at': datetime.fromtimestamp(now, timezone.utc).isoformat(),
+        'clock': blocks, 'escrow': escrow, 'action_checks': action_checks,
+        'observed_at': datetime.fromtimestamp(now, timezone.utc).isoformat(),
         'claim_observed_by_provider': any(v['state'] == 2 for v in escrow['states'].values()),
         'opening_obtained': False, 'prior_exposure_excluded': False, 'withdrawal_verified': False,
         'provider_trusted': True, 'owner_addresses_and_order_disclosed_to_provider': True,
