@@ -1,6 +1,8 @@
 # Reproduce the local chain gates
 
 Prerequisites: Rust 1.93, Node.js + npm, Python 3.11+, Foundry 1.3.1, and Docker.
+Use `make doctor` to check prerequisites and `make demo` to build/start the
+local browser demo at http://127.0.0.1:8787. See docs/demo-walkthrough.md.
 The current node bootstrap targets Apple Silicon / Linux ARM64. No public
 endpoint, wallet seed, faucet, paid service or mainnet funds are used.
 
@@ -34,8 +36,8 @@ files unavailable. Both runs require actual node rejection of premature refund,
 two controlled confirmations, and receiver decryption of the expected note.
 
 These are real transactions on **isolated chains**. They do not establish public
-network finality or timing bounds. Setup currently executes both DKG roles in one
-process. ETH accounts are disposable Anvil accounts. The dedicated auxiliary
+network finality or timing bounds. Setup runs each DKG/signing role in a separate subprocess with its own
+private directory; all still run on the same host. ETH accounts are disposable Anvil accounts. The dedicated auxiliary
 coin is an Alice-owned regtest coinbase, returned less its incremental fee; its
 public amount and outpoint are visible on refund. The exchange principal never
 becomes a transparent Zcash output.
@@ -44,8 +46,29 @@ Private `.local` data includes spending keys, note witnesses, PCZTs and recovery
 files. It must not be published. `evidence` contains only selected public results
 and explicit scope. Do not replace a failed run's directory or delete its state;
 inspect the preserved stage files. A narrow `--resume-setup` option recovers a
-run after confirmed ZEC funding and before ETH locking. General restart recovery
-is still being implemented.
+run after confirmed ZEC funding and before ETH locking. For a deliberate durable-checkpoint interruption:
+
+```sh
+python3 scripts/run_regtest_swap.py success .local/my-interrupted --fault-after eth-claimed
+# Exit 75 above is the intentional stop. No further signature from Alice:
+python3 scripts/recover_regtest_swap.py .local/my-interrupted
+# Repeat: reconciles confirmation, sends no second payment.
+python3 scripts/recover_regtest_swap.py .local/my-interrupted
+```
+
+Use `refund` and `--fault-after eth-locked` for no-reveal recovery. Recovery
+restores only this runner's local Anvil checkpoint; it never restores a public
+chain. Do not run another fixture while a swap still has an open timing window.
+A process lock serializes all chain drivers. Before funding, the runner reserves
+its auxiliary coin and refuses one reserved by an unfinished run.
+
+```sh
+python3 scripts/check_participant_recovery.py .local/my-success/swap
+```
+
+This kills/restarts actual signers and checks durable nonce replay rejection,
+recipient/note/point substitution and companion-refund deadline changes. It
+burns fresh test attempts but never broadcasts another transaction.
 
 For the earlier synthetic compatibility gate (not a chain swap):
 

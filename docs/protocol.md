@@ -1,7 +1,7 @@
 # ZEC / ETH point-lock swap — draft v1
 
 Status: isolated-chain success and refund demonstrated; no public-network or
-audited security claim. Fixture setup remains same-host.
+audited security claim. Setup uses separate participant processes on the same host.
 Target: native Ironwood ZEC (v6, NU7 isolated regtest/public testnet) ↔ ETH
 (local Anvil, then Sepolia). No token approvals or wrapped ZEC. One fixed pair,
 two parties, one immutable escrow contract. Mainnet is not supported by the demo.
@@ -45,7 +45,7 @@ does NOT automatically establish security of this modified protocol.
    it. Bob monitors confirmation and rebroadcasts/reanchors as required.
 
 No expiry on C/R is intended within the swap horizon; crossing a network upgrade
-must be refused. Exact builder/consensus behavior still needs native tests.
+must be refused. The isolated chain gates exercise no-expiry v6 claim/refund transactions.
 In v6 the signature does not bind anchors/witness/proof, permitting pre-signing
 before F is mined. This property must be exercised, not merely cited.
 
@@ -102,5 +102,15 @@ before funding, R rejected before its height, C completed from an actual EVM
 witness, and competing R rejected after C. A separate no-reveal run returns
 both assets. See evidence/2026-10-15-chain-{success,refund}.json. The fixture uses
 controlled block heights/times; it does not implement the public timing policy
-above. Independent setup, restart/replay handling and public-network execution
-remain separate acceptance gates.
+above. Independent local signer processes and persisted nonce-attempt replay protection
+are now implemented. A participant validates its own receiver, funding output,
+shared input, payout, fees, auxiliary layout, refund height and signature domain
+before contributing. Private pipes are not authenticated remote transport.
+
+Recovery from durable checkpoints restores the owned Anvil node and reconciles
+actual native confirmations. This is local restart recovery, not a proof of
+public-network finality. It cannot repair an unsafe deadline or guarantee a claim
+after an arbitrarily long outage. Original immutable evidence is preserved.
+Auxiliary coin reservation and current unspent checks precede the local runner's
+funding broadcast and ETH lock; direct users of the low-level Rust primitives
+must provide those checks themselves.

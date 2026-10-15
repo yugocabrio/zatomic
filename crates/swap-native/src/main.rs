@@ -1,4 +1,5 @@
 //! Local native development CLI. Synthetic fixtures MUST NEVER be broadcast.
+mod participants;
 mod regtest_swap;
 mod storage;
 mod wallet;
@@ -427,6 +428,10 @@ fn main() -> Result<()> {
             &a[4],
             a.get(5).map(String::as_str),
         )?,
+        Some("participant") if a.len() == 4 => {
+            participants::serve(Path::new(&a[2]), a[3].parse()?)?;
+            return Ok(());
+        }
         Some("regtest-inspect") if a.len() == 3 => regtest_swap::inspect(Path::new(&a[2]))?,
         Some("prepare-synthetic") if a.len() == 3 => prepare(Path::new(&a[2]))?,
         Some("complete-synthetic") if a.len() == 4 => complete(Path::new(&a[2]), &a[3])?,

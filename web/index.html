@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Latch — Shielded swaps, with a way back.</title>
+  <meta name="description" content="A working ZEC ↔ ETH swap and recovery demo on isolated local chains.">
+  <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+</head>
+<body>
+<header class="nav wrap">
+  <a class="brand" href="/" aria-label="Latch home"><img src="/favicon.svg" alt="" width="32" height="32">latch<span class="brand-tag">ZEC ↔ ETH</span></a>
+  <nav aria-label="Main"><a href="#swap" class="nav-current">Demo</a><a href="#how">How it works</a><a href="#proof">Evidence <span>↗</span></a></nav>
+  <div class="network"><i id="network-dot"></i><span id="network-status">Checking local chains</span></div>
+</header>
+<main class="wrap">
+  <section class="intro">
+    <div><p class="eyebrow"><span class="tiny-line"></span> SHIELDED CROSS-CHAIN SETTLEMENT</p>
+      <h1>One swap.<br><em>No leap of faith.</em></h1>
+      <p class="intro-copy">Keep your ZEC shielded. Prepare the way out before funding. <br class="desktop">Then exchange it for ETH, or recover when the swap stops.</p>
+    </div>
+    <aside class="intro-note"><span class="note-icon">↳</span><p>Built around the part<br>most demos skip.</p><strong>What happens when<br>someone disappears?</strong></aside>
+  </section>
+  <section id="swap" class="demo-grid" aria-label="Interactive swap demo">
+    <div class="swap-card">
+      <div class="card-heading"><h2>Try a swap</h2><span class="tag">LOCAL TEST FUNDS</span></div>
+      <div class="asset-box"><div class="asset-label">Alice sends <span>shielded</span></div><div class="asset-amount"><strong>0.010000</strong><span><b class="coin zec">Z</b> ZEC</span></div><div class="asset-foot">Native Ironwood note <span>Private amount on Zcash</span></div></div>
+      <div class="swap-direction" aria-hidden="true">↓</div>
+      <div class="asset-box eth-box"><div class="asset-label">Bob sends <span>public</span></div><div class="asset-amount"><strong>0.0100</strong><span><b class="coin eth">◇</b> ETH</span></div><div class="asset-foot">Point-lock escrow <span>Fixed recipient</span></div></div>
+      <div class="scenario-heading">CHOOSE WHAT HAPPENS <span>01 — 03</span></div>
+      <fieldset class="scenarios"><legend class="sr-only">Demo scenario</legend>
+        <label class="scenario selected"><input type="radio" name="scenario" value="success" checked><span class="radio-dot"></span><span><strong>Complete the exchange</strong><small>Both sides receive the agreed asset.</small></span><span class="scenario-glyph">↗</span></label>
+        <label class="scenario"><input type="radio" name="scenario" value="claim-stop"><span class="radio-dot"></span><span><strong>Stop after the secret is revealed</strong><small>Restart and finish the ZEC claim.</small></span><span class="scenario-glyph">Ⅱ</span></label>
+        <label class="scenario"><input type="radio" name="scenario" value="refund-stop"><span class="radio-dot"></span><span><strong>Stop before the secret is revealed</strong><small>Restart and return both original assets.</small></span><span class="scenario-glyph">↶</span></label>
+      </fieldset>
+      <button id="start" class="primary" disabled><span>Start local swap</span><span>↗</span></button>
+      <p id="action-error" class="error" role="alert" hidden></p>
+      <p class="fixture-note">Fixed demo amounts, not a market quote. No wallet connection or real funds required.</p>
+    </div>
+    <div class="live-card">
+      <div class="live-heading"><div><p class="eyebrow">LIVE SETTLEMENT</p><h2 id="live-title">Two chains. One agreement.</h2></div><span id="run-status" class="status-pill">Ready when you are</span></div>
+      <div class="chain-route"><div class="chain-node"><span class="chain-symbol">Z</span><div><strong>Zcash</strong><small>Shielded principal</small></div></div><span class="route-line"><i></i><b>⇄</b><i></i></span><div class="chain-node"><span class="chain-symbol ethereum">◇</span><div><strong>Ethereum</strong><small>Public escrow</small></div></div></div>
+      <div class="progress-line"><div id="progress-fill"></div></div>
+      <ol class="timeline" id="timeline">
+        <li data-step="prepare"><span class="step-mark">1</span><div><strong>Agree & prepare exits</strong><small>Two signers check the claim and refund before funding.</small></div><span class="step-state">Waiting</span></li>
+        <li data-step="fund"><span class="step-mark">2</span><div><strong>Confirm the shielded funding</strong><small>A real note, mined and confirmed by Zebra.</small></div><span class="step-state">Waiting</span></li>
+        <li data-step="lock"><span class="step-mark">3</span><div><strong>Lock the ETH</strong><small>The escrow fixes the recipient and expiry.</small></div><span class="step-state">Waiting</span></li>
+        <li data-step="resolve"><span class="step-mark">4</span><div><strong id="resolution-title">Reveal & settle</strong><small id="resolution-copy">Public witness completes the prepared ZEC signature.</small></div><span class="step-state">Waiting</span></li>
+        <li data-step="verify"><span class="step-mark">5</span><div><strong>Verify the outcome</strong><small>Confirm payment, decrypt the note, check recovery.</small></div><span class="step-state">Waiting</span></li>
+      </ol>
+      <div id="recovery-box" class="recovery-box" hidden><div><span class="eyebrow">PROCESS STOPPED</span><h3 id="recovery-title">The way out is already prepared.</h3><p id="recovery-copy"></p></div><button id="recover" class="recovery-button">Restart & recover <span>↶</span></button></div>
+      <div id="outcome" class="outcome" hidden><span class="outcome-icon">✓</span><div><strong id="outcome-title"></strong><p id="outcome-copy"></p></div></div>
+      <div class="live-bottom"><span><i class="small-dot"></i><span id="live-caption">Actual local-chain transactions. No simulated balances.</span></span><span id="elapsed">—</span></div>
+    </div>
+  </section>
+  <section class="receipt" id="receipt" hidden aria-label="Transaction receipt"><div class="receipt-title"><span class="eyebrow">YOUR RUN</span><h2>Trace the result.</h2><p id="receipt-detail"></p></div><div id="transactions" class="transactions"></div></section>
+  <section class="principles" id="how">
+    <article><span class="principle-number">01 / PRIVACY</span><h3>The principal stays shielded.</h3><p>Funding and claim use native shielded ZEC. No Zcash receiver, viewing key or note opening is placed in the EVM claim.</p><span class="footnote">ETH amounts and addresses remain public.</span></article>
+    <article><span class="principle-number">02 / AUTHORIZATION</span><h3>Sign first. Commit second.</h3><p>Two separate signers prepare the agreed claim and refund. Revealing one scalar on Ethereum lets Bob complete the Zcash claim.</p><span class="footnote">Custom RedPallas adaptor extension; unaudited.</span></article>
+    <article><span class="principle-number">03 / RECOVERY</span><h3>A stopped app isn't the end.</h3><p>Durable receipts and signing journals let a new process reconcile the chain and resume, without asking the peer to sign again.</p><span class="footnote">Requires monitoring within the agreed time window.</span></article>
+  </section>
+  <section class="proof-section" id="proof"><div><p class="eyebrow">SHOW THE WORK</p><h2>Claims you can inspect.</h2><p>Recorded checks from real isolated chains and independent native verifiers. The live panel runs fresh transactions.</p></div><div class="evidence-grid">
+    <a href="/api/evidence/2026-10-15-interrupted-claim.json" target="_blank" rel="noopener"><span>01</span><div><strong>Interrupted claim → recovery</strong><small>Peer files unavailable · replay sends nothing</small></div><b>↗</b></a>
+    <a href="/api/evidence/2026-10-15-interrupted-refund.json" target="_blank" rel="noopener"><span>02</span><div><strong>No reveal → both assets refunded</strong><small>Actual timeout and native refund</small></div><b>↗</b></a>
+    <a href="/api/evidence/2026-10-15-participant-recovery.json" target="_blank" rel="noopener"><span>03</span><div><strong>Signer replay & tampering checks</strong><small>Nonce reuse and changed destinations rejected</small></div><b>↗</b></a>
+  </div></section>
+  <section class="scope"><span>THE BOUNDARY</span><p>This is an experimental local prototype on Zebra NU7 regtest and Anvil. Both signer processes run on one machine. Refunds use a separate transparent auxiliary input; the exchange principal remains shielded. Reorgs, censorship or outages beyond the timing bounds can break safety. Public-testnet operation and independent security review are still ahead.</p></section>
+</main>
+<footer class="wrap"><a class="brand" href="/">latch<span class="brand-tag">SHIELDED BY DESIGN. TESTED AT THE EDGES.</span></a><span>ZECATHON · CROSS-CHAIN</span></footer>
+</body></html>

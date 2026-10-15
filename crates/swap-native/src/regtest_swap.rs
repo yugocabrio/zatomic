@@ -1,35 +1,24 @@
 //! Real isolated-chain transaction graph. Local fixture setup, not a network protocol.
 use crate::{
-    Context, Identifier, Nonce, PreSignature, Result, SignError, SigningSession, decode, dkg, err,
-    keys, random_key, storage,
+    PreSignature, Result, SignError, decode, err, random_key, storage,
     wallet::{self, Regtest},
 };
-use ff::PrimeField;
 use ff_old::{Field as OldField, PrimeField as OldPrimeField};
-use group_old::{Curve, GroupEncoding};
+use group_old::GroupEncoding;
 use incrementalmerkletree::Hashable;
 use orchard::{
     circuit::{OrchardCircuitVersion, ProvingKey},
     keys::{FullViewingKey, Scope, SpendAuthorizingKey},
     tree::{MerkleHashOrchard, MerklePath},
 };
-use pasta_old::arithmetic::CurveAffine;
 use pczt::{
     Pczt,
     roles::{
-        creator::Creator,
-        io_finalizer::IoFinalizer,
-        low_level_signer::Signer as LowSigner,
-        prover::Prover,
-        redactor::Redactor,
-        signer::Signer,
-        spend_finalizer::SpendFinalizer,
-        tx_extractor::TransactionExtractor,
-        updater::Updater,
-        verifier::{OrchardError, Verifier},
+        creator::Creator, io_finalizer::IoFinalizer, low_level_signer::Signer as LowSigner,
+        prover::Prover, redactor::Redactor, signer::Signer, spend_finalizer::SpendFinalizer,
+        tx_extractor::TransactionExtractor, updater::Updater,
     },
 };
-use rand_core::OsRng;
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, convert::Infallible, path::Path};
 use zcash_primitives::transaction::{
@@ -45,7 +34,6 @@ use zcash_transparent::{address::TransparentAddress, bundle::OutPoint};
 
 const PRINCIPAL: u64 = 1_010_000;
 const PAYOUT: u64 = 1_000_000;
-type KeyMap = BTreeMap<Identifier, keys::KeyPackage>;
 
 pub fn inspect(path: &Path) -> Result<Value> {
     let raw = hex::decode(storage::read(path, 4_000_000)?)?;
@@ -116,40 +104,10 @@ fn parse_pre(v: &Value) -> Result<PreSignature> {
 }
 fn presign(
     pczt: Pczt,
-    keys: &KeyMap,
-    public: &keys::PublicKeyPackage,
-    fvk: &FullViewingKey,
+    pair: &mut crate::participants::Pair,
+    policy: Value,
     target: [u8; 32],
 ) -> Result<(Pczt, PreSignature, usize)> {
-    let indices = pczt
-        .ironwood()
-        .actions()
-        .iter()
-        .enumerate()
-        .filter(|(_, a)| a.spend().spend_auth_sig().is_none())
-        .map(|(i, _)| i)
-        .collect::<Vec<_>>();
-    if indices.len() != 1 {
-        return Err("one shared input required".into());
-    }
-    let index = indices[0];
-    let mut alpha = None;
-    let pczt = Verifier::new(pczt)
-        .with_ironwood::<Infallible, _>(
-            |bundle| -> std::result::Result<(), OrchardError<Infallible>> {
-                bundle.verify_cross_address_restriction()?;
-                for a in bundle.actions() {
-                    a.verify_cv_net()?;
-                    a.spend().verify_nullifier(Some(fvk))?;
-                    a.spend().verify_rk(Some(fvk))?;
-                    a.output().verify_note_commitment(a.spend())?;
-                }
-                alpha = bundle.actions()[index].spend().alpha().map(|a| a.to_repr());
-                Ok(())
-            },
-        )
-        .map_err(err)?
-        .finish();
     let before = message(&pczt)?;
     let pczt = Redactor::new(pczt)
         .redact_ironwood_with(|mut b| {
@@ -160,25 +118,11 @@ fn presign(
     if before != message(&pczt)? {
         return Err("deferred signature changed".into());
     }
-    let context = Context {
-        session: before,
-        message: before,
-        randomizer: alpha.ok_or("alpha")?,
-        adaptor_point: target,
-    };
-    let mut nonces = BTreeMap::new();
-    let mut commitments = BTreeMap::new();
-    for (id, key) in keys {
-        let (n, c) = Nonce::generate(key, &mut OsRng);
-        nonces.insert(*id, n);
-        commitments.insert(*id, c);
+    let (pre, index) = pair.sign(&pczt, policy, target)?;
+    if pre.message != before {
+        return Err("participant signed another transaction".into());
     }
-    let session = SigningSession::new(context, public.clone(), commitments)?;
-    let shares = nonces
-        .into_iter()
-        .map(|(id, n)| session.sign(&keys[&id], n).map(|s| (id, s)))
-        .collect::<std::result::Result<BTreeMap<_, _>, _>>()?;
-    Ok((pczt, session.aggregate(&shares)?, index))
+    Ok((pczt, pre, index))
 }
 fn apply(pczt: Pczt, index: usize, sig: [u8; 64], digest: [u8; 32]) -> Result<Pczt> {
     if message(&pczt)? != digest {
@@ -249,29 +193,19 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
         return Err("aux fee reserve".into());
     }
     storage::create_dir(dir)?;
-    storage::create_dir(&dir.join("alice"))?;
-    storage::create_dir(&dir.join("bob"))?;
+    let mut pair = crate::participants::Pair::start(dir)?;
     let mut rng = rand::rng();
-    let (keys, public) = dkg()?;
+    let public = pair.public.clone();
     let mut fvkbytes = FullViewingKey::from(&random_key(&mut rng)).to_bytes();
     fvkbytes[..32].copy_from_slice(&public.verifying_key().serialize().map_err(err)?);
     let joint = FullViewingKey::from_bytes(&fvkbytes).ok_or("joint FVK")?;
     storage::write(&dir.join("joint-fvk.bin"), &fvkbytes)?;
-    for (i, party) in [(1u16, "alice"), (2u16, "bob")] {
-        storage::write(
-            &dir.join(party).join("frost-share.bin"),
-            &keys[&Identifier::try_from(i).map_err(err)?]
-                .serialize()
-                .map_err(err)?,
-        )?;
-    }
     storage::write(
         &dir.join("frost-public.bin"),
         &public.serialize().map_err(err)?,
     )?;
-    let receiver_key = random_key(&mut rng);
-    let receiver = FullViewingKey::from(&receiver_key);
-    storage::write(&dir.join("bob/spending-key.bin"), receiver_key.to_bytes())?;
+    let receiver = pair.bob_fvk.clone();
+    let refund_receiver = pair.alice_fvk.clone();
     let mut funding = builder(height + 1, anchor);
     funding
         .add_ironwood_spend::<Infallible>(alice_fvk.clone(), input, path)
@@ -351,17 +285,18 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
     let claim = IoFinalizer::new(Creator::build_from_parts(claim.pczt_parts).ok_or("claim parts")?)
         .finalize_io(&mut rng)
         .map_err(err)?;
-    let t = loop {
-        let t = pasta_old::pallas::Scalar::random(OsRng);
-        if t != pasta_old::pallas::Scalar::ZERO {
-            break t;
-        }
-    };
-    let target = shielded_swap_crypto::generator() * t;
-    let (claim, pre, claim_index) = presign(claim, &keys, &public, &joint, target.to_bytes())?;
-    // Build R with an Alice-owned non-final transparent input. Its whole value
-    // is returned less the incremental action fee; principal stays shielded.
     let refund_height = height + 20;
+    let mut funding_raw = Vec::new();
+    funding.write(&mut funding_raw)?;
+    let policy = json!({"mode":"claim", "joint_fvk":hex::encode(joint.to_bytes()),
+        "alice_fvk":hex::encode(refund_receiver.to_bytes()),"bob_fvk":hex::encode(receiver.to_bytes()),
+        "pending":pending_json,"refund_height":refund_height,"funding":hex::encode(funding_raw),
+        "aux":{"txid_le":hex::encode(auxtx.txid().as_ref()),"index":auxindex,"value":u64::from(auxcoin.value()),"script":hex::encode(&auxcoin.script_pubkey().0.0)}});
+    let target = pair.point;
+    storage::write_json(&dir.join("claim-policy.json"), &policy)?;
+    let (claim, pre, claim_index) = presign(claim, &mut pair, policy.clone(), target)?;
+    // The native principal stays shielded; only the dedicated auxiliary coin
+    // appears in the refund's transparent bundle.
     let mut refund = builder(height + 1, dummy_anchor);
     refund
         .add_ironwood_spend::<Infallible>(joint.clone(), pending, dummy_path)
@@ -369,7 +304,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
     refund
         .add_ironwood_output::<Infallible>(
             None,
-            alice_fvk.address_at(0u32, Scope::External),
+            refund_receiver.address_at(0u32, Scope::External),
             Zatoshis::from_u64(PAYOUT)?,
             MemoBytes::empty(),
         )
@@ -419,11 +354,12 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
         .finalize_io(&mut rng)
         .map_err(err)?;
     let one = pasta_old::pallas::Scalar::ONE;
+    let mut refund_policy = policy;
+    refund_policy["mode"] = json!("refund");
     let (refund, refund_pre, refund_index) = presign(
         refund,
-        &keys,
-        &public,
-        &joint,
+        &mut pair,
+        refund_policy,
         shielded_swap_crypto::generator().to_bytes(),
     )?;
     let refund = apply(
@@ -456,19 +392,10 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
         &dir.join("alice/refund.pczt"),
         &refund.serialize().map_err(err)?,
     )?;
-    let affine = target.to_affine();
-    let coords = affine.coordinates().unwrap();
-    let big = |mut b: [u8; 32]| {
-        b.reverse();
-        format!("0x{}", hex::encode(b))
-    };
-    storage::write_json(
-        &dir.join("alice/witness.json"),
-        &json!({"witness_le":hex::encode(t.to_repr()),"witness_uint256":big(t.to_repr())}),
-    )?;
-    let terms = json!({"scope":"isolated regtest fixture; local two-party setup", "funding_txid":funding.txid().to_string(),
+    let terms = json!({"scope":"isolated regtest; independent local signer processes", "independent_signer_processes":true, "funding_txid":funding.txid().to_string(),
+        "aux_outpoint":{"txid":auxtx.txid().to_string(),"index":auxindex,"value_zatoshi":u64::from(auxcoin.value())},
         "principal_zatoshi":PRINCIPAL,"payout_zatoshi":PAYOUT,"refund_height":refund_height,
-        "point_x":big(coords.x().to_repr()),"point_y":big(coords.y().to_repr()),"claim_index":claim_index,
+        "point_x":pair.point_x,"point_y":pair.point_y,"claim_index":claim_index,
         "refund_index":refund_index,"pending_cmx":pending_json["cmx"],"source_tip":snapshot["tip"],
         "preauthorized_before_funding":true,"refund_transparent_auxiliary":true,"funding_and_claim_fully_shielded":true});
     storage::write_json(&dir.join("terms.json"), &terms)?;

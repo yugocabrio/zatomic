@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Actual isolated Zebra + Anvil swap/recovery gate, with explicit local scope.
 
-Setup is a same-host fixture. Settlement/recovery use fresh native processes and
-their persisted artifacts. This is not yet the independent-client product.
+Setup uses independent participant processes on the same host. Settlement and
+recovery use fresh processes and persisted artifacts; no remote-client claim.
 """
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -20,6 +21,28 @@ from regtest_wallet import fund, capture, native, save
 def event(directory, stage, value):
     save(directory / f'{stage}.json', value)
     print(json.dumps({'stage': stage, **value}), flush=True)
+
+
+def send_evm(directory, transaction):
+    receipt = evm.send(transaction)
+    receipts = directory / 'evm-receipts'
+    receipts.mkdir(mode=0o700, exist_ok=True)
+    save(receipts / f'{receipt["transactionHash"]}.json', receipt)
+    # The receipt (including a revealed witness) is durable before reporting
+    # progress. Keep a local-chain checkpoint for interruption/replay tests.
+    checkpoint = {'chain_id': evm.CHAIN, 'state': evm.rpc('anvil_dumpState')}
+    temporary = directory / 'evm-checkpoint.tmp'
+    with temporary.open('w') as handle:
+        json.dump(checkpoint, handle)
+        handle.flush()
+        os.fsync(handle.fileno())
+    temporary.replace(directory / 'evm-checkpoint.json')
+    fd = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    return receipt
 
 
 def broadcast(path, expected):
@@ -43,7 +66,32 @@ def reject_native(path):
     raise RuntimeError('expected native rejection, but node accepted transaction')
 
 
-def run(directory, mode, existing_bank=None, resume_setup=False):
+def require_aux_unspent(terms):
+    aux = terms.get('aux_outpoint')
+    if aux is None:
+        raise RuntimeError('prepared graph lacks an authenticated auxiliary outpoint')
+    coin = zrpc('gettxout', [aux['txid'], aux['index'], True])
+    if coin is None:
+        raise RuntimeError('refund auxiliary coin is already spent; refuse to fund or reveal')
+
+
+def reserve_aux(bank, directory, terms):
+    reservation = bank / 'aux-reservation.json'
+    if reservation.exists():
+        previous = json.loads(reservation.read_text())
+        if previous['run'] != str(directory):
+            old = Path(previous['run'])
+            if not (old / '08-complete.json').exists():
+                raise RuntimeError('auxiliary coin reserved by an unfinished swap; recover it first')
+            reservation.unlink()  # Only this runner's reservation, after completion.
+    save(reservation, {'run': str(directory), 'outpoint': terms['aux_outpoint']})
+
+
+class InjectedStop(RuntimeError):
+    pass
+
+
+def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=None):
     os.umask(0o077)
     if resume_setup:
         if not directory.is_dir() or not (directory / '02-funded.json').exists() or (directory / '04-eth-locked.json').exists():
@@ -59,6 +107,8 @@ def run(directory, mode, existing_bank=None, resume_setup=False):
         terms = native('regtest-prepare', bank, funded['file'], swap)
     event(directory, '01-prepared', {'both_exits_before_funding': True,
         'funding_txid': terms['funding_txid'], 'refund_height': terms['refund_height']})
+    require_aux_unspent(terms)
+    reserve_aux(bank, directory, terms)
     if resume_setup:
         tx = zrpc('getrawtransaction', [terms['funding_txid'], 1])
         if not tx['in_active_chain'] or tx['confirmations'] < 2:
@@ -75,12 +125,18 @@ def run(directory, mode, existing_bank=None, resume_setup=False):
     # Require the failure to be about finality, not a bad proof or signature.
     if not any(s in early_error.lower() for s in ['nonfinal', 'non-final', 'locktime', 'lock time', 'locked until']):
         raise RuntimeError(f'premature refund rejected for unexpected reason: {early_error}')
-    event(directory, '03-early-refund-rejected', {'node_error': early_error})
+    # A node may wrap a cached rejection differently on replay. Revalidate its
+    # meaning above, but preserve the original durable evidence verbatim.
+    if not (directory / '03-early-refund-rejected.json').exists():
+        event(directory, '03-early-refund-rejected', {'node_error': early_error})
     with socket.socket() as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         probe.bind(('127.0.0.1', evm.PORT))
     with (directory / 'anvil.log').open('x') as log:
         child = subprocess.Popen(['anvil', '--host', '127.0.0.1', '--port', str(evm.PORT),
-                                  '--chain-id', str(evm.CHAIN), '--silent'],
+                                  '--chain-id', str(evm.CHAIN), '--silent',
+                                  '--dump-state', str(directory / 'anvil-exit-state.json'),
+                                  '--state-interval', '1', '--preserve-historical-states'],
                                  stdout=log, stderr=log, cwd=ROOT)
         try:
             for _ in range(100):
@@ -96,7 +152,7 @@ def run(directory, mode, existing_bank=None, resume_setup=False):
                 raise RuntimeError('Anvil startup timeout')
             artifact = json.loads((ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json').read_text())
             bob, alice, relay = evm.rpc('eth_accounts')[:3]
-            deployed = evm.send({'from': bob, 'data': artifact['bytecode']['object'], 'gas': hex(5_000_000)})
+            deployed = send_evm(directory, {'from': bob, 'data': artifact['bytecode']['object'], 'gas': hex(5_000_000)})
             contract = deployed['contractAddress']
             actual_code = evm.rpc('eth_getCode', [contract, 'latest']).removeprefix('0x')
             if actual_code != artifact['deployedBytecode']['object'].removeprefix('0x'):
@@ -108,25 +164,40 @@ def run(directory, mode, existing_bank=None, resume_setup=False):
                 'scope': 'controlled local height/time progression only; not public-network timing policy'}
             terms_hash = '0x' + hashlib.sha256(json.dumps(agreement, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
             save(directory / 'agreement.json', agreement)
-            locked = evm.send({'from': bob, 'to': contract, 'value': hex(10**16), 'gas': hex(700_000),
+            # This fixture controls mining. Even here, refuse to lock ETH if
+            # another process advanced the native refund window during proving.
+            if status()['blocks'] + 12 >= terms['refund_height']:
+                raise RuntimeError('native refund window too short for this controlled demo')
+            require_aux_unspent(terms)
+            locked = send_evm(directory, {'from': bob, 'to': contract, 'value': hex(10**16), 'gas': hex(700_000),
                 'data': evm.calldata('lock(bytes32,address,uint64,(uint256,uint256),bytes32)',
                     '0x' + os.urandom(32).hex(), alice, expiry,
                     f'({terms["point_x"]},{terms["point_y"]})', terms_hash)})
             order = locked['logs'][0]['topics'][1]
             event(directory, '04-eth-locked', {'txid': locked['transactionHash'], 'order': order})
+            if fault_after == 'eth-locked':
+                raise InjectedStop('eth-locked')
             if mode == 'success':
                 secret = json.loads((swap / 'alice/witness.json').read_text())
-                claimed = evm.send({'from': relay, 'to': contract, 'gas': hex(1_000_000),
+                claimed = send_evm(directory, {'from': relay, 'to': contract, 'gas': hex(1_000_000),
                     'data': evm.calldata('claim(bytes32,uint256)', order, secret['witness_uint256'])})
                 if claimed['logs'][0]['topics'][1] != order:
                     raise RuntimeError('wrong claim event')
                 witness = int(claimed['logs'][0]['data'], 16).to_bytes(32, 'little').hex()
                 event(directory, '05-eth-claimed', {'txid': claimed['transactionHash'],
                     'gas': int(claimed['gasUsed'], 16), 'witness_source': 'actual EVM event'})
+                if fault_after == 'eth-claimed':
+                    raise InjectedStop('eth-claimed')
                 # Simulate Alice's local application becoming unavailable. Bob's
                 # completion must not read her directory, signing share or secret.
                 (swap / 'alice').rename(swap / 'alice-offline')
                 try:
+                    bad = subprocess.run([str(ROOT / 'target/release/shielded-swap-native'),
+                        'regtest-finish', str(swap), observed['file'], 'claim', '00' * 32],
+                        capture_output=True, text=True,
+                        env=dict(os.environ, RAYON_NUM_THREADS='2'))
+                    if bad.returncode == 0 or 'witness' not in bad.stderr.lower():
+                        raise RuntimeError('wrong native witness was not rejected as expected')
                     completed = native('regtest-finish', swap, observed['file'], 'claim', witness)
                 finally:
                     (swap / 'alice-offline').rename(swap / 'alice')
@@ -146,13 +217,14 @@ def run(directory, mode, existing_bank=None, resume_setup=False):
                 event(directory, '07-conflicting-refund-rejected', {'node_error': conflict})
                 credited = alice
                 native_result = {'claim': received, 'bob_received_zatoshi': 1_000_000,
-                    'alice_files_unavailable_during_claim': True, 'conflicting_refund_rejected': True}
+                    'alice_files_unavailable_during_claim': True, 'conflicting_refund_rejected': True,
+                    'wrong_witness_rejected_before_proving': True}
             else:
                 # No witness was revealed. Resume from persisted refund data
                 # with Bob's signer files unavailable; Bob recovers ETH by time.
                 evm.rpc('evm_setNextBlockTimestamp', [expiry])
                 evm.rpc('evm_mine')
-                refunded = evm.send({'from': relay, 'to': contract, 'gas': hex(200_000),
+                refunded = send_evm(directory, {'from': relay, 'to': contract, 'gas': hex(200_000),
                                     'data': evm.calldata('refund(bytes32)', order)})
                 event(directory, '05-eth-refunded', {'txid': refunded['transactionHash']})
                 blocks = max(0, terms['refund_height'] + 1 - status()['blocks'])
@@ -164,7 +236,7 @@ def run(directory, mode, existing_bank=None, resume_setup=False):
                 finally:
                     (swap / 'bob-offline').rename(swap / 'bob')
                 event(directory, '06-zec-refunded', recovered)
-                scan = capture(bank)
+                scan = capture(swap / 'alice')
                 notes = json.loads(Path(scan['file']).read_text())['notes']
                 if not any(n['txid'] == refund['txid'] and n['value'] == 1_000_000 for n in notes):
                     raise RuntimeError('Alice did not decrypt her refund')
@@ -176,7 +248,7 @@ def run(directory, mode, existing_bank=None, resume_setup=False):
             if credit != 10**16:
                 raise RuntimeError('wrong ETH credit')
             before = int(evm.rpc('eth_getBalance', [credited, 'latest']), 16)
-            receipt = evm.send({'from': credited, 'to': contract, 'gas': hex(200_000),
+            receipt = send_evm(directory, {'from': credited, 'to': contract, 'gas': hex(200_000),
                                'data': evm.calldata('withdraw(address)', credited)})
             after = int(evm.rpc('eth_getBalance', [credited, 'latest']), 16)
             fee = int(receipt['gasUsed'], 16) * int(receipt['effectiveGasPrice'], 16)
@@ -184,6 +256,7 @@ def run(directory, mode, existing_bank=None, resume_setup=False):
                 raise RuntimeError('wrong ETH withdrawal')
             result = {'scope': 'actual isolated Zebra NU7 + Anvil, controlled local confirmations',
                 'mode': mode, 'public_testnet': False, 'same_host_setup': True,
+                'independent_signer_processes': terms.get('independent_signer_processes', False),
                 'native': native_result, 'eth_wei_received': 10**16,
                 'early_native_refund_rejected': True, 'exits_prepared_before_funding': True,
                 'zec_principal_shielded': True, 'refund_has_transparent_auxiliary': True,
@@ -205,6 +278,16 @@ if __name__ == '__main__':
     parser.add_argument('directory', type=Path)
     parser.add_argument('--existing-bank', type=Path)
     parser.add_argument('--resume-setup', action='store_true')
+    parser.add_argument('--fault-after', choices=['eth-locked', 'eth-claimed'])
     args = parser.parse_args()
-    run(args.directory.resolve(), args.mode,
-        args.existing_bank.resolve() if args.existing_bank else None, args.resume_setup)
+    os.umask(0o077)
+    (ROOT / '.local').mkdir(mode=0o700, exist_ok=True)
+    with (ROOT / '.local/chain-driver.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            run(args.directory.resolve(), args.mode,
+                args.existing_bank.resolve() if args.existing_bank else None, args.resume_setup, args.fault_after)
+        except InjectedStop as exc:
+            print(json.dumps({'intentional_checkpoint_stop': str(exc),
+                              'recovery_command': 'python3 scripts/recover_regtest_swap.py DIRECTORY'}), flush=True)
+            raise SystemExit(75)
