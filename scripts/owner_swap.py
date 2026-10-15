@@ -22,6 +22,7 @@ import owned_process
 import peer_workspace
 import signal
 import run_native_evm_gate as evm
+import fee_policy
 from evm_journal import checkpoint, order_state, verify_contract, InjectedStop
 from evm_participant import agreement_digest
 from regtest_node import ROOT, rpc as zrpc, status
@@ -138,7 +139,8 @@ def setup_eth(directory, addresses, terms, mode):
     expiry = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16) + 3600
     agreement = {'native': terms, 'eth_chain_id': evm.CHAIN, 'contract': deployed['contractAddress'],
         'maker': addresses['bob'], 'recipient': addresses['alice'], 'amount_wei': 10**16,
-        'eth_expiry': expiry, 'scope': 'owner-held keys on controlled local chains; not public-network timing policy'}
+        'eth_expiry': expiry, 'fee_policy': fee_policy.default(),
+        'scope': 'owner-held keys on controlled local chains; not public-network timing policy'}
     for role in ('alice', 'bob'):
         accepted = client('accept', directory / 'owners' / role, agreement)
         if accepted['agreement_digest'] != agreement_digest(agreement):

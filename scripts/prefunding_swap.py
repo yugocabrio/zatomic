@@ -16,6 +16,7 @@ import time
 import owned_process
 import run_native_evm_gate as evm
 import evm_wallet
+import fee_policy
 import owner_swap as owners
 from evm_participant import agreement_digest
 from evm_journal import checkpoint, send, InjectedStop
@@ -130,7 +131,7 @@ def offer(directory, pins, terms, fault=None):
     now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
     agreement = {'native': terms, 'eth_chain_id': evm.CHAIN, 'contract': deployed['contractAddress'],
         'maker': pins['bob']['address'], 'recipient': pins['alice']['address'], 'amount_wei': 10**16,
-        'eth_expiry': now + 3600, 'consent_version': 1, 'eth_salt': '0x' + os.urandom(32).hex(),
+        'eth_expiry': now + 3600, 'fee_policy': fee_policy.default(), 'consent_version': 1, 'eth_salt': '0x' + os.urandom(32).hex(),
         'eth_code_hash': evm_wallet.keccak(bytes.fromhex(evm.rpc('eth_getCode', [deployed['contractAddress'],'latest'])[2:])).hex(),
         'scope': 'signed prefunding consent on isolated chains; locally provisioned owner pins'}
     save(directory / 'agreement.json', agreement)

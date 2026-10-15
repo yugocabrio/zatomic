@@ -17,6 +17,7 @@ import sys
 import time
 import owned_process
 import run_native_evm_gate as evm
+import fee_policy
 from regtest_node import ROOT, rpc as zrpc, status
 from regtest_wallet import native, capture, save
 from run_regtest_swap import reject_native, event
@@ -98,6 +99,7 @@ def run(directory, mode, bank, relay_pending=False):
                 expiry=int(evm.rpc('eth_getBlockByNumber',['latest',False])['timestamp'],16)+3600
                 agreement={'native':terms,'eth_chain_id':evm.CHAIN,'contract':deployed['contractAddress'],
                     'maker':addresses['bob'],'recipient':addresses['alice'],'amount_wei':10**16,'eth_expiry':expiry,
+                    'fee_policy':fee_policy.default(),
                     'scope':'owner-held keys on controlled local chains; not public-network timing policy'}
                 rejected=[]
                 for name, role, mutate in [

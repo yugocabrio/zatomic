@@ -17,6 +17,7 @@ import owned_process
 import owner_swap as flow
 import run_native_evm_gate as evm
 import evm_wallet
+import fee_policy
 from evm_journal import checkpoint, send
 from latch_operator import manifest_digest
 from regtest_node import ROOT, rpc, status
@@ -114,7 +115,7 @@ def setup(actors, harness, quote=None):
     now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
     agreement = {'native': terms, 'eth_chain_id': evm.CHAIN, 'contract': contract,
         'maker': pins['bob']['address'], 'recipient': pins['alice']['address'], 'amount_wei': trade['offer']['payload']['eth_amount_wei'] if trade else 10**16,
-        'eth_expiry': now + 3600, 'consent_version': 1, 'eth_salt': '0x' + os.urandom(32).hex(),
+        'eth_expiry': now + 3600, 'fee_policy': fee_policy.default(), 'consent_version': 1, 'eth_salt': '0x' + os.urandom(32).hex(),
         'eth_code_hash': evm_wallet.keccak(bytes.fromhex(evm.rpc('eth_getCode', [contract, 'latest'])[2:])).hex(),
         'scope': 'same-host OS-isolated operators; actual owned chain fixture'}
     changed = copy.deepcopy(agreement)

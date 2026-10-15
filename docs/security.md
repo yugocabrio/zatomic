@@ -148,4 +148,35 @@ Neither quote signature alone grants spend authority. Decimal strings become
 integers without rounding; the local profile has explicit value/fee limits.
 Quote signatures are not market-price guarantees or proof of funding. Each
 operator directory handles one trade; quotes have no separate wall-clock expiry.
+
+## Gas-starved first witness disclosure — fixed
+
+The subsequent public-readiness review found that the owner checked a gas-price
+cap but not its available ETH balance before signing/sending the first claim.
+An insufficient-funds rejection can still disclose the claim witness to the RPC
+recipient. A failed Ethereum payment is therefore not a safe secret preflight.
+The old path was limited to owned test nodes; this would be a funds-loss risk if
+carried into a public or counterparty-observed RPC environment.
+
+`fee_policy.py` now checks pending balance, latest/pending nonce equality, current
+base fee and the accepted gas-price cap before the first claim witness is read.
+Its RPC methods contain only public account/fee/block queries; neither
+`eth_estimateGas` nor `eth_call` receives secret claim calldata. Both owners'
+reserves are checked again before native source release. New owner agreements
+explicitly include the gas policy in their signed digest; historical agreements
+keep their original digest and the original fixed limits.
+
+Actual isolated operator run rejected Alice and Bob gas starvation before F
+authorization, then rejected a zero-balance Alice after Bob had locked ETH,
+without creating a claim intent or settling the order. Restoring her synthetic
+balance allowed both assets to settle; process restart/repeat sent nothing.
+Evidence: `evidence/2026-10-15-fee-reserves.json`. This demonstrates refusal and
+successful recovery, not a live theft experiment or public-network execution.
+
+The observations do not reserve balances or nonces against another wallet using
+the same account. Dedicated accounts, trustworthy fresh RPC, bounded inclusion
+and adequate gas remain assumptions. Current legacy-price intents cannot be
+arbitrarily repriced after exposure. The fixed gas limits were exercised against
+the pinned escrow; this is not remote estimation or proof of all future gas
+regimes. Never infer that a rejected/already-published claim became private.
 The earlier fixed-profile behavior is retained when no quote is configured.

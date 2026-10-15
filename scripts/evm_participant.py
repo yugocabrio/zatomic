@@ -16,6 +16,7 @@ import subprocess
 import sys
 import run_native_evm_gate as evm
 import evm_wallet
+import fee_policy
 import native_funding
 import native_owner
 from recover_regtest_swap import native_exit
@@ -88,6 +89,7 @@ def validate_agreement(directory, agreement, initial=False, prefunding=False, mi
         raise RuntimeError('ETH agreement differs from owner native recovery bundle')
     terms = bundle['terms']
     native_funding.controlled_refund_height(terms)
+    fee_policy.policy(agreement)
     own_field = 'recipient' if identity['role'] == 'alice' else 'maker'
     if agreement[own_field].lower() != identity['address']:
         raise RuntimeError('owner ETH address changed')
@@ -115,6 +117,7 @@ def validate_agreement(directory, agreement, initial=False, prefunding=False, mi
         now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
         if not now + 300 < agreement['eth_expiry'] <= now + 7200 or tip['blocks'] + 12 >= terms['refund_height']:
             raise RuntimeError('agreement outside controlled fixture time policy')
+        fee_policy.require_prefunding_reserves(agreement, evm.rpc)
     return identity, terms
 
 
@@ -218,8 +221,8 @@ def withdrawal_attempts(directory, agreement, address):
         nonce = int(tx['nonce'],16)
         if (attempt['kind']!='withdraw' or tx['from'].lower()!=address
             or tx['to'].lower()!=agreement['contract'].lower() or tx['data']!=expected
-            or int(tx.get('value','0x0'),16)!=0 or int(tx['gas'],16)!=200_000
-            or not 0<int(tx['gasPrice'],16)<=100*10**9 or nonce in nonces):
+            or int(tx.get('value','0x0'),16)!=0 or int(tx['gas'],16)!=fee_policy.policy(agreement)['gas_limits']['withdraw']
+            or not 0<int(tx['gasPrice'],16)<=fee_policy.policy(agreement)['max_gas_price_wei'] or nonce in nonces):
             raise RuntimeError('withdrawal attempt differs from fixed owner action')
         nonces.add(nonce)
     return attempts
@@ -261,11 +264,13 @@ def withdraw(directory, agreement, identity, order, state, fault_after_send):
     if pending is None and pending_nonce != current:
         raise RuntimeError('unrelated pending nonce; refuse new withdrawal attempt')
     if intent is None:
-        gas_price = evm.rpc('eth_gasPrice')
-        if not 0<int(gas_price,16)<=100*10**9 or len(attempts)>=33:
+        budget = fee_policy.require_action_budget(agreement, address, 'withdraw', evm.rpc)
+        if len(attempts)>=fee_policy.policy(agreement)['withdrawal_attempt_limit']:
             raise RuntimeError('withdrawal fee or attempt limit exceeded')
-        tx = {'from':address,'to':agreement['contract'],'gas':hex(200_000),
-            'gasPrice':gas_price,'nonce':hex(current),'value':'0x0',
+        if budget['nonce'] != hex(current):
+            raise RuntimeError('withdrawal nonce changed during fee checks')
+        tx = {'from':address,'to':agreement['contract'],'gas':hex(budget['gas']),
+            'gasPrice':budget['gas_price'],'nonce':budget['nonce'],'value':'0x0',
             'data':evm.calldata('withdraw(address)',address)}
         intent = evm_wallet.sign(directory/'ethereum',tx,'withdraw')
         validate_intent(intent)
@@ -414,6 +419,9 @@ def execute(directory, action, request, fault_after_send=False):
         require_reveal_window(agreement, terms)
         if not previous:
             unspent_funding(directory, terms)
+            # Only public metadata enters RPC before this gate. Never use the
+            # secret witness in remote estimateGas/eth_call as a preflight.
+            budget = fee_policy.require_action_budget(agreement, address, action, evm.rpc)
         # Only Alice's client reads her secret. Neither coordinator nor RPC
         # signer receives it before this client accepts the exact current state.
         secret = read(directory / 'native/witness.json')['witness_uint256']
@@ -430,11 +438,12 @@ def execute(directory, action, request, fault_after_send=False):
         if intent['transaction']['data'] != data or int(intent['transaction'].get('value','0x0'),16) != value:
             raise RuntimeError('request differs from immutable signed intent')
     else:
-        gas_price = evm.rpc('eth_gasPrice')
-        if not 0 < int(gas_price,16) <= 100 * 10**9:
-            raise RuntimeError('fixture gas price outside owner cap')
-        tx = {'from': address, 'to': agreement['contract'], 'gas': hex(gas),
-            'gasPrice': gas_price, 'nonce': evm.rpc('eth_getTransactionCount', [address,'pending']),
+        if action != 'claim':
+            budget = fee_policy.require_action_budget(agreement, address, action, evm.rpc)
+        if budget['gas'] != gas:
+            raise RuntimeError('action gas differs from accepted limit')
+        tx = {'from': address, 'to': agreement['contract'], 'gas': hex(budget['gas']),
+            'gasPrice': budget['gas_price'], 'nonce': budget['nonce'],
             'value': hex(value), 'data': data}
         intent = evm_wallet.sign(directory / 'ethereum', tx, action)
         validate_intent(intent)
