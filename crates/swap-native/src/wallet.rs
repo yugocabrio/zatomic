@@ -162,6 +162,18 @@ pub fn scan(dir: &Path, capture: &Path) -> Result<Value> {
     let expected = self::tree(v["final_tree"].as_str().ok_or("final tree")?)?;
     let mut height = 2u64;
     let mut previous = v["initial_hash"].as_str().ok_or("initial hash")?.to_owned();
+    // A funding scan can use an older witness while still scanning every later
+    // nullifier. Its clock and spendability view stay at the current tip.
+    let anchor_height = v
+        .get("anchor_height")
+        .map(|h| h.as_u64().ok_or("anchor height"))
+        .transpose()?;
+    if anchor_height.is_some_and(|h| h < 2 || v["height"].as_u64().is_none_or(|tip| h >= tip)) {
+        return Err("funding anchor must precede the capture tip".into());
+    }
+    let mut anchored = BTreeMap::<[u8; 32], Witness>::new();
+    let mut anchor = tree.root();
+    let mut anchor_tip = previous.clone();
     let blocks = v["blocks"].as_array().ok_or("blocks")?;
     if blocks.len() > MAX_CAPTURE_BLOCKS {
         return Err("capture history bound".into());
@@ -236,6 +248,15 @@ pub fn scan(dir: &Path, capture: &Path) -> Result<Value> {
         }
         height += 1;
         previous = b["hash"].as_str().ok_or("hash")?.to_owned();
+        if anchor_height == Some(height) {
+            anchor = tree.root();
+            anchor_tip = previous.clone();
+            for (cmx, (_, witness, _, spent)) in &owned {
+                if !spent {
+                    anchored.insert(*cmx, witness.clone());
+                }
+            }
+        }
     }
     if tree.root() != expected.root()
         || tree.size() != expected.size()
@@ -245,11 +266,21 @@ pub fn scan(dir: &Path, capture: &Path) -> Result<Value> {
         return Err("final node tree mismatch".into());
     }
     let mut notes = Vec::new();
-    for (mut n, w, _, spent) in owned.into_values() {
+    for (cmx, (mut n, w, _, spent)) in owned {
         if spent {
             continue;
         }
-        let path = w.path().ok_or("witness")?;
+        let witness = if anchor_height.is_some() {
+            // Newer change is not yet present at the old anchor. Old notes
+            // spent after that anchor have already been removed above.
+            let Some(witness) = anchored.get(&cmx) else {
+                continue;
+            };
+            witness
+        } else {
+            &w
+        };
+        let path = witness.path().ok_or("witness")?;
         n["position"] = json!(u64::from(path.position()));
         n["path"] = json!(
             path.path_elems()
@@ -259,11 +290,23 @@ pub fn scan(dir: &Path, capture: &Path) -> Result<Value> {
         );
         notes.push(n);
     }
-    let result = json!({"genesis":GENESIS,"height":height,"tip":previous,"anchor":hex::encode(tree.root().to_bytes()),"notes":notes});
+    let root = if anchor_height.is_some() {
+        anchor
+    } else {
+        tree.root()
+    };
+    let mut result = json!({"genesis":GENESIS,"height":height,"tip":previous,"anchor":hex::encode(root.to_bytes()),"notes":notes});
     if hex::decode(&previous)?.len() != 32 {
         return Err("invalid capture tip hash".into());
     }
-    let output = dir.join(format!("scan-{height}-{previous}.json"));
+    let suffix = if let Some(h) = anchor_height {
+        result["anchor_height"] = json!(h);
+        result["anchor_tip"] = json!(anchor_tip);
+        format!("-anchor-{h}")
+    } else {
+        String::new()
+    };
+    let output = dir.join(format!("scan-{height}-{previous}{suffix}.json"));
     if output.exists() {
         if storage::json(&output)? != result {
             return Err("existing scan differs for the same block hash".into());

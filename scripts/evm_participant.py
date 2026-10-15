@@ -16,6 +16,7 @@ import subprocess
 import sys
 import run_native_evm_gate as evm
 import evm_wallet
+import native_funding
 from evm_journal import InjectedStop, validate_intent, verify_contract, order_state, require_reveal_window, receipt
 from regtest_node import rpc as zrpc, status
 from regtest_wallet import save, capture, native
@@ -57,10 +58,11 @@ def domain():
     return native
 
 
-def funding(terms):
+def funding(directory, terms):
     transaction = zrpc('getrawtransaction', [terms['funding_txid'], 1])
     if not transaction.get('in_active_chain') or transaction.get('confirmations', 0) < 2:
         raise RuntimeError('owner did not observe confirmed native funding')
+    native_funding.observe(directory, terms, transaction)
 
 
 def unspent_funding(directory, terms):
@@ -71,7 +73,7 @@ def unspent_funding(directory, terms):
         raise RuntimeError('owner did not observe the unspent agreed shared note')
 
 
-def validate_agreement(directory, agreement, initial=False, prefunding=False):
+def validate_agreement(directory, agreement, initial=False, prefunding=False, missing_funding=False):
     tip = domain()
     identity = read(directory / 'identity.json')
     bundle = read(directory / 'native/recovery-bundle.json')
@@ -102,8 +104,8 @@ def validate_agreement(directory, agreement, initial=False, prefunding=False):
             raise RuntimeError('agreed escrow code digest changed')
     elif prefunding or terms.get('cross_chain_consent_required'):
         raise RuntimeError('cross-chain consent version required')
-    if not prefunding:
-        funding(terms)
+    if not prefunding and not missing_funding:
+        funding(directory, terms)
     if initial:
         now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
         if not now + 300 < agreement['eth_expiry'] <= now + 7200 or tip['blocks'] + 12 >= terms['refund_height']:
@@ -158,7 +160,7 @@ def observe_receipt(directory, intent, allow_reverted=False):
     return observed
 
 
-def settled(directory, agreement, order, action, previous, role):
+def canonical_settlement(agreement, order, action):
     signature = 'Claimed(bytes32,uint256)' if action == 'claim' else 'Refunded(bytes32)'
     event_topic = '0x' + evm_wallet.keccak(signature.encode()).hex()
     logs = evm.rpc('eth_getLogs',[{'address':agreement['contract'], 'fromBlock':'0x0',
@@ -170,6 +172,11 @@ def settled(directory, agreement, order, action, previous, role):
     block = evm.rpc('eth_getBlockByNumber',[found['blockNumber'],False])
     if not receipt or receipt['status'] != '0x1' or receipt['blockHash'] != found['blockHash'] or block['hash'] != found['blockHash']:
         raise RuntimeError('owner settlement receipt is not canonical')
+    return found
+
+
+def settled(directory, agreement, order, action, previous, role):
+    found = canonical_settlement(agreement, order, action)
     result = {'role':role,'action':action,'txid':found['transactionHash'],'order':order,
         'new_transaction':False,'locally_signed':bool(previous),
         'settlement_via_other_relayer':not previous or previous['txid'] != found['transactionHash']}
@@ -280,10 +287,19 @@ def execute(directory, action, request, fault_after_send=False):
     agreement = read(directory / 'eth-agreement.json')
     if read(directory / 'eth-acceptance.json')['agreement_digest'] != agreement_digest(agreement):
         raise RuntimeError('persisted ETH acceptance differs from agreement')
-    identity, terms = validate_agreement(directory, agreement)
+    identity, terms = validate_agreement(directory, agreement, missing_funding=action == 'restore-funding')
     role, address = identity['role'], identity['address']
-    if (action in ('lock', 'refund') and role != 'bob') or (action == 'claim' and role != 'alice'):
+    if (action in ('lock', 'refund', 'restore-funding') and role != 'bob') or (action == 'claim' and role != 'alice'):
         raise RuntimeError('operation not owned by this participant')
+    if action == 'restore-funding':
+        # A missing native F is not permission to sign/re-fund a fresh swap.
+        # Only Bob relays previously observed PUBLIC bytes after observing a
+        # canonical ETH claim. Ambiguous/lost/expired EVM claims fail closed.
+        order = request.get('order')
+        if pin_order(directory, agreement, terms, order) != 2:
+            raise RuntimeError('funding restoration requires a canonical ETH claim')
+        canonical_settlement(agreement, order, 'claim')
+        return native_funding.restore_published(directory, terms, fault_after_send)
     path = directory / f'eth-intent-{action}.json'
     previous = read(path) if path.exists() else None
     if action == 'lock':
@@ -375,7 +391,7 @@ def execute(directory, action, request, fault_after_send=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['key-init','init','accept','consent','lock','claim','refund','withdraw'])
+    parser.add_argument('action', choices=['key-init','init','accept','consent','lock','claim','refund','withdraw','restore-funding'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--role', choices=['alice','bob'])
     parser.add_argument('--fault-after-send', action='store_true')

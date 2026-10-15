@@ -231,6 +231,27 @@ pub fn accept(
     {
         return Err("recovery funding/deadline/amount metadata changed".into());
     }
+    let anchor_fields = [
+        "source_height",
+        "funding_anchor_height",
+        "funding_anchor_tip",
+        "funding_anchor",
+    ];
+    if anchor_fields.iter().any(|field| terms.get(field).is_some()) {
+        let source_height = terms["source_height"].as_u64().ok_or("source height")?;
+        let anchor_height = terms["funding_anchor_height"]
+            .as_u64()
+            .ok_or("funding anchor height")?;
+        let root = funding.ironwood_bundle().ok_or("funding bundle")?.anchor();
+        if anchor_height < 2
+            || anchor_height >= source_height
+            || terms["refund_height"].as_u64() != source_height.checked_add(20)
+            || encoded(terms, "funding_anchor_tip")?.len() != 32
+            || terms["funding_anchor"] != hex::encode(root.to_bytes())
+        {
+            return Err("recovery funding anchor metadata changed".into());
+        }
+    }
     let mut txid = encoded(&policy["aux"], "txid_le")?;
     txid.reverse();
     if terms["aux_outpoint"]["txid"] != hex::encode(txid) {
@@ -365,6 +386,11 @@ mod tests {
     fn reject_corrupt_native_recovery_bundles() -> Result<()> {
         let swap = std::path::PathBuf::from(std::env::var("LATCH_BUNDLE_FIXTURE")?);
         let dir = swap.join("bob");
+        let dir = if dir.join("native").is_dir() {
+            dir.join("native")
+        } else {
+            dir
+        };
         let original = storage::json(&dir.join("recovery-bundle.json"))?;
         let public = keys::PublicKeyPackage::deserialize(&storage::read(
             &dir.join("frost-public.bin"),
@@ -375,6 +401,27 @@ mod tests {
         let original_receipt = storage::json(&dir.join("recovery-receipt.json"))?;
         assert_eq!(accept(&dir, 2, &own, &public, &original)?, original_receipt);
         let mut cases = Vec::new();
+        if original["terms"].get("funding_anchor_height").is_some() {
+            for (field, value) in [
+                ("funding_anchor", json!("00".repeat(32))),
+                ("funding_anchor_tip", json!("00")),
+                (
+                    "funding_anchor_height",
+                    original["terms"]["source_height"].clone(),
+                ),
+                ("source_height", json!(0)),
+            ] {
+                let mut altered = original.clone();
+                altered["terms"][field] = value;
+                cases.push((field, altered));
+            }
+            let mut altered = original.clone();
+            altered["terms"]
+                .as_object_mut()
+                .unwrap()
+                .remove("funding_anchor_height");
+            cases.push(("partial funding anchor metadata", altered));
+        }
         let mut altered = original.clone();
         altered["native_branch"] = json!("00000000");
         cases.push(("network", altered));

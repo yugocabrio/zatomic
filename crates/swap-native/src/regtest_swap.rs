@@ -300,6 +300,16 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
     if hex::encode(anchor.to_bytes()) != snapshot["anchor"] {
         return Err("source path mismatch".into());
     }
+    if let Some(anchor_height) = snapshot.get("anchor_height") {
+        let anchor_height = anchor_height.as_u64().ok_or("source anchor height")?;
+        if anchor_height < 2
+            || anchor_height >= u64::from(height)
+            || source["height"].as_u64().is_none_or(|h| h > anchor_height)
+            || hex::decode(snapshot["anchor_tip"].as_str().ok_or("source anchor tip")?)?.len() != 32
+        {
+            return Err("invalid historical source witness".into());
+        }
+    }
     let alice_key = wallet::key(bank)?;
     let alice_fvk = FullViewingKey::from(&alice_key);
     // Verify source belongs to Alice before signing any spend.
@@ -525,6 +535,12 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
             .clone();
         terms["owner_pins"] = pins.clone();
         terms["cross_chain_consent_required"] = json!(true);
+    }
+    if snapshot.get("anchor_height").is_some() {
+        terms["source_height"] = json!(height);
+        terms["funding_anchor_height"] = snapshot["anchor_height"].clone();
+        terms["funding_anchor_tip"] = snapshot["anchor_tip"].clone();
+        terms["funding_anchor"] = snapshot["anchor"].clone();
     }
     // Both participants verify and fsync their own complete recovery bundle.
     // The coordinator's copy alone is insufficient authorization to fund.

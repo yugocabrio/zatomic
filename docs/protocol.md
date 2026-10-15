@@ -206,5 +206,18 @@ confirmation without a new send; an exit with an orphaned anchor is re-proved
 from the accepted owner bundle with the same v6 effects txid. Native recipients
 decrypt the same payout, old proof versions remain retained, and ETH withdrawals
 are not repeated. The claim test starts after actual ETH secret exposure.
-Funding itself becoming orphaned after exposure, a conflicting refund winning
+Owners now retain node-observed published F authorizations before ETH actions.
+New v3 offers select a six-block older source witness while scanning nullifiers
+through the current tip and keeping the current-height refund clock. This
+reduces dependence on the newest tree without giving Bob source-wallet viewing
+data. The source release wallet rejects an orphaned agreed anchor before signing.
+See [funding anchor selection](funding-anchor.md); six blocks is an isolated
+fixture parameter, not a public finality guarantee.
+If F becomes orphaned but its source anchor/input remain usable, Bob can replay
+the same bytes after verifying the exact canonical ETH claim. The actual gate
+also refuses restoration when the ETH claim disappears/expires or a competing
+ETH refund wins, preserves exposure intent, and restores absent or genuinely
+pending F through the normal driver.
+See [funding recovery](funding-reorg.md). Source re-proving, conflicting source
+spends, coordinated recovery when both settlements are absent, a refund winning
 beyond the allowed window, and public-network timing/finality remain unproven.

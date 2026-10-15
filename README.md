@@ -51,6 +51,8 @@ python3 scripts/demo_server.py
 - [Controlled EVM forks, receipt replay and changed relayers](docs/evm-reorg.md)
 - [Withdrawal recovery when forks change the owner's nonce](docs/withdrawal-recovery.md)
 - [Native confirmation loss and replacement-branch exit recovery](docs/native-reorg.md)
+- [Published funding recovery after secret exposure and its limits](docs/funding-reorg.md)
+- [Older funding anchors with current spendability](docs/funding-anchor.md)
 - [Current status](STATUS.md) and [remaining work](TASKS.md)
 - [Public evidence](evidence/): native/EVM compatibility, chain acceptance,
   interrupted claim/refund recovery, signer nonce replay and tampering tests
@@ -85,4 +87,5 @@ receipt fields. HTTP is loopback-only, with host/origin/session checks and no
 filesystem browsing.
 
 Original code is MIT licensed; upstream components retain their licenses.
-Local Git only; no remote or submission has been configured.
+Source repository: [yugocabrio/zeceth](https://github.com/yugocabrio/zeceth).
+No public deployment or contest submission has been made.

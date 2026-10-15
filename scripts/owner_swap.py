@@ -164,11 +164,11 @@ def public_event(agreement, signature, order):
     return found
 
 
-def validate_recovery(directory):
+def validate_recovery(directory, funding_required=True):
     flow, agreement = read(directory / 'owner-flow.json'), read(directory / 'agreement.json')
     if flow['version'] != VERSION or flow['agreement_digest'] != agreement_digest(agreement):
         raise RuntimeError('owner lifecycle agreement changed')
-    if not confirmed(agreement['native']['funding_txid']):
+    if funding_required and not confirmed(agreement['native']['funding_txid']):
         raise RuntimeError('native funding no longer canonical')
     verify_contract(agreement)
     validate_owners(directory, agreement)
@@ -305,6 +305,15 @@ def recover_locked(directory, fault=None):
     """Caller holds the chain lease through directory and settlement decisions."""
     restored = peer_workspace.reconcile(directory)
     with node(directory, restore=True):
+        agreement = validate_recovery(directory, funding_required=False)
+        native_submissions = 0
+        restored_funding = None
+        if not confirmed(agreement['native']['funding_txid']):
+            # Bob's own client validates the canonical ETH settlement and
+            # published funding history. No source wallet/unsigned PCZT is used.
+            order = read(directory / 'owners/bob/eth-lock-request.json')['order']
+            restored_funding = client('restore-funding', directory / 'owners/bob', {'order': order})
+            native_submissions += int(restored_funding['new_transaction'])
         agreement = validate_recovery(directory)
         # A lock-send gap is resumed by the owner from its exact signed bytes;
         # recovery never originates a new lock without a prior owner intent.
@@ -314,6 +323,8 @@ def recover_locked(directory, fault=None):
         record_once(directory, '04-eth-locked', locked)
         result = finish(directory, agreement, locked['order'], recovered=True, fault=fault)
         result['new_evm_transactions'] += int(locked['new_transaction'])
+        result['new_native_transactions'] += native_submissions
+        result['native_funding_recovery'] = restored_funding
         result['peer_workspace_reconciled'] = restored
         return result
 

@@ -33,8 +33,9 @@ The two `mine` blocks activate the configured NU7 rules on a new chain. Already
 initialized chains need no activation mining. History is bounded to 10,000 blocks
 after height 2, with a separate 50 MB capture-file limit; this fixture scanner
 is not a general wallet synchronizer. New swap setup checks room for source
-maturation and the full refund path before mining or funding (127 blocks for a
-fresh bank, 23 for an existing bank). It refuses rather than resetting a node
+maturation and the full refund path before mining or funding (v3 reserves 133
+blocks for a fresh bank, 29 for an existing bank, including up to six blocks of
+waiting for the older funding anchor; legacy runners reserve 127/23). It refuses rather than resetting a node
 that may contain recovery evidence. `check_capture_capacity.py BANK DIRECTORY`
 checks actual history beyond the original 2,000-block cap and rejects malformed
 continuity/excessive input; it only advances the owned node when all recorded

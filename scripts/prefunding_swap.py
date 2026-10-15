@@ -21,7 +21,7 @@ from evm_participant import agreement_digest
 from evm_journal import checkpoint, send, InjectedStop
 from funding_wallet import authorize
 from regtest_node import ROOT, rpc as zrpc, status
-from regtest_wallet import native, fund, capture, save, require_capacity
+from regtest_wallet import native, fund, capture, funding_capture, save, require_capacity, FUNDING_ANCHOR_LAG
 from run_regtest_swap import event, reject_native, require_aux_unspent, reserve_aux, broadcast
 from run_tls_swap import configure, services
 from run_client_swap import client
@@ -38,7 +38,7 @@ def stop(fault, boundary):
 
 
 def setup(directory, mode, bank, fault=None):
-    require_capacity((0 if bank else 104) + 23)
+    require_capacity((0 if bank else 104) + 23 + FUNDING_ANCHOR_LAG)
     native('regtest-setup-init', directory)
     bank = bank or directory / 'bank'
     save(directory / 'setup.json', {'driver': VERSION, 'mode': mode, 'bank': str(bank)})
@@ -50,7 +50,9 @@ def setup(directory, mode, bank, fault=None):
         pins[role] = client('key-init', owner, role=role)
         stop(fault, f'{role}-key')
     save(directory / 'owner-pins.json', pins)
-    source = capture(bank) if bank.exists() else fund(bank)
+    if not bank.exists():
+        fund(bank)
+    source = funding_capture(bank)
     stop(fault, 'source-ready')
     transport = directory.with_name(directory.name + '-transport')
     commands = configure(transport, directory)

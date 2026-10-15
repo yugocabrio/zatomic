@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import os
 import run_native_evm_gate as evm
-from regtest_node import status
+from regtest_node import status, rpc as zrpc
 from regtest_wallet import native
 from evm_journal import verify_contract, InjectedStop
 from run_regtest_swap import require_aux_unspent
@@ -27,6 +27,11 @@ def authorize(bank, staged, packet, stop_before_sign=False):
     if now + 300 >= agreement['eth_expiry'] or status()['blocks'] + 12 >= agreement['native']['refund_height']:
         raise RuntimeError('source wallet refuses an expired funding window')
     require_aux_unspent(agreement['native'])
+    terms = agreement['native']
+    if 'funding_anchor_height' in terms:
+        if (terms['funding_anchor_height'] > status()['blocks']
+                or zrpc('getblockhash', [terms['funding_anchor_height']]) != terms['funding_anchor_tip']):
+            raise RuntimeError('source wallet refuses an orphaned funding anchor')
     if 'source_guard' in agreement['native']:
         native('regtest-commit-funding', staged, packet)
         if stop_before_sign:

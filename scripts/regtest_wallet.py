@@ -12,6 +12,7 @@ from regtest_node import ROOT, GENESIS, BRANCH, rpc, status
 NATIVE = ROOT / 'target/release/shielded-swap-native'
 INITIAL_HEIGHT = 2
 MAX_CAPTURE_HEIGHT = INITIAL_HEIGHT + 10_000  # Matches native wallet.rs; JSON remains capped at 50 MB.
+FUNDING_ANCHOR_LAG = 6  # Local fixture policy, not a public-network finality guarantee.
 
 
 def require_capacity(additional_blocks):
@@ -56,11 +57,13 @@ def save(path, value):
             os.unlink(temporary)
 
 
-def capture(directory):
+def capture(directory, funding_anchor_lag=0):
     os.umask(0o077)
     tip = status()
     if not INITIAL_HEIGHT <= tip['blocks'] <= MAX_CAPTURE_HEIGHT:
         raise RuntimeError('bounded NU7 history required')
+    if not 0 <= funding_anchor_lag <= tip['blocks'] - INITIAL_HEIGHT:
+        raise RuntimeError('funding anchor outside available history')
     initial = rpc('getblockhash', [2])
     blocks = []
     for height in range(3, tip['blocks'] + 1):
@@ -77,9 +80,26 @@ def capture(directory):
         'final_tree': rpc('z_gettreestate', [tip['tip']])['ironwood']['commitments']['finalState']}
     if status()['tip'] != tip['tip']:
         raise RuntimeError('chain changed during capture')
-    path = directory / f'capture-{tip["blocks"]}-{tip["tip"]}.json'
+    suffix = ''
+    if funding_anchor_lag:
+        value['anchor_height'] = tip['blocks'] - funding_anchor_lag
+        suffix = f'-anchor-{value["anchor_height"]}'
+    path = directory / f'capture-{tip["blocks"]}-{tip["tip"]}{suffix}.json'
     save(path, value)
     return dict(native('regtest-scan', directory, path), capture_file=str(path))
+
+
+def funding_capture(directory):
+    observed = capture(directory, FUNDING_ANCHOR_LAG)
+    if not observed['unspent_notes']:
+        # The owned regtest has no autonomous miner. Give recent change time to
+        # enter the older anchor. This is harness mining, never mainnet policy.
+        require_capacity(FUNDING_ANCHOR_LAG)
+        rpc('generate', [FUNDING_ANCHOR_LAG], timeout=300)
+        observed = capture(directory, FUNDING_ANCHOR_LAG)
+    if not observed['unspent_notes']:
+        raise RuntimeError('no current unspent source note at the funding anchor')
+    return observed
 
 
 def fund(directory):
