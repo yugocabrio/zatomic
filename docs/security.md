@@ -128,3 +128,11 @@ The next engineering milestone is independent provisioning and message delivery,
 followed by public wallet observation/timing integration. An external review of
 the custom signer and EVM arithmetic remains desirable and unperformed. New
 fault tests should target a changed guarantee, not grow this document's count.
+
+Subsequent P1 implementation: [separate operators](independent-operators.md)
+now generate their own identities, accept authenticated manifest pins and run
+through the real protocol with OS-denied cross-operator private roots. This
+closes the shared-private-path dependency for the tested workflow. It remains
+one administrator/host, uses explicitly trusted RPC, and keeps the native
+preparer inside Alice's privileged source-wallet boundary. It does not resolve
+the public timing or deeper source-conflict limitations above.

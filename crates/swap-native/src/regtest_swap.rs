@@ -551,16 +551,24 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         "refund_check":hex::encode(refund_check.serialize().map_err(err)?)});
     let receipts = pair.deliver_bundle(bundle)?;
     storage::write_json(&dir.join("participant-receipts.json"), &receipts)?;
-    // Local convenience copies remain for the existing demo/recovery driver.
-    storage::write(
-        &dir.join("bob/claim.pczt"),
-        &claim.serialize().map_err(err)?,
-    )?;
-    storage::write_json(&dir.join("bob/presignature.json"), &pre_json(&pre))?;
-    storage::write(
-        &dir.join("alice/refund.pczt"),
-        &refund.serialize().map_err(err)?,
-    )?;
+    // Independent operators receive and retain the complete bundle through
+    // their authenticated service. Their private directories are not mounted
+    // here. Keep convenience copies only for the existing local fixture.
+    if std::env::var_os("LATCH_REMOTE_OWNERS").is_some() {
+        if pins.is_none() || std::env::var_os("LATCH_SIGNER_COMMANDS").is_none() {
+            return Err("remote owners require signed consent and configured transports".into());
+        }
+    } else {
+        storage::write(
+            &dir.join("bob/claim.pczt"),
+            &claim.serialize().map_err(err)?,
+        )?;
+        storage::write_json(&dir.join("bob/presignature.json"), &pre_json(&pre))?;
+        storage::write(
+            &dir.join("alice/refund.pczt"),
+            &refund.serialize().map_err(err)?,
+        )?;
+    }
     storage::write_json(&dir.join("terms.json"), &terms)?;
     if let Some(pins) = pins {
         storage::write(&dir.join("unsigned-funding.pczt"), &unsigned_funding)?;

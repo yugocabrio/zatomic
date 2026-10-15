@@ -11,6 +11,12 @@ browser runs use signed cross-chain consent before native source authorization;
 use [the current consent/recovery guide](funding-consent.md) for that driver.
 Each saved browser job selects its own matching recovery command.
 
+For the current operator-isolation gate, use
+[separate operator commands](independent-operators.md). It exercises real TLS
+preparation and settlement under OS private-directory denials. Its coordinator
+never migrates another owner's files. The macOS checker has its own `recover`
+command and fixture layout; it is separate from the older runners below.
+
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
 cargo build --locked --release -j 2 -p shielded-swap-native

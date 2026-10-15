@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-15",
+  "base_commit": "89d58f9",
+  "scope": "actual isolated Zebra/Anvil settlement under macOS private-root read/write denial; same host",
+  "implementation": "scripts/latch_operator.py; scripts/check_independent_operators.py",
+  "runs": {
+    "success": {
+      "funding_txid": "aa8e9e8ed9994ffd0f01ca2fcfb44baae216a10d29d9445977430bc77e1b6c56",
+      "native_exit_txid": "bc0c65350986b7b404571fd3027e69a43b29bab2e2693f50086d267c1eb5b9cd",
+      "native_received_zatoshi": 1000000,
+      "initial_native_confirmations": 2,
+      "eth_withdraw_txid": "0xda505e3eaf56d71a88a1691cec2a33d14e3a5b8b3bc6ae5097b340ed320dabe1",
+      "eth_received_wei": 10000000000000000,
+      "cross_operator_reads_denied": true,
+      "peer_absent_at_native_exit": true,
+      "repeat_new_native_transactions": 0,
+      "repeat_new_evm_transactions": 0,
+      "changed_peer_and_bad_consent_rejection_executed": false
+    },
+    "refund": {
+      "funding_txid": "64146b6c2238a884fa4aea5f501d0490271df03817a04b8c708961f4884ba377",
+      "native_exit_txid": "6d9850905f46fd023b9604b39960db2a1a7a02298682565260dbe1d65cd75b6b",
+      "native_received_zatoshi": 1000000,
+      "initial_native_confirmations": 2,
+      "eth_withdraw_txid": "0x45c2ab8ec0371982b6ec93f00649388121505dc63f38660874987d1dbbd011bd",
+      "eth_received_wei": 10000000000000000,
+      "cross_operator_reads_denied": true,
+      "peer_absent_at_native_exit": true,
+      "repeat_new_native_transactions": 0,
+      "repeat_new_evm_transactions": 0,
+      "changed_peer_and_bad_consent_rejection_executed": true
+    }
+  },
+  "properties": {
+    "operator_generated_keys": true,
+    "mutually_authenticated_tls_native_setup": true,
+    "participant_private_paths_required_by_other_operator": false,
+    "two_signed_consents_before_source_authorization": true,
+    "native_exit_mines_or_restores_node": false,
+    "independent_hosts_demonstrated": false,
+    "public_testnet_settlement": false
+  },
+  "limitations": [
+    "Source operator remains Alice-trusted, holds her source wallet, and prepares the native graph.",
+    "OS rule denies the other operator roots, not a hardened whole-machine sandbox; test harness administers all synthetic state.",
+    "Manifest fingerprints require an authenticated out-of-band exchange.",
+    "Existing isolated chain timing/fee/observation policy; no public-network readiness."
+  ],
+  "executed": [
+    "RAYON_NUM_THREADS=2 python3 scripts/check_independent_operators.py success .local/independent-success-001",
+    "RAYON_NUM_THREADS=2 python3 scripts/check_independent_operators.py refund .local/independent-refund-001",
+    "RAYON_NUM_THREADS=2 python3 scripts/check_independent_operators.py recover .local/independent-success-001",
+    "RAYON_NUM_THREADS=2 python3 scripts/check_independent_operators.py recover .local/independent-refund-001",
+    "cargo build --release --locked -j 2 -p shielded-swap-native",
+    "cargo fmt --all --check",
+    "cargo clippy --workspace --all-targets --locked -j 2 -- -D warnings",
+    "cargo test --workspace --locked -j 2",
+    "python3 -m compileall -q scripts",
+    "python3 scripts/check_demo_boundary.py"
+  ],
+  "validation": "All commands passed; four enabled Rust tests, one existing fixture-dependent ignored test, thirteen HTTP boundary checks. The first success fixture predates the added bad-consent probe; that probe actually ran in the fresh refund fixture."
+}
