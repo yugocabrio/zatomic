@@ -8,6 +8,13 @@ import subprocess
 from regtest_node import ROOT, GENESIS, BRANCH, rpc, status
 
 NATIVE = ROOT / 'target/release/shielded-swap-native'
+INITIAL_HEIGHT = 2
+MAX_CAPTURE_HEIGHT = INITIAL_HEIGHT + 10_000  # Matches native wallet.rs; JSON remains capped at 50 MB.
+
+
+def require_capacity(additional_blocks):
+    if status()['blocks'] + additional_blocks > MAX_CAPTURE_HEIGHT:
+        raise RuntimeError('isolated history budget would be exceeded; no new funding started')
 
 
 def native(*args):
@@ -36,7 +43,7 @@ def save(path, value):
 def capture(directory):
     os.umask(0o077)
     tip = status()
-    if not 2 <= tip['blocks'] <= 2002:
+    if not INITIAL_HEIGHT <= tip['blocks'] <= MAX_CAPTURE_HEIGHT:
         raise RuntimeError('bounded NU7 history required')
     initial = rpc('getblockhash', [2])
     blocks = []
@@ -61,6 +68,7 @@ def capture(directory):
 
 def fund(directory):
     os.umask(0o077)
+    require_capacity(104)  # Reject before creating a wallet or mining anything.
     if status()['blocks'] < 2:
         raise RuntimeError('activate isolated NU7 first')
     initialized = native('regtest-init', directory)

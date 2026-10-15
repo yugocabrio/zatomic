@@ -59,13 +59,12 @@ The exchanged ZEC remains shielded. Refunds additionally use an Alice-owned
 transparent auxiliary input to make the native timelock effective. Its outpoint
 and value are public on refund. ETH-side activity is public.
 
-Both signers run in separate processes on one host. The default browser demo uses
-private pipes; an optional mutually authenticated TLS channel also passes an
-actual swap and reconnect/adversarial checks. Independent-host wallet operation
+Both signers run in separate processes on one host. New browser runs use pinned
+mutual TLS for native preparation and separate owner-held ETH keys and journals.
+The node cannot sign for those owners; the coordinator does not read Alice's
+unrevealed scalar. Browser recovery restarts the same owner clients. Older saved
+runs retain their original recovery driver. Independent-host wallet operation
 and an OS sandbox are not demonstrated. The custom adaptor extension is unaudited.
-An additional CLI path uses separate owner-held ETH keys and journals, with no
-RPC signing or coordinator access to Alice's unrevealed scalar. The browser has
-not yet switched to that path.
 The swap requires monitoring and bounded inclusion/reorg assumptions; it is not
 safe against an arbitrarily long outage. Local controlled heights/times are not
 public-network timing defaults. Mainnet is unsupported.

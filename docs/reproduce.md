@@ -25,8 +25,15 @@ on loopback 18545, chain ID 31338. A busy port is an error; another process is
 never terminated. Use a fresh output directory each time. State is retained.
 
 The two `mine` blocks activate the configured NU7 rules on a new chain. Already
-initialized chains need no activation mining. History is bounded to 2,000 blocks
-after height 2; this fixture scanner is not a general wallet synchronizer.
+initialized chains need no activation mining. History is bounded to 10,000 blocks
+after height 2, with a separate 50 MB capture-file limit; this fixture scanner
+is not a general wallet synchronizer. New swap setup checks room for source
+maturation and the full refund path before mining or funding (127 blocks for a
+fresh bank, 23 for an existing bank). It refuses rather than resetting a node
+that may contain recovery evidence. `check_capture_capacity.py BANK DIRECTORY`
+checks actual history beyond the original 2,000-block cap and rejects malformed
+continuity/excessive input; it only advances the owned node when all recorded
+funded runs are resolved.
 
 Success observes actual EVM `Claimed` data, makes Alice's directory unavailable,
 then proves and broadcasts Bob's native claim in a new process. A later competing
@@ -122,5 +129,6 @@ code: old authorized-F policies intentionally fail the new preview boundary.
 
 For a coordinator that never reads Alice's unrevealed scalar or either ETH key,
 and a live mempool test where a competing relayer mines first, use the separate
-[owner client gates](owner-clients.md). This CLI layout has per-owner ETH
-journals and should not be passed to the legacy browser recovery driver.
+[owner client gates](owner-clients.md). The CLI gate layout has per-owner ETH journals and should not be passed to
+the legacy recovery driver. New browser runs use `owner_swap.py recover`, while
+`run_client_swap.py` remains the standalone adversarial integration gate.

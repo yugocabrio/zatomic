@@ -15,7 +15,7 @@ import subprocess
 import time
 import run_native_evm_gate as evm
 from regtest_node import ROOT, rpc as zrpc, status
-from regtest_wallet import fund, capture, native, save
+from regtest_wallet import fund, capture, native, save, require_capacity
 from evm_journal import InjectedStop, send as send_evm, require_reveal_window
 
 
@@ -78,6 +78,9 @@ def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=Non
         if not directory.is_dir() or not (directory / '02-funded.json').exists() or (directory / '04-eth-locked.json').exists():
             raise RuntimeError('setup recovery only supports confirmed ZEC before ETH funding')
     else:
+        # Reserve history for setup and the worst-case refund path before
+        # mining a source wallet or creating any swap funding transaction.
+        require_capacity((0 if existing_bank else 104) + 23)
         directory.mkdir(mode=0o700)
     bank = existing_bank or directory / 'bank'
     swap = directory / 'swap'

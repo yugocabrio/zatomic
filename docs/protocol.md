@@ -166,3 +166,15 @@ mempool/interruption tests pass, including a competing relay that succeeds while
 Alice's original transaction reverts. Reconciliation uses the validated order's
 canonical event, preserving the fixed recipient. This remains a same-host
 fixture with trusted local validating nodes and controlled confirmation policy.
+
+The browser now invokes those owner clients through `owner_swap.py`. The local
+harness checkpoints its disposable EVM before each owner action; the owner
+persists its signed intent before broadcast, and the harness checkpoints again
+after success. A lost post-send checkpoint is therefore reconciled by the same
+owner and exact signed bytes. Restoring a local test node is not a public-chain
+finality or reorg mechanism. An existing claim intent blocks no-reveal refunds,
+and missing owner acceptance/identity state rejects recovery. The browser's
+normal, post-claim stop and pre-reveal stop paths use each owner's exported
+native workspace, with the peer directory unavailable during its native exit.
+Partial setup and arbitrary instruction-boundary failures are still outside the
+implemented recovery coverage; see [owner clients](owner-clients.md).

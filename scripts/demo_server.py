@@ -13,7 +13,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
-from regtest_node import ROOT, status as node_status
+from regtest_node import ROOT, status as node_status, rpc as zrpc
 
 DEMO = ROOT / '.local/demo'
 WEB = ROOT / 'web'
@@ -86,10 +86,14 @@ class Manager:
                 job['events'].append({'stage': name, 'value': value})
         if job['state'] in ('running', 'recovering') and (self.worker is None or not self.worker.is_alive()) and not driver_busy():
             job['state'] = 'complete' if (run / '08-complete.json').exists() else 'interrupted'
-        checkpoint = (run / '04-eth-locked.json').exists()
-        ambiguous_evm = all((run / name).exists() for name in ('agreement.json', 'evm-checkpoint.json', 'evm-outgoing'))
-        native_only = (run / 'swap/terms.json').exists() and not (run / 'agreement.json').exists()
-        job['recoverable'] = (checkpoint or ambiguous_evm or native_only) and job['state'] not in ('running', 'recovering')
+        if job.get('driver') == 'owner-clients-v1':
+            checkpoint = all((run / name).exists() for name in ('owner-flow.json',
+                'agreement.json', 'evm-checkpoint.json', 'owners/bob/eth-intent-lock.json'))
+        else:
+            checkpoint = (run / '04-eth-locked.json').exists()
+            checkpoint |= all((run / name).exists() for name in ('agreement.json', 'evm-checkpoint.json', 'evm-outgoing'))
+            checkpoint |= (run / 'swap/terms.json').exists() and not (run / 'agreement.json').exists()
+        job['recoverable'] = checkpoint and job['state'] not in ('running', 'recovering')
         job['eth_setup_started'] = (run / 'agreement.json').exists()
         return job
 
@@ -119,7 +123,10 @@ class Manager:
                 job.pop('events', None)
                 job.pop('recoverable', None)
                 job['state'] = 'recovering'
-                args = ['python3', str(ROOT / 'scripts/recover_regtest_swap.py'), str(path.parent / 'run')]
+                if job.get('driver') == 'owner-clients-v1':
+                    args = ['python3', str(ROOT / 'scripts/owner_swap.py'), 'recover', str(path.parent / 'run')]
+                else:
+                    args = ['python3', str(ROOT / 'scripts/recover_regtest_swap.py'), str(path.parent / 'run')]
             else:
                 if scenario not in SCENARIOS:
                     raise ValueError('Choose one of the three supported scenarios.')
@@ -127,15 +134,32 @@ class Manager:
                     raise ValueError('Local dependencies are not ready. Follow docs/reproduce.md.')
                 for old in self.records():
                     recorded = self.one(old)
-                    if recorded['state'] != 'complete' and (old.parent / 'run/swap/terms.json').exists():
+                    old_run = old.parent / 'run'
+                    funded = any((old_run / name).exists() for name in
+                        ('swap/terms.json', '02-funded.json', 'owner-flow.json'))
+                    if recorded['state'] != 'complete' and funded:
                         raise ValueError('Recover the existing funded run before advancing either chain.')
                 job_id = f'{int(time.time()*1000):013d}-{secrets.token_hex(4)}'
                 folder = DEMO / job_id
                 folder.mkdir(mode=0o700)
                 path = folder / 'job.json'
-                job = {'id': job_id, 'scenario': scenario, 'state': 'running', 'started_at': int(time.time())}
+                job = {'id': job_id, 'scenario': scenario, 'state': 'running',
+                       'driver': 'owner-clients-v1', 'started_at': int(time.time())}
                 mode, fault = SCENARIOS[scenario]
-                args = ['python3', str(ROOT / 'scripts/run_regtest_swap.py'), mode, str(folder / 'run')]
+                args = ['python3', str(ROOT / 'scripts/owner_swap.py'), mode, str(folder / 'run')]
+                # Reuse only completed demo banks with an unspent small auxiliary
+                # coin. The runner rechecks/reserves it under the chain lock.
+                # Refund scenarios receive a fresh coin and do not consume a
+                # success bank's reusable refund route.
+                if mode == 'success':
+                    for previous in self.records():
+                        bank = previous.parent / 'run/bank'
+                        reservation = bank / 'aux-reservation.json'
+                        if (previous.parent / 'run/08-complete.json').exists() and (bank / 'aux-source-compact.json').exists() and reservation.exists():
+                            outpoint = json.loads(reservation.read_text())['outpoint']
+                            if zrpc('gettxout', [outpoint['txid'], outpoint['index'], True]) is not None:
+                                args += ['--existing-bank', str(bank)]
+                                break
                 if fault:
                     args += ['--fault-after', fault]
             atomic(path, job)

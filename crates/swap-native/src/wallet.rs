@@ -14,6 +14,10 @@ use zcash_primitives::{merkle_tree::read_commitment_tree, transaction::Transacti
 use zcash_protocol::consensus::{BlockHeight, BranchId, NetworkType, NetworkUpgrade, Parameters};
 
 pub const GENESIS: &str = "029f11d80ef9765602235e1bc9727e3eb6ba20839319f761fee920d63401e327";
+// Full captures remain capped at 50 MB by storage::json as well. This local
+// history budget permits repeated mature-coin fixtures without resetting a
+// node that may still contain recovery evidence.
+const MAX_CAPTURE_BLOCKS: usize = 10_000;
 pub type Tree = CommitmentTree<MerkleHashOrchard, 32>;
 type Witness = IncrementalWitness<MerkleHashOrchard, 32>;
 
@@ -159,7 +163,7 @@ pub fn scan(dir: &Path, capture: &Path) -> Result<Value> {
     let mut height = 2u64;
     let mut previous = v["initial_hash"].as_str().ok_or("initial hash")?.to_owned();
     let blocks = v["blocks"].as_array().ok_or("blocks")?;
-    if blocks.len() > 2000 {
+    if blocks.len() > MAX_CAPTURE_BLOCKS {
         return Err("capture history bound".into());
     }
     let mut owned: BTreeMap<[u8; 32], (Value, Witness, [u8; 32], bool)> = BTreeMap::new();

@@ -65,7 +65,7 @@ function render(data) {
     text('#outcome-title', fundingOnly ? 'Alice recovered ZEC. Bob never locked ETH.' : refund ? 'Alice recovered ZEC. Bob recovered ETH.' : 'Bob received ZEC. Alice received ETH.');
     text('#outcome-copy', fundingOnly ? 'The existing native funding was reconciled and refunded. No new ETH transaction.' : `${recovered ? 'Recovered from a durable checkpoint. ' : ''}0.010000 ZEC note decrypted · 0.0100 ETH withdrawn.`);
   }
-  text('#live-caption', running ? 'Local proof generation and chain confirmation are running.' : interrupted ? (job.eth_setup_started ? 'Runner and local EVM stopped. Recovery uses saved state.' : 'Runner stopped before ETH setup. Native recovery remains prepared.') : complete ? 'Node confirmation + recipient decryption verified.' : 'Actual local-chain transactions. No simulated balances.');
+  text('#live-caption', running ? 'Owner clients are signing and confirming on local chains.' : interrupted ? (job.eth_setup_started ? 'Runner and local EVM stopped. Recovery uses saved state.' : 'Runner stopped before ETH setup. Native recovery remains prepared.') : complete ? 'Node confirmation + recipient decryption verified.' : 'Actual transactions on disposable local chains.');
   const elapsed = job ? Math.max(0, (running ? Math.floor(Date.now() / 1000) : (job.updated_at || Math.floor(Date.now() / 1000))) - job.started_at) : 0;
   text('#elapsed', job ? compactTime(elapsed) : '—');
   renderReceipt(job, events);
@@ -83,8 +83,9 @@ function renderReceipt(job, events) {
   add('ZEC claim', events.get('06-zec-claimed')?.txid);
   add('ZEC refund', events.get('06-zec-refunded')?.txid);
   add('Recovered ZEC', events.get('09-recovered')?.native_txid);
+  add('ETH withdrawal', events.get('08-complete')?.eth_withdraw_tx);
   $('#receipt').hidden = !rows.length;
-  text('#receipt-detail', job ? `Run ${job.id.slice(-8)} · private artifacts stay on this machine` : '');
+  text('#receipt-detail', job ? `Run ${job.id.slice(-8)} · ${job.driver === 'owner-clients-v1' ? 'each owner signs locally' : 'legacy local fixture'} · private artifacts stay on this machine` : '');
   const container = $('#transactions');
   container.replaceChildren();
   for (const [label, value] of rows) {
