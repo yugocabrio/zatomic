@@ -32,7 +32,14 @@ does NOT automatically establish security of this modified protocol.
    non-final sequence; nLockTime=tZ. Without it the native locktime is disabled.
    This auxiliary coin is separate from the shielded principal and cannot be
    a third party's coin. Claim C has no transparent component.
-4. Alice broadcasts F only after independently checking the prepared paths.
+4. Before exposing F to the broadcaster, the local implementation generates
+   and verifies both exit circuits against a temporary tree containing the exact
+   pending note. It additionally verifies R's shielded spend/binding signatures.
+   C's adaptor pre-signature is verified separately, without revealing t.
+   These temporary proofs are never broadcast; C/R are re-proved after mining.
+   Newly funded fixtures split a dedicated 20,000-zatoshi auxiliary coin from
+   a matured coinbase first; R returns 15,000 after its incremental fee.
+   Alice broadcasts F only after checking the prepared paths.
    Bob waits for authenticated confirmation of the exact note and obtains all
    data needed to prove C. He verifies R cannot become spendable too soon.
 5. Bob locks the exact ETH amount in PointEscrow, bound to T, Alice's ETH

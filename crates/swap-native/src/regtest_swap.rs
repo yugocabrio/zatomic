@@ -7,7 +7,7 @@ use ff_old::{Field as OldField, PrimeField as OldPrimeField};
 use group_old::GroupEncoding;
 use incrementalmerkletree::Hashable;
 use orchard::{
-    circuit::{OrchardCircuitVersion, ProvingKey},
+    circuit::{OrchardCircuitVersion, ProvingKey, VerifyingKey},
     keys::{FullViewingKey, Scope, SpendAuthorizingKey},
     tree::{MerkleHashOrchard, MerklePath},
 };
@@ -30,7 +30,7 @@ use zcash_primitives::transaction::{
     txid::TxIdDigester,
 };
 use zcash_protocol::{consensus::BranchId, memo::MemoBytes, value::Zatoshis};
-use zcash_transparent::{address::TransparentAddress, bundle::OutPoint};
+use zcash_transparent::bundle::OutPoint;
 
 const PRINCIPAL: u64 = 1_010_000;
 const PAYOUT: u64 = 1_000_000;
@@ -76,17 +76,71 @@ fn save_tx(path: &Path, tx: &Transaction) -> Result<()> {
     tx.write(&mut raw)?;
     storage::write(path, hex::encode(raw).as_bytes())
 }
-fn prove(pczt: Pczt) -> Result<Transaction> {
+fn prove_pczt(pczt: Pczt) -> Result<Pczt> {
     let mut rng = rand::rng();
     let pk = ProvingKey::build(OrchardCircuitVersion::PostNu6_3);
-    let pczt = Prover::new(pczt)
+    Ok(Prover::new(pczt)
         .create_ironwood_proof(&mut rng, &pk)
         .map_err(err)?
-        .finish();
+        .finish())
+}
+fn prove(pczt: Pczt) -> Result<Transaction> {
+    let pczt = prove_pczt(pczt)?;
+    let mut rng = rand::rng();
     // The refund's transparent scriptSig was finalized before funding. A
     // second finalization would request the already-cleared partial signatures.
     TransactionExtractor::new(pczt)
         .extract(&mut rng)
+        .map_err(|e| err(e).into())
+}
+
+fn anchor_for_check(pczt: Pczt, path: MerklePath, anchor: orchard::Anchor) -> Result<Pczt> {
+    let digest = message(&pczt)?;
+    let witnesses = (0..pczt.ironwood().actions().len())
+        .map(|i| (i, path.clone()))
+        .collect::<Vec<_>>();
+    let anchored = Updater::new(pczt)
+        .set_ironwood_anchor(anchor)
+        .map_err(err)?
+        .set_ironwood_spend_witnesses(witnesses)
+        .map_err(err)?
+        .finish();
+    if message(&anchored)? != digest {
+        return Err("reanchoring changed authorization".into());
+    }
+    Ok(anchored)
+}
+
+/// Check the conditional claim's circuit without asking Alice to reveal t.
+/// Placeholder signatures below only satisfy the proof-verifier's data type;
+/// they are NOT valid authorizations, never extracted and never serialized.
+/// The adaptor pre-signature is separately verified before reaching this check.
+fn verify_claim_circuit(pczt: Pczt) -> Result<()> {
+    let proven = prove_pczt(pczt)?;
+    let proof = orchard::Proof::new(
+        proven
+            .ironwood()
+            .zkproof()
+            .clone()
+            .ok_or("missing preflight proof")?,
+    );
+    let effects = proven.into_effects().map_err(err)?;
+    let bundle = effects
+        .ironwood_bundle()
+        .ok_or("preflight Ironwood")?
+        .clone();
+    let for_proof_only = bundle.map_authorization(
+        &mut (),
+        |_, _, _| orchard::primitives::redpallas::Signature::from([0u8; 64]),
+        |_, _| {
+            orchard::bundle::Authorized::from_parts(
+                proof,
+                orchard::primitives::redpallas::Signature::from([0u8; 64]),
+            )
+        },
+    );
+    for_proof_only
+        .verify_proof(&VerifyingKey::build(OrchardCircuitVersion::PostNu6_3))
         .map_err(|e| err(e).into())
 }
 fn pre_json(pre: &PreSignature) -> Value {
@@ -168,30 +222,12 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
     if input.recipient() != alice_fvk.address_at(0u32, Scope::External) {
         return Err("source receiver mismatch".into());
     }
-    let auxkey = secp256k1::SecretKey::from_secret_bytes(
-        storage::read(&bank.join("aux-key.bin"), 32)?
-            .try_into()
-            .map_err(|_| "aux key")?,
-    )?;
-    let auxpk = secp256k1::PublicKey::from_secret_key(&auxkey);
-    let auxaddr = TransparentAddress::from_pubkey(&auxpk);
-    let auxdata = storage::json(&bank.join("aux-source.json"))?;
-    if auxdata["height"].as_u64().ok_or("aux height")? + 100 > u64::from(height) {
-        return Err("immature aux coinbase".into());
-    }
-    let auxraw = hex::decode(auxdata["tx"].as_str().ok_or("aux tx")?)?;
-    let auxtx = Transaction::read(&auxraw[..], BranchId::Nu7)?;
-    let (auxindex, auxcoin) = auxtx
-        .transparent_bundle()
-        .ok_or("aux bundle")?
-        .vout
-        .iter()
-        .enumerate()
-        .find(|(_, c)| c.recipient_address() == Some(auxaddr))
-        .ok_or("aux coin not Alice-owned")?;
-    if u64::from(auxcoin.value()) < 10_000 {
-        return Err("aux fee reserve".into());
-    }
+    let aux = crate::auxiliary::Auxiliary::load(bank, height)?;
+    let auxkey = aux.key;
+    let auxpk = aux.public;
+    let auxaddr = aux.address;
+    let auxindex = aux.index;
+    let auxcoin = &aux.coin;
     storage::create_dir(dir)?;
     let mut pair = crate::participants::Pair::start(dir)?;
     let mut rng = rand::rng();
@@ -291,7 +327,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
     let policy = json!({"mode":"claim", "joint_fvk":hex::encode(joint.to_bytes()),
         "alice_fvk":hex::encode(refund_receiver.to_bytes()),"bob_fvk":hex::encode(receiver.to_bytes()),
         "pending":pending_json,"refund_height":refund_height,"funding":hex::encode(funding_raw),
-        "aux":{"txid_le":hex::encode(auxtx.txid().as_ref()),"index":auxindex,"value":u64::from(auxcoin.value()),"script":hex::encode(&auxcoin.script_pubkey().0.0)}});
+        "aux":{"txid_le":hex::encode(aux.txid.as_ref()),"index":auxindex,"value":u64::from(auxcoin.value()),"script":hex::encode(&auxcoin.script_pubkey().0.0)}});
     let target = pair.point;
     storage::write_json(&dir.join("claim-policy.json"), &policy)?;
     let (claim, pre, claim_index) = presign(claim, &mut pair, policy.clone(), target)?;
@@ -299,7 +335,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
     // appears in the refund's transparent bundle.
     let mut refund = builder(height + 1, dummy_anchor);
     refund
-        .add_ironwood_spend::<Infallible>(joint.clone(), pending, dummy_path)
+        .add_ironwood_spend::<Infallible>(joint.clone(), pending, dummy_path.clone())
         .map_err(err)?;
     refund
         .add_ironwood_output::<Infallible>(
@@ -312,7 +348,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
     refund
         .add_transparent_p2pkh_input(
             auxpk,
-            OutPoint::new(*auxtx.txid().as_ref(), auxindex as u32),
+            OutPoint::new(*aux.txid.as_ref(), auxindex as u32),
             auxcoin.clone(),
         )
         .map_err(err)?;
@@ -382,6 +418,16 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
     {
         return Err("refund lock ineffective".into());
     }
+    // Exercise both circuits before exposing funding.hex to the broadcaster.
+    // The synthetic tree contains the exact pending note. It is not a chain
+    // anchor and none of these temporary transactions are saved or broadcast.
+    // After mining, both paths are re-proved against the observed chain anchor.
+    verify_claim_circuit(anchor_for_check(
+        claim.clone(),
+        dummy_path.clone(),
+        dummy_anchor,
+    )?)?;
+    let _checked_refund = prove(anchor_for_check(refund.clone(), dummy_path, dummy_anchor)?)?;
     // Publish files only after both independently checkable exit paths exist.
     storage::write(
         &dir.join("bob/claim.pczt"),
@@ -393,11 +439,13 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
         &refund.serialize().map_err(err)?,
     )?;
     let terms = json!({"scope":"isolated regtest; independent local signer processes", "independent_signer_processes":true, "funding_txid":funding.txid().to_string(),
-        "aux_outpoint":{"txid":auxtx.txid().to_string(),"index":auxindex,"value_zatoshi":u64::from(auxcoin.value())},
+        "aux_outpoint":{"txid":aux.txid.to_string(),"index":auxindex,"value_zatoshi":u64::from(auxcoin.value())},
         "principal_zatoshi":PRINCIPAL,"payout_zatoshi":PAYOUT,"refund_height":refund_height,
         "point_x":pair.point_x,"point_y":pair.point_y,"claim_index":claim_index,
         "refund_index":refund_index,"pending_cmx":pending_json["cmx"],"source_tip":snapshot["tip"],
-        "preauthorized_before_funding":true,"refund_transparent_auxiliary":true,"funding_and_claim_fully_shielded":true});
+        "preauthorized_before_funding":true,"exit_circuits_verified_before_funding":true,
+        "refund_proof_and_shielded_signatures_verified_before_funding":true,
+        "refund_transparent_auxiliary":true,"funding_and_claim_fully_shielded":true});
     storage::write_json(&dir.join("terms.json"), &terms)?;
     // This is the first point where the funding transaction becomes available
     // to the broadcast driver. No RPC exists in this Rust process.
@@ -463,15 +511,7 @@ pub fn finish(dir: &Path, scan: &Path, mode: &str, witness: Option<&str>) -> Res
     if pczt.ironwood().anchor().is_some() {
         return Err("expected deferred transaction".into());
     }
-    let witnesses = (0..pczt.ironwood().actions().len())
-        .map(|i| (i, path.clone()))
-        .collect::<Vec<_>>();
-    let pczt = Updater::new(pczt)
-        .set_ironwood_anchor(anchor)
-        .map_err(err)?
-        .set_ironwood_spend_witnesses(witnesses)
-        .map_err(err)?
-        .finish();
+    let pczt = anchor_for_check(pczt, path, anchor)?;
     if message(&pczt)? != expected {
         return Err("reanchoring changed authorization".into());
     }

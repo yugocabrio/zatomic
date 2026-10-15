@@ -1,0 +1,30 @@
+{
+  "fault": "runner exited after ZEC broadcast, before funding confirmation journal and ETH setup",
+  "bob_private_directory_unavailable": true,
+  "first_recovery": {
+    "scope": "owned local chain; interruption before any ETH setup",
+    "mode": "funding-refund",
+    "native_txid": "d90772e27e35bfdc52c133460a427cb4db9262a555bf656816e16fa6f3c68cf8",
+    "native_amount_zatoshi": 1000000,
+    "eth_not_locked": true,
+    "eth_wei_received": 0,
+    "public_testnet": false,
+    "no_peer_spend_signature_requested_during_recovery": true,
+    "native_canonical_with_at_least_two_confirmations": true,
+    "new_native_transactions": 1,
+    "new_evm_transactions": 0
+  },
+  "repeat_recovery": {
+    "scope": "owned local chain; interruption before any ETH setup",
+    "mode": "funding-refund",
+    "native_txid": "d90772e27e35bfdc52c133460a427cb4db9262a555bf656816e16fa6f3c68cf8",
+    "native_amount_zatoshi": 1000000,
+    "eth_not_locked": true,
+    "eth_wei_received": 0,
+    "public_testnet": false,
+    "no_peer_spend_signature_requested_during_recovery": true,
+    "native_canonical_with_at_least_two_confirmations": true,
+    "new_native_transactions": 0,
+    "new_evm_transactions": 0
+  }
+}

@@ -45,11 +45,13 @@ def send_evm(directory, transaction):
     return receipt
 
 
-def broadcast(path, expected):
+def broadcast(path, expected, stop_after_send=False):
     status()  # Genesis and branch check precedes every native broadcast.
     accepted = zrpc('sendrawtransaction', [path.read_text().strip()], timeout=180)
     if accepted != expected:
         raise RuntimeError('accepted a different transaction')
+    if stop_after_send:
+        raise InjectedStop('zec-broadcast')
     zrpc('generate', [2], timeout=300)
     tx = zrpc('getrawtransaction', [expected, 1])
     if not tx['in_active_chain'] or tx['confirmations'] < 2:
@@ -115,8 +117,10 @@ def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=Non
             raise RuntimeError('recorded funding is no longer canonical')
         confirmed = json.loads((directory / '02-funded.json').read_text())
     else:
-        confirmed = broadcast(swap / 'funding.hex', terms['funding_txid'])
+        confirmed = broadcast(swap / 'funding.hex', terms['funding_txid'], fault_after == 'zec-broadcast')
     event(directory, '02-funded', confirmed)
+    if fault_after == 'zec-funded':
+        raise InjectedStop('zec-funded')
     observed = capture(swap)
     refund_file = swap / f'refund-{observed["height"]}.hex'
     refund = (native('regtest-inspect', refund_file) if refund_file.exists()
@@ -278,7 +282,7 @@ if __name__ == '__main__':
     parser.add_argument('directory', type=Path)
     parser.add_argument('--existing-bank', type=Path)
     parser.add_argument('--resume-setup', action='store_true')
-    parser.add_argument('--fault-after', choices=['eth-locked', 'eth-claimed'])
+    parser.add_argument('--fault-after', choices=['zec-broadcast', 'zec-funded', 'eth-locked', 'eth-claimed'])
     args = parser.parse_args()
     os.umask(0o077)
     (ROOT / '.local').mkdir(mode=0o700, exist_ok=True)

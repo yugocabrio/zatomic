@@ -33,37 +33,39 @@ function render(data) {
   }
   const refund = job?.scenario === 'refund-stop';
   const recovered = events.has('09-recovered');
-  $('#start').disabled = pending || running || data.busy || !data.ready || (interrupted && events.has('02-funded'));
+  const fundingOnly = (events.get('09-recovered') || events.get('08-complete'))?.eth_not_locked === true;
+  $('#start').disabled = pending || running || data.busy || !data.ready || (interrupted && (job.recoverable || events.has('01-prepared')));
   text('#start span:first-child', running ? (job.state === 'recovering' ? 'Recovering on local chains…' : 'Swap in progress…') : (complete ? 'Run another swap' : 'Start local swap'));
   document.querySelectorAll('input[name="scenario"]').forEach(input => { input.disabled = !!running || pending; });
   const badge = $('#run-status');
   badge.className = `status-pill ${job?.state || ''}`;
-  badge.textContent = !job ? 'Ready when you are' : running ? (job.state === 'recovering' ? 'Recovery running' : 'Live on local chains') : complete ? 'Verified on both chains' : job.state === 'error' ? 'Needs recovery' : 'Stopped at checkpoint';
-  text('#live-title', complete ? (refund ? 'Both assets returned.' : 'The exchange is complete.') : interrupted ? 'Stopped. Still recoverable.' : running ? (job.state === 'recovering' ? 'Resuming from the chain.' : 'The agreement is in motion.') : 'Two chains. One agreement.');
-  text('#resolution-title', refund ? 'Wait for expiry & refund' : 'Reveal & settle');
-  text('#resolution-copy', refund ? 'No secret revealed. Each owner recovers their asset.' : 'Public witness completes the prepared ZEC signature.');
-  const finished = [events.has('01-prepared'), events.has('02-funded'), events.has('04-eth-locked'), events.has('06-zec-claimed') || events.has('06-zec-refunded') || complete, complete];
+  badge.textContent = !job ? 'Ready when you are' : running ? (job.state === 'recovering' ? 'Recovery running' : 'Live on local chains') : complete ? (fundingOnly ? 'ZEC refund verified' : 'Verified on both chains') : job.state === 'error' ? 'Needs recovery' : 'Stopped at checkpoint';
+  text('#live-title', complete ? (fundingOnly ? 'ZEC returned before ETH lock.' : refund ? 'Both assets returned.' : 'The exchange is complete.') : interrupted ? (job.recoverable ? 'Stopped. Still recoverable.' : 'Stopped. State preserved.') : running ? (job.state === 'recovering' ? 'Resuming from the chain.' : 'The agreement is in motion.') : 'Two chains. One agreement.');
+  text('#timeline li[data-step="lock"] strong', fundingOnly ? 'ETH remains with Bob' : 'Lock the ETH');
+  text('#resolution-title', refund || fundingOnly ? 'Wait for expiry & refund' : 'Reveal & settle');
+  text('#resolution-copy', refund || fundingOnly ? 'No secret revealed. Each owner recovers their asset.' : 'Public witness completes the prepared ZEC signature.');
+  const finished = [events.has('01-prepared'), events.has('02-funded'), events.has('04-eth-locked') || fundingOnly, events.has('06-zec-claimed') || events.has('06-zec-refunded') || complete, complete];
   let active = finished.findIndex(value => !value);
   const items = [...document.querySelectorAll('#timeline li')];
   items.forEach((item, i) => {
     item.classList.toggle('done', !!finished[i]);
     item.classList.toggle('active', !!running && i === active);
     item.querySelector('.step-mark').textContent = finished[i] ? '✓' : String(i + 1);
-    item.querySelector('.step-state').textContent = finished[i] ? 'Verified' : (running && i === active) ? 'Working' : interrupted && i === active ? 'Paused' : 'Waiting';
+    item.querySelector('.step-state').textContent = finished[i] ? (fundingOnly && i === 2 ? 'Not locked' : 'Verified') : (running && i === active) ? 'Working' : interrupted && i === active ? 'Paused' : 'Waiting';
   });
   $('#progress-fill').style.width = `${finished.filter(Boolean).length * 20}%`;
   $('#recovery-box').hidden = !interrupted;
   $('#recover').disabled = pending || !job?.recoverable || data.busy;
   if (interrupted) {
     text('#recovery-title', job.recoverable ? 'The way out is already prepared.' : 'State preserved for inspection.');
-    text('#recovery-copy', !job.recoverable ? 'The run stopped before its ETH checkpoint. State is preserved; inspect the local runner log and recovery guide before continuing.' : refund ? 'No secret was revealed. Restart the local node, advance the test clocks and recover both original assets.' : 'The ETH claim is recorded. Bob can use its public witness to finish the ZEC claim without another signature from Alice.');
+    text('#recovery-copy', !job.recoverable ? 'The run stopped before its ETH checkpoint. State is preserved; inspect the local runner log and recovery guide before continuing.' : !events.has('04-eth-locked') ? 'ETH setup never started. Recover the prepared ZEC refund after its local deadline; no new funding will be submitted.' : refund ? 'No secret was revealed. Restart the local node, advance the test clocks and recover both original assets.' : 'The ETH claim is recorded. Bob can use its public witness to finish the ZEC claim without another signature from Alice.');
   }
   $('#outcome').hidden = !complete;
   if (complete) {
-    text('#outcome-title', refund ? 'Alice recovered ZEC. Bob recovered ETH.' : 'Bob received ZEC. Alice received ETH.');
-    text('#outcome-copy', `${recovered ? 'Recovered from a durable checkpoint. ' : ''}0.010000 ZEC note decrypted · 0.0100 ETH withdrawn.`);
+    text('#outcome-title', fundingOnly ? 'Alice recovered ZEC. Bob never locked ETH.' : refund ? 'Alice recovered ZEC. Bob recovered ETH.' : 'Bob received ZEC. Alice received ETH.');
+    text('#outcome-copy', fundingOnly ? 'The existing native funding was reconciled and refunded. No new ETH transaction.' : `${recovered ? 'Recovered from a durable checkpoint. ' : ''}0.010000 ZEC note decrypted · 0.0100 ETH withdrawn.`);
   }
-  text('#live-caption', running ? 'Local proof generation and chain confirmation are running.' : interrupted ? 'Runner and local EVM stopped. Recovery uses saved state.' : complete ? 'Node confirmation + recipient decryption verified.' : 'Actual local-chain transactions. No simulated balances.');
+  text('#live-caption', running ? 'Local proof generation and chain confirmation are running.' : interrupted ? (events.has('04-eth-locked') ? 'Runner and local EVM stopped. Recovery uses saved state.' : 'Runner stopped before ETH setup. Native recovery remains prepared.') : complete ? 'Node confirmation + recipient decryption verified.' : 'Actual local-chain transactions. No simulated balances.');
   const elapsed = job ? Math.max(0, (running ? Math.floor(Date.now() / 1000) : (job.updated_at || Math.floor(Date.now() / 1000))) - job.started_at) : 0;
   text('#elapsed', job ? compactTime(elapsed) : '—');
   renderReceipt(job, events);

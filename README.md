@@ -41,6 +41,7 @@ python3 scripts/demo_server.py
 - [Protocol, assumptions and recovery graph](docs/protocol.md)
 - [Skyhook comparison and intended differentiation](docs/competitive-position.md)
 - [Judge walkthrough](docs/demo-walkthrough.md)
+- [Public-network readiness](docs/public-testnet.md) and [dependencies](docs/dependencies.md)
 - [Current status](STATUS.md) and [remaining work](TASKS.md)
 - [Public evidence](evidence/): native/EVM compatibility, chain acceptance,
   interrupted claim/refund recovery, signer nonce replay and tampering tests

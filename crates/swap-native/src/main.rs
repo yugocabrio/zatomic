@@ -1,4 +1,5 @@
 //! Local native development CLI. Synthetic fixtures MUST NEVER be broadcast.
+mod auxiliary;
 mod participants;
 mod regtest_swap;
 mod storage;
@@ -419,6 +420,9 @@ fn main() -> Result<()> {
     let value = match a.get(1).map(String::as_str) {
         Some("regtest-init") if a.len() == 3 => wallet::init(Path::new(&a[2]))?,
         Some("regtest-scan") if a.len() == 4 => wallet::scan(Path::new(&a[2]), Path::new(&a[3]))?,
+        Some("regtest-compact-aux") if a.len() == 4 => {
+            auxiliary::compact(Path::new(&a[2]), Path::new(&a[3]))?
+        }
         Some("regtest-prepare") if a.len() == 5 => {
             regtest_swap::prepare(Path::new(&a[2]), Path::new(&a[3]), Path::new(&a[4]))?
         }

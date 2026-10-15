@@ -86,7 +86,9 @@ class Manager:
                 job['events'].append({'stage': name, 'value': value})
         if job['state'] in ('running', 'recovering') and (self.worker is None or not self.worker.is_alive()) and not driver_busy():
             job['state'] = 'complete' if (run / '08-complete.json').exists() else 'interrupted'
-        job['recoverable'] = (run / '04-eth-locked.json').exists() and job['state'] not in ('running', 'recovering')
+        checkpoint = (run / '04-eth-locked.json').exists()
+        native_only = (run / 'swap/terms.json').exists() and not (run / 'agreement.json').exists()
+        job['recoverable'] = (checkpoint or native_only) and job['state'] not in ('running', 'recovering')
         return job
 
     def snapshot(self):
@@ -123,7 +125,7 @@ class Manager:
                     raise ValueError('Local dependencies are not ready. Follow docs/reproduce.md.')
                 for old in self.records():
                     recorded = self.one(old)
-                    if recorded['state'] != 'complete' and (old.parent / 'run/02-funded.json').exists():
+                    if recorded['state'] != 'complete' and (old.parent / 'run/swap/terms.json').exists():
                         raise ValueError('Recover the existing funded run before advancing either chain.')
                 job_id = f'{int(time.time()*1000):013d}-{secrets.token_hex(4)}'
                 folder = DEMO / job_id

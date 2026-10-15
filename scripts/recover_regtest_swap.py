@@ -32,6 +32,11 @@ def confirmed(txid):
     return bool(tx.get('in_active_chain') and tx.get('confirmations', 0) >= 2)
 
 
+def record_once(directory, stage, value):
+    if not (directory / f'{stage}.json').exists():
+        save(directory / f'{stage}.json', value)
+
+
 def native_exit(swap, mode, witness=None):
     # Reconcile before constructing or re-sending anything. A crash after a
     # broadcast must not cause a second funding or payment.
@@ -54,12 +59,48 @@ def native_exit(swap, mode, witness=None):
     return info['txid'], True
 
 
+def funding_only_refund(directory, terms):
+    # No Ethereum setup artifacts may exist. Absence of a single progress file
+    # is not evidence that an external call never happened.
+    if any((directory / name).exists() for name in ('agreement.json', 'evm-checkpoint.json', 'evm-receipts', '04-eth-locked.json')):
+        raise RuntimeError('ETH outcome uncertain; refusing a funding-only refund')
+    tx = zrpc('getrawtransaction', [terms['funding_txid'], 1])
+    if not tx.get('in_active_chain') or tx.get('confirmations', 0) < 2:
+        # The owned local node may still have F in its mempool after the runner
+        # died between sendrawtransaction and progress-file creation. Do not
+        # re-fund: mine the already-observed transaction and verify it again.
+        zrpc('generate', [2], timeout=300)
+    if not confirmed(terms['funding_txid']):
+        raise RuntimeError('existing funding not confirmed; no new funding submitted')
+    record_once(directory, '02-funded', {'txid': terms['funding_txid'], 'in_active_chain': True, 'confirmations': 2})
+    missing = max(0, terms['refund_height'] + 1 - status()['blocks'])
+    if missing:
+        zrpc('generate', [missing], timeout=300)
+    swap = directory / 'swap'
+    txid, sent = native_exit(swap, 'refund')
+    observed = capture(swap / 'alice')
+    notes = json.loads(Path(observed['file']).read_text())['notes']
+    if not any(n['txid'] == txid and n['value'] == 1_000_000 for n in notes):
+        raise RuntimeError('funding-only refund amount not decrypted')
+    record_once(directory, '06-zec-refunded', {'txid': txid, 'in_active_chain': True, 'confirmations': 2})
+    result = {'scope': 'owned local chain; interruption before any ETH setup',
+        'mode': 'funding-refund', 'native_txid': txid, 'native_amount_zatoshi': 1_000_000,
+        'eth_not_locked': True, 'eth_wei_received': 0, 'public_testnet': False,
+        'no_peer_spend_signature_requested_during_recovery': True,
+        'native_canonical_with_at_least_two_confirmations': True}
+    record_once(directory, '09-recovered', result)
+    record_once(directory, '08-complete', result)
+    return {**result, 'new_native_transactions': int(sent), 'new_evm_transactions': 0}
+
+
 def recover(directory):
     os.umask(0o077)
     status()
     swap = directory / 'swap'
-    agreement = json.loads((directory / 'agreement.json').read_text())
     terms = json.loads((swap / 'terms.json').read_text())
+    if not (directory / '04-eth-locked.json').exists():
+        return funding_only_refund(directory, terms)
+    agreement = json.loads((directory / 'agreement.json').read_text())
     checkpoint = json.loads((directory / 'evm-checkpoint.json').read_text())
     locked = json.loads((directory / '04-eth-locked.json').read_text())
     if agreement['native'] != terms or checkpoint['chain_id'] != evm.CHAIN or agreement['eth_chain_id'] != evm.CHAIN:
@@ -116,8 +157,9 @@ def recover(directory):
                     if current < agreement['eth_expiry']:
                         evm.rpc('evm_setNextBlockTimestamp', [agreement['eth_expiry']])
                         evm.rpc('evm_mine')
-                    send_evm(directory, {'from': agreement['maker'], 'to': contract, 'gas': hex(200_000),
+                    refunded = send_evm(directory, {'from': agreement['maker'], 'to': contract, 'gas': hex(200_000),
                         'data': evm.calldata('refund(bytes32)', order)})
+                    record_once(directory, '05-eth-refunded', {'txid': refunded['transactionHash']})
                     sent += 1
                 missing = max(0, terms['refund_height'] + 1 - status()['blocks'])
                 if missing:
@@ -127,6 +169,8 @@ def recover(directory):
                 observed_from_public_event = False
             else:
                 raise RuntimeError('restored order is not funded')
+            record_once(directory, '06-zec-claimed' if mode == 'success' else '06-zec-refunded',
+                        {'txid': native_txid, 'in_active_chain': True, 'confirmations': 2})
             scanned = capture(receiver)
             notes = json.loads(Path(scanned['file']).read_text())['notes']
             if not any(n['txid'] == native_txid and n['value'] == 1_000_000 for n in notes):

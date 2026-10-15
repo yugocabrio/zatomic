@@ -68,6 +68,18 @@ def fund(directory):
     result = capture(directory)
     if result['unspent_notes'] != 1:
         raise RuntimeError('expected one mined shielded source note')
+    compact = native('regtest-compact-aux', directory, result['file'])
+    tx_hex = Path(compact['file']).read_text().strip()
+    if rpc('sendrawtransaction', [tx_hex], timeout=180) != compact['txid']:
+        raise RuntimeError('auxiliary split transaction mismatch')
+    rpc('generate', [2], timeout=300)
+    accepted = rpc('getrawtransaction', [compact['txid'], 1])
+    if not accepted['in_active_chain'] or accepted['confirmations'] < 2:
+        raise RuntimeError('auxiliary split not confirmed')
+    mined = rpc('getblock', [accepted['blockhash'], 1])['height']
+    save(directory / 'aux-source-compact.json', {'height': mined, 'tx': tx_hex,
+        'index': compact['index'], 'value_zatoshi': compact['value_zatoshi']})
+    result = capture(directory)
     save(directory / 'funded.json', result)
     return result
 

@@ -38,7 +38,8 @@ two controlled confirmations, and receiver decryption of the expected note.
 These are real transactions on **isolated chains**. They do not establish public
 network finality or timing bounds. Setup runs each DKG/signing role in a separate subprocess with its own
 private directory; all still run on the same host. ETH accounts are disposable Anvil accounts. The dedicated auxiliary
-coin is an Alice-owned regtest coinbase, returned less its incremental fee; its
+coin is 20,000 zatoshi, split from an Alice-owned matured regtest coinbase before
+swap setup. Refund returns 15,000 zatoshi after its 5,000-zatoshi incremental fee; its
 public amount and outpoint are visible on refund. The exchange principal never
 becomes a transparent Zcash output.
 
@@ -81,3 +82,16 @@ To stop only this project's node, retaining its state:
 ```sh
 python3 scripts/regtest_node.py stop
 ```
+
+For an interruption between native broadcast and its confirmation journal:
+
+```sh
+python3 scripts/run_regtest_swap.py success .local/my-funding-stop --fault-after zec-broadcast
+python3 scripts/recover_regtest_swap.py .local/my-funding-stop
+```
+
+The recovery driver finds the already-submitted funding on the owned node and
+refunds it after the deadline. It does not submit new funding or start ETH setup.
+It refuses this path if ETH setup artifacts indicate an uncertain external
+outcome. The demonstrated checkpoint cases are not a claim of recovery from
+every instruction boundary or from public-network reorgs.

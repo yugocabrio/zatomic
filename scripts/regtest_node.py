@@ -104,6 +104,18 @@ def prepare():
         if member is None:
             raise RuntimeError('missing executable')
         data = member.read()
+        for name in ('LICENSE-APACHE', 'LICENSE-MIT'):
+            license_file = source.extractfile(name)
+            if license_file is None:
+                raise RuntimeError('official binary license missing')
+            license_bytes = license_file.read()
+            destination = DEPS / name
+            if destination.exists():
+                if destination.read_bytes() != license_bytes:
+                    raise RuntimeError('retained license differs from pinned archive')
+            else:
+                with destination.open('xb') as retained:
+                    retained.write(license_bytes)
     binary = DEPS / 'zebrad'
     if not binary.exists():
         with binary.open('xb') as f:
