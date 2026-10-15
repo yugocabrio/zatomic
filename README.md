@@ -45,6 +45,7 @@ python3 scripts/demo_server.py
 - [Authenticated signer channel and its limits](docs/signer-transport.md)
 - [Participant-owned recovery data and funding-order safeguards](docs/recovery-bundles.md)
 - [Owner-held ETH clients, restart and competing-relayer gates](docs/owner-clients.md)
+- [Owner-operated native exits without coordinator files or ETH signing keys](docs/owner-native-recovery.md)
 - [Both owners sign the cross-chain offer before ZEC funding](docs/funding-consent.md)
 - [Cancel interrupted setup or recover a committed source release](docs/setup-recovery.md)
 - [SIGKILL recovery, peer-directory journals and owned worker cleanup](docs/process-recovery.md)

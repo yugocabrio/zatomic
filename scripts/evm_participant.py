@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One owner's isolated-chain ETH client. No node-unlocked signing or key export.
+"""One owner's isolated-chain swap client. No node-unlocked signing or key export.
 
 Commands run locally for that owner. Public agreement/order requests use stdin;
 this is not a network signing service or an authenticated offer transport.
@@ -17,6 +17,8 @@ import sys
 import run_native_evm_gate as evm
 import evm_wallet
 import native_funding
+import native_owner
+from recover_regtest_swap import native_exit
 from evm_journal import InjectedStop, validate_intent, verify_contract, order_state, require_reveal_window, receipt
 from regtest_node import rpc as zrpc, status
 from regtest_wallet import save, capture, native
@@ -283,14 +285,71 @@ def withdraw(directory, agreement, identity, order, state, fault_after_send):
         'new_transaction':pending is None,'locally_signed':True}
 
 
+def native_recovery(directory, agreement, terms, role, order, action, fault_after_send):
+    state = pin_order(directory, agreement, terms, order)
+    mode = 'claim' if action == 'native-claim' else 'refund'
+    witness = None
+    if mode == 'claim':
+        if state != 2:
+            raise RuntimeError('native claim requires canonical ETH settlement')
+        event = canonical_settlement(agreement, order, 'claim')
+        witness = int(event['data'], 16).to_bytes(32, 'little').hex()
+    else:
+        # This owner's durable exposure history, never a peer/coordinator's
+        # missing receipt, governs the no-reveal route.
+        intent = directory / 'eth-intent-claim.json'
+        if intent.exists() or intent.is_symlink():
+            raise RuntimeError('own possible secret exposure; no native refund fallback')
+        now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
+        if state not in (1, 3) or now < agreement['eth_expiry']:
+            raise RuntimeError('native refund requires an expired unclaimed ETH order')
+        if state == 3:
+            canonical_settlement(agreement, order, 'refund')
+    root = native_owner.workspace(directory, role, terms,
+        read(directory / 'native/recovery-bundle.json'), read(directory / 'native/recovery-receipt.json'))
+    common = {'action': action, 'role': role, 'order': order,
+        'coordinator_state_required': False, 'new_evm_transactions': 0,
+        'client_mined_blocks': False, 'client_restored_node': False}
+    if mode == 'refund' and status()['blocks'] <= terms['refund_height']:
+        return dict(common, state='waiting-refund-height', refund_height=terms['refund_height'],
+            new_transaction=False)
+    funding_tx = native_funding.current(terms['funding_txid'])
+    funding_depth = funding_tx.get('confirmations', 0) if funding_tx.get('in_active_chain') else 0
+    if funding_depth < 2:
+        if mode != 'claim':
+            raise RuntimeError('native refund funding no longer confirmed')
+        restored = native_funding.restore_published(directory, terms, fault_after_send, mine=False)
+        return dict(common, state='waiting-funding-confirmations', funding_recovery=restored,
+            new_transaction=restored['new_transaction'])
+    native_funding.observe(directory, terms, funding_tx)
+    txid, sent = native_exit(root, mode, witness, mine=False)
+    if fault_after_send and sent:
+        raise InjectedStop('native-exit-send-before-observation')
+    tx = native_funding.current(txid)
+    depth = tx.get('confirmations', 0) if tx.get('in_active_chain') else 0
+    current_state = ('confirmed' if depth >= 2 else 'confirming' if depth else
+        'pending' if txid in zrpc('getrawmempool') else 'not-observed')
+    result = dict(common, state=current_state, txid=txid, confirmations=depth, new_transaction=sent)
+    if depth >= 2:
+        scanned = capture(root / role)
+        if not any(n['txid'] == txid and n['value'] == terms['payout_zatoshi']
+                   for n in read(Path(scanned['file']))['notes']):
+            raise RuntimeError('owner did not decrypt the agreed native payout')
+        result['received_zatoshi'] = terms['payout_zatoshi']
+    return result
+
+
 def execute(directory, action, request, fault_after_send=False):
     agreement = read(directory / 'eth-agreement.json')
     if read(directory / 'eth-acceptance.json')['agreement_digest'] != agreement_digest(agreement):
         raise RuntimeError('persisted ETH acceptance differs from agreement')
-    identity, terms = validate_agreement(directory, agreement, missing_funding=action == 'restore-funding')
+    identity, terms = validate_agreement(directory, agreement,
+        missing_funding=action in ('restore-funding', 'native-claim'))
     role, address = identity['role'], identity['address']
-    if (action in ('lock', 'refund', 'restore-funding') and role != 'bob') or (action == 'claim' and role != 'alice'):
+    if (action in ('lock', 'refund', 'restore-funding', 'native-claim') and role != 'bob') or (action in ('claim', 'native-refund') and role != 'alice'):
         raise RuntimeError('operation not owned by this participant')
+    if action in ('native-claim', 'native-refund'):
+        return native_recovery(directory, agreement, terms, role, request.get('order'), action, fault_after_send)
     if action == 'restore-funding':
         # A missing native F is not permission to sign/re-fund a fresh swap.
         # Only Bob relays previously observed PUBLIC bytes after observing a
@@ -391,7 +450,8 @@ def execute(directory, action, request, fault_after_send=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['key-init','init','accept','consent','lock','claim','refund','withdraw','restore-funding'])
+    parser.add_argument('action', choices=['key-init','init','accept','consent','lock','claim','refund','withdraw','restore-funding',
+        'native-claim','native-refund'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--role', choices=['alice','bob'])
     parser.add_argument('--fault-after-send', action='store_true')

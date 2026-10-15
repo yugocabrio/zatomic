@@ -33,7 +33,7 @@ def client(action, directory, packet=None, role=None, stop=False, reject=False):
     if stop:
         args.append('--fault-after-send')
     process = owned_process.run(args, input=json.dumps(packet or {}), capture_output=True,
-        text=True, cwd=ROOT, timeout=45)
+        text=True, cwd=ROOT, timeout=300 if action in ('native-claim', 'native-refund') else 45)
     expected = 1 if reject else 75 if stop else 0
     if process.returncode != expected:
         raise RuntimeError(f'owner {action} did not return expected status {expected}')

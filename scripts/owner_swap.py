@@ -25,8 +25,8 @@ import run_native_evm_gate as evm
 from evm_journal import checkpoint, order_state, verify_contract, InjectedStop
 from evm_participant import agreement_digest
 from regtest_node import ROOT, rpc as zrpc, status
-from regtest_wallet import save, capture
-from recover_regtest_swap import native_exit, topic, record_once, confirmed
+from regtest_wallet import save
+from recover_regtest_swap import topic, record_once, confirmed
 from run_client_swap import client
 from run_tls_swap import run as tls_run
 
@@ -193,6 +193,21 @@ def validate_owners(directory, agreement):
             raise RuntimeError('owner recovery workspace mismatch')
 
 
+def owner_native_exit(directory, role, order, action):
+    """Only this disposable-chain harness mines; the owner CLI never does."""
+    owner = directory / 'owners' / role
+    observed = client(action, owner, {'order': order})
+    sent = observed['new_transaction']
+    if observed['state'] in ('pending', 'confirming'):
+        zrpc('generate', [2 - observed['confirmations']], timeout=300)
+        observed = client(action, owner, {'order': order})
+        if observed['new_transaction']:
+            raise RuntimeError('owner resubmitted while observing native confirmation')
+    if observed['state'] != 'confirmed':
+        raise RuntimeError('owner native settlement is waiting; private state retained')
+    return observed['txid'], sent
+
+
 def finish(directory, agreement, order, recovered=False, fault=None):
     owners, terms = directory / 'owners', agreement['native']
     state = order_state(agreement, terms, order)
@@ -207,11 +222,10 @@ def finish(directory, agreement, order, recovered=False, fault=None):
     if state == 2:
         found = public_event(agreement, 'Claimed(bytes32,uint256)', order)
         record_once(directory, '05-eth-claimed', {'txid': found['transactionHash'], 'owner_signed': True})
-        witness = int(found['data'], 16).to_bytes(32, 'little').hex()
         mode, receiver, paid, peer = 'success', 'bob', 'alice', 'alice'
         with peer_offline(owners, peer):
             crash(directory, fault, 'native-peer-offline')
-            txid, sent = native_exit(owners / receiver / 'recovery', 'claim', witness)
+            txid, sent = owner_native_exit(directory, receiver, order, 'native-claim')
             crash(directory, fault, 'native-exit-confirmed')
     elif state in (1, 3):
         # This branch is allowed only when the complete local owner journal
@@ -233,15 +247,12 @@ def finish(directory, agreement, order, recovered=False, fault=None):
         mode, receiver, paid, peer = 'refund', 'alice', 'bob', 'bob'
         with peer_offline(owners, peer):
             crash(directory, fault, 'native-peer-offline')
-            txid, sent = native_exit(owners / receiver / 'recovery', 'refund')
+            txid, sent = owner_native_exit(directory, receiver, order, 'native-refund')
             crash(directory, fault, 'native-exit-confirmed')
     else:
         raise RuntimeError('owner order is not funded')
     record_once(directory, '06-zec-claimed' if mode == 'success' else '06-zec-refunded',
         {'txid': txid, 'in_active_chain': True, 'confirmations': 2})
-    observed = capture(owners / receiver / 'recovery' / receiver)
-    if not any(n['txid'] == txid and n['value'] == 1_000_000 for n in read(Path(observed['file']))['notes']):
-        raise RuntimeError('owner could not decrypt the native payment')
     address = agreement['recipient' if paid == 'alice' else 'maker']
     before = int(evm.rpc('eth_getBalance', [address, 'latest']), 16)
     withdrawn = owner_call(directory, 'withdraw', paid, {'order': order}, fault == 'eth-withdraw-broadcast')

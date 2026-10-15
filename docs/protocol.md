@@ -173,6 +173,16 @@ Alice's original transaction reverts. Reconciliation uses the validated order's
 canonical event, preserving the fixed recipient. This remains a same-host
 fixture with trusted local validating nodes and controlled confirmation policy.
 
+The owner CLI also executes native exits. Bob reads the canonical ETH claim
+event himself; Alice refuses no-reveal refund whenever her own durable claim
+intent exists. Both bind their watch-only workspace back to the accepted bundle
+and return pending/confirmation states without changing either chain's clock.
+The browser's harness invokes these same commands and separately mines its
+disposable native chain. Detached-coordinator, no-ETH-key and actual funding-fork
+gates are described in [owner-operated recovery](owner-native-recovery.md).
+This removes a coordinator filesystem dependency from native settlement; it
+does not remove the trusted-RPC or bounded-monitoring assumptions.
+
 The browser now invokes those owner clients through `prefunding_swap.py`, which
 delegates funded settlement to `owner_swap.py`. The local
 harness checkpoints its disposable EVM before each owner action; the owner

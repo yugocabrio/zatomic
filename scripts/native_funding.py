@@ -69,7 +69,7 @@ def current(txid):
         return {}
 
 
-def restore_published(directory, terms, fault_after_send=False):
+def restore_published(directory, terms, fault_after_send=False, mine=True):
     """Caller has verified a current canonical ETH claim for this exact order."""
     status()
     versions = history(directory, terms)  # Validate ALL retained versions first.
@@ -95,13 +95,16 @@ def restore_published(directory, terms, fault_after_send=False):
             raise RuntimeError('all published funding anchors unavailable; source re-proving is not implemented')
         if fault_after_send:
             raise InjectedStop('published-funding-send-before-confirmation')
-    if depth < 2:
+    if depth < 2 and mine:
         # Explicitly local harness mining, never a public finality policy.
         rpc('generate', [2 - depth], timeout=300)
     confirmed = current(txid)
-    if not confirmed.get('in_active_chain') or confirmed.get('confirmations', 0) < 2:
-        raise RuntimeError('published funding replay did not confirm')
-    observe(directory, terms, confirmed)
+    depth = confirmed.get('confirmations', 0) if confirmed.get('in_active_chain') else 0
+    if depth < 2:
+        if mine:
+            raise RuntimeError('published funding replay did not confirm')
+    else:
+        observe(directory, terms, confirmed)
     return {'action': 'restore-funding', 'txid': txid, 'new_transaction': sent,
         'chain': 'native', 'new_source_signature': False, 'source_wallet_accessed': False,
-        'published_bytes_only': True, 'confirmations': confirmed['confirmations']}
+        'published_bytes_only': True, 'confirmations': depth}

@@ -38,7 +38,7 @@ def record_once(directory, stage, value):
         save(directory / f'{stage}.json', value)
 
 
-def native_exit(swap, mode, witness=None):
+def native_exit(swap, mode, witness=None, mine=True):
     # Reconcile current chain/mempool, never an old completion journal. Mining
     # here is explicitly the isolated harness's confirmation mechanism.
     status()
@@ -66,9 +66,10 @@ def native_exit(swap, mode, witness=None):
             # A canonical or pending transaction must not be sent a second
             # time: Zebra rejects already-mined effects. Observe this exact
             # payment reaching depth, without constructing another proof.
-            zrpc('generate', [2 - depth], timeout=300)
-            if not confirmed(txid):
-                raise RuntimeError('observed native exit did not regain confirmations')
+            if mine:
+                zrpc('generate', [2 - depth], timeout=300)
+                if not confirmed(txid):
+                    raise RuntimeError('observed native exit did not regain confirmations')
             return txid, False
     # An orphaned authorization can reference an invalidated anchor. Re-scan
     # the selected branch and re-prove from the accepted owner bundle. The
@@ -80,7 +81,10 @@ def native_exit(swap, mode, witness=None):
     info = native(*args)
     if txids and info['txid'] not in txids:
         raise RuntimeError('re-proving changed native payment effects; not broadcast')
-    broadcast(Path(info['file']), info['txid'])
+    if mine:
+        broadcast(Path(info['file']), info['txid'])
+    elif zrpc('sendrawtransaction', [Path(info['file']).read_text().strip()], timeout=180) != info['txid']:
+        raise RuntimeError('native exit broadcast changed payment identity')
     return info['txid'], True
 
 

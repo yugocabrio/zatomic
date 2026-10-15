@@ -15,7 +15,7 @@ import owner_swap as flow
 import prefunding_swap
 import run_native_evm_gate as evm
 from evm_journal import checkpoint
-from regtest_node import status
+from regtest_node import status, rpc as zrpc
 from regtest_wallet import save
 from run_client_swap import client
 
@@ -55,13 +55,28 @@ def check(directory, expect_collision=False):
             raise RuntimeError('claim was not removed by controlled fork rollback')
         if digest(intent_path)!=original_intent:
             raise RuntimeError('rollback erased or changed secret-exposure intent')
+        native_pool = zrpc('getrawmempool')
+        client('native-claim', bob, {'order': order}, reject=True)
 
         late_snapshot = evm.rpc('evm_snapshot')
         evm.rpc('evm_setNextBlockTimestamp',[agreement['eth_expiry']])
         evm.rpc('evm_mine')
         client('claim',alice,{'order':order},reject=True)
+        client('native-claim', bob, {'order': order}, reject=True)
+        client('native-refund', alice, {'order': order}, reject=True)
         if state()!=1 or (bob/'eth-intent-refund.json').exists():
             raise RuntimeError('expired exposed claim incorrectly became refund')
+        refund_relayer = evm.rpc('eth_accounts')[0]
+        refund = evm.send({'from': refund_relayer, 'to': agreement['contract'],
+            'data': evm.calldata('refund(bytes32)', order), 'gas': hex(200_000)})
+        if state() != 3:
+            raise RuntimeError('competing ETH refund was not canonical')
+        client('native-claim', bob, {'order': order}, reject=True)
+        client('native-refund', alice, {'order': order}, reject=True)
+        if (zrpc('getrawmempool') != native_pool or status()['tip'] != native_tip
+                or digest(intent_path) != original_intent
+                or list((alice / 'recovery').glob('refund-*.hex'))):
+            raise RuntimeError('native owner crossed a possible-exposure refusal')
         revert(late_snapshot)
 
         replay_snapshot = evm.rpc('evm_snapshot')
@@ -119,6 +134,9 @@ def check(directory, expect_collision=False):
         'canonical_relayer_txid':relayed['transactionHash'],
         'old_receipts_retained_as_history':True,'secret_exposure_intent_unchanged':True,
         'expired_exposed_claim_rejected_without_refund':True,'relayer_credit_zero':True,
+        'native_owner_claim_refused_orphaned_expired_and_refunded_eth': True,
+        'native_owner_refund_refused_own_exposure_on_expired_and_refunded_eth': True,
+        'competing_refund_txid_on_reverted_branch': refund['transactionHash'],
         'settlement':result,'repeat':repeated,'public_reorg_policy':False}
     save(directory/'reorg-checks.json',outcome)
     return outcome
