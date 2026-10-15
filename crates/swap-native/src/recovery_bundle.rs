@@ -221,11 +221,13 @@ pub fn accept(
     verify_auxiliary_signature(&refund)?;
     let funding = encoded(&policy, "funding")?;
     let funding = Transaction::read(&funding[..], BranchId::Nu7)?;
+    let amounts = crate::trade::amounts(&policy)?;
     if terms["funding_txid"] != funding.txid().to_string()
         || terms["pending_cmx"] != policy["pending"]["cmx"]
         || terms["refund_height"] != policy["refund_height"]
-        || terms["principal_zatoshi"] != 1_010_000
-        || terms["payout_zatoshi"] != 1_000_000
+        || terms.get("trade") != policy.get("trade")
+        || terms["principal_zatoshi"] != amounts.principal
+        || terms["payout_zatoshi"] != amounts.payout
         || terms["aux_outpoint"]["index"] != policy["aux"]["index"]
         || terms["aux_outpoint"]["value_zatoshi"] != policy["aux"]["value"]
     {
@@ -401,6 +403,16 @@ mod tests {
         let original_receipt = storage::json(&dir.join("recovery-receipt.json"))?;
         assert_eq!(accept(&dir, 2, &own, &public, &original)?, original_receipt);
         let mut cases = Vec::new();
+        if original["terms"].get("trade").is_some() {
+            let mut altered = original.clone();
+            altered["terms"]["trade"]["offer"]["payload"]["payout_zatoshi"] = json!(1);
+            altered["policy"]["trade"] = altered["terms"]["trade"].clone();
+            cases.push(("changed signed OTC amount", altered));
+            let mut altered = original.clone();
+            altered["terms"].as_object_mut().unwrap().remove("trade");
+            altered["policy"].as_object_mut().unwrap().remove("trade");
+            cases.push(("OTC quote downgrade to fixed profile", altered));
+        }
         if original["terms"].get("funding_anchor_height").is_some() {
             for (field, value) in [
                 ("funding_anchor", json!("00".repeat(32))),

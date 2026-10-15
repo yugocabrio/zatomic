@@ -136,3 +136,16 @@ closes the shared-private-path dependency for the tested workflow. It remains
 one administrator/host, uses explicitly trusted RPC, and keeps the native
 preparer inside Alice's privileged source-wallet boundary. It does not resolve
 the public timing or deeper source-conflict limitations above.
+
+Subsequent OTC amount extension: Alice signs the canonical quote under
+`Latch OTC offer v1`, and Bob signs its digest under `Latch OTC acceptance v1`.
+Both operators compare the quoted owners with their authenticated local pins.
+Native signers require the exact locally accepted quote before producing a
+nonce commitment. Native input/output checks, decrypted payouts, recovery-bundle
+metadata and source/ETH amount checks derive from that verified quote. Final
+funding consent still covers the complete graph, contract, amounts and deadlines.
+Neither quote signature alone grants spend authority. Decimal strings become
+integers without rounding; the local profile has explicit value/fee limits.
+Quote signatures are not market-price guarantees or proof of funding. Each
+operator directory handles one trade; quotes have no separate wall-clock expiry.
+The earlier fixed-profile behavior is retained when no quote is configured.

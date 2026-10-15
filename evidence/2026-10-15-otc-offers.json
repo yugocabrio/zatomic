@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-15",
+  "base_commit": "920f01b",
+  "scope": "Signed OTC quote/acceptance and actual settlement/refund on isolated Zebra NU7 plus Anvil; same-host OS private-root separation",
+  "runs": {
+    "success": {
+      "zec_amount": "0.02345678",
+      "eth_amount": "0.037000000000000001",
+      "native_received_zatoshi": 2345678,
+      "eth_received_wei": 37000000000000001,
+      "funding_txid": "aca738983e24f51e874523cd590d0be6e34082f303d5fa5c082294ea92764534",
+      "native_exit_txid": "e4839eda3f6af82f9cd9dc002e7305c486416ee7f7545bda5a7f4564d56ff34b",
+      "native_confirmations_at_completion": 2,
+      "eth_withdraw_txid": "0x2d8d537f566d5eedb8fefd91ca054b105cf3c0211b492b63283e0d3ff93500ea",
+      "peer_unavailable_during_native_exit": true,
+      "repeat_new_native_transactions": 0,
+      "repeat_new_evm_transactions": 0
+    },
+    "refund": {
+      "zec_amount": "0.07654321",
+      "eth_amount": "0.012345678901234567",
+      "native_received_zatoshi": 7654321,
+      "eth_received_wei": 12345678901234567,
+      "funding_txid": "383632adc0170ddb081b3e475172962fe71ee3d87202a076abe0eb2efd138f4d",
+      "native_exit_txid": "f9972b357abbf921111a42417fe6bb5c2271a9c92cb44f3728eb9c3462e60043",
+      "native_confirmations_at_completion": 2,
+      "eth_withdraw_txid": "0x5245c2239755ea86fd8d08eb489ad3c6ae56cf210164a71783ab3525da41359a",
+      "peer_unavailable_during_native_exit": true,
+      "repeat_new_native_transactions": 0,
+      "repeat_new_evm_transactions": 0
+    }
+  },
+  "offer_checks": {
+    "scope": "fresh operator keys, no source wallet or chain transactions",
+    "canonical_decimal_rejections": 10,
+    "signed_quote_mutation_rejections": 7,
+    "changed_acceptance_rejected": true,
+    "seller_replacement_rejected": true,
+    "exact_smallest_units": true,
+    "seller_retry_identical": true,
+    "funded_swap": false
+  },
+  "legacy_fixed_amount_recovery": {
+    "new_native_transactions": 0,
+    "new_evm_transactions": 0
+  },
+  "development_diagnostic": "First custom success stopped after ETH lock because the old order-state verifier still compared against the fixed fixture amount. Replaced that comparison with the fully signed agreement amount, resumed the original stored trade, and completed both assets. No fixture reset or substitute trade.",
+  "execution": [
+    "python3 scripts/check_otc_offer.py .local/otc-quotes-001",
+    "RAYON_NUM_THREADS=2 python3 scripts/check_independent_operators.py success .local/otc-success-001 --zec-amount 0.02345678 --eth-amount 0.037000000000000001",
+    "RAYON_NUM_THREADS=2 python3 scripts/check_independent_operators.py recover .local/otc-success-001 (recovery after the diagnostic, then zero-send repeat)",
+    "RAYON_NUM_THREADS=2 python3 scripts/check_independent_operators.py refund .local/otc-refund-001 --zec-amount 0.07654321 --eth-amount 0.012345678901234567",
+    "RAYON_NUM_THREADS=2 python3 scripts/check_independent_operators.py recover .local/otc-refund-001",
+    "RAYON_NUM_THREADS=2 python3 scripts/check_independent_operators.py recover .local/independent-success-001",
+    "cargo build --release --locked -j 2 -p shielded-swap-native",
+    "cargo test --workspace --locked -j 2",
+    "cargo clippy --workspace --all-targets --locked -j 2 -- -D warnings",
+    "python3 -m compileall -q scripts",
+    "python3 scripts/check_demo_boundary.py",
+    "LATCH_BUNDLE_FIXTURE=/Users/yugo/zcash2/.local/otc-success-001 RAYON_NUM_THREADS=2 cargo test --locked -j 2 -p shielded-swap-native reject_corrupt_native_recovery_bundles -- --ignored"
+  ],
+  "limits": [
+    "Operator CLI only; the browser keeps its fixed demonstration amounts.",
+    "No public testnet funds or independent-host deployment; isolated timing remains unchanged.",
+    "Quote signature is not a transaction or funding authorization; complete graph/contract consent remains necessary.",
+    "Test-profile ETH cap 10 ETH; source selection requires one sufficiently large mature note.",
+    "No price feed, discovery, order book, hosted link or bridge minting."
+  ],
+  "validation": "All final commands passed, including the explicitly enabled real-bundle test with changed OTC amount and quote removal rejection. Strict clippy, release build, four regular Rust tests, quote checks and thirteen API boundary checks passed."
+}

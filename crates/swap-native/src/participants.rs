@@ -72,8 +72,9 @@ pub(crate) fn validate(
     if !is_claim && target != shielded_swap_crypto::generator().to_bytes() {
         return Err("refund must be immediately completable".into());
     }
+    let amounts = crate::trade::amounts(policy)?;
     let pending = wallet::parse_note(&policy["pending"])?;
-    if pending.value().inner() != 1_010_000
+    if pending.value().inner() != amounts.principal
         || pending.recipient() != joint.address_at(0u32, Scope::External)
     {
         return Err("pending note policy".into());
@@ -177,7 +178,7 @@ pub(crate) fn validate(
                     .inner();
                 if input > 0 {
                     if real.is_some()
-                        || input != 1_010_000
+                        || input != amounts.principal
                         || a.spend().nullifier() != &pending.nullifier(&joint)
                         || a.spend().spend_auth_sig().is_some()
                     {
@@ -190,7 +191,7 @@ pub(crate) fn validate(
                 }
                 if output > 0 {
                     if paid.is_some()
-                        || output != 1_000_000
+                        || output != amounts.payout
                         || *a.output().recipient()
                             != Some(recipient.address_at(0u32, Scope::External))
                     {
@@ -208,7 +209,7 @@ pub(crate) fn validate(
         .ok_or("Ironwood missing")?
         .decrypt_output_with_key(paid, &recipient.to_ivk(Scope::External))
         .ok_or("payout ciphertext not decryptable")?;
-    if decrypted.value().inner() != 1_000_000 {
+    if decrypted.value().inner() != amounts.payout {
         return Err("decrypted payout changed".into());
     }
     let digest: [u8; 32] = v6_signature_hash(
@@ -242,6 +243,7 @@ pub fn serve(dir: &Path, id: u16) -> Result<()> {
     if id != 1 && id != 2 {
         return Err("participant id must be 1 or 2".into());
     }
+    let accepted_trade = crate::trade::configured()?;
     let resumed = dir.exists();
     if !resumed {
         wallet::init(dir)?;
@@ -361,6 +363,9 @@ pub fn serve(dir: &Path, id: u16) -> Result<()> {
                 response
             }
             Some("commit") => {
+                if request["policy"].get("trade") != accepted_trade.as_ref() {
+                    return Err("signer policy differs from locally accepted OTC offer".into());
+                }
                 if pending.is_some() {
                     return Err("previous signing attempt still pending".into());
                 }

@@ -271,7 +271,7 @@ def finish(directory, agreement, order, recovered=False, fault=None):
         if after - before + fee != agreement['amount_wei']:
             raise RuntimeError('owner ETH balance delta differs')
     result = {'scope': 'actual isolated chains; owner-held keys on one host', 'driver': VERSION,
-        'mode': mode, 'native_txid': txid, 'native_amount_zatoshi': 1_000_000,
+        'mode': mode, 'native_txid': txid, 'native_amount_zatoshi': terms['payout_zatoshi'],
         'eth_wei_received': agreement['amount_wei'], 'eth_withdraw_tx': withdrawn['txid'],
         'owner_signed_eth': True, 'node_cannot_sign_for_owners': True,
         'peer_offline_during_native_exit': True, 'coordinator_native_files_offline': True,

@@ -33,9 +33,6 @@ use zcash_primitives::transaction::{
 use zcash_protocol::{consensus::BranchId, memo::MemoBytes, value::Zatoshis};
 use zcash_transparent::bundle::OutPoint;
 
-const PRINCIPAL: u64 = 1_010_000;
-const PAYOUT: u64 = 1_000_000;
-
 pub fn inspect(path: &Path) -> Result<Value> {
     let raw = hex::decode(storage::read(path, 4_000_000)?)?;
     let mut cursor = std::io::Cursor::new(&raw);
@@ -270,6 +267,17 @@ fn apply(pczt: Pczt, index: usize, sig: [u8; 64], digest: [u8; 32]) -> Result<Pc
 
 pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Result<Value> {
     let pins = pins.map(storage::json).transpose()?;
+    let trade = crate::trade::configured()?;
+    if let Some(trade) = &trade
+        && pins.as_ref() != Some(&trade["offer"]["payload"]["owners"])
+    {
+        return Err("OTC owners differ from source pins".into());
+    }
+    let mut selected = json!({});
+    if let Some(trade) = &trade {
+        selected["trade"] = trade.clone();
+    }
+    let amounts = crate::trade::amounts(&selected)?;
     let source_guard = if pins.is_some() {
         let guard = crate::source_guard::Guard::open(dir.parent().ok_or("setup parent")?)?;
         guard.active()?;
@@ -287,7 +295,9 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         .ok_or("notes")?
         .iter()
         .find(|n| {
-            n["value"].as_u64().is_some_and(|v| v > PRINCIPAL + 10_000)
+            n["value"]
+                .as_u64()
+                .is_some_and(|v| v > amounts.principal + 10_000)
                 && (n["coinbase"] == false
                     || n["height"]
                         .as_u64()
@@ -344,7 +354,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         .add_ironwood_output::<Infallible>(
             None,
             joint.address_at(0u32, Scope::External),
-            Zatoshis::from_u64(PRINCIPAL)?,
+            Zatoshis::from_u64(amounts.principal)?,
             MemoBytes::empty(),
         )
         .map_err(err)?;
@@ -352,7 +362,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         .add_ironwood_output::<Infallible>(
             None,
             alice_fvk.address_at(0u32, Scope::External),
-            Zatoshis::from_u64(input.value().inner() - PRINCIPAL - 10_000)?,
+            Zatoshis::from_u64(input.value().inner() - amounts.principal - 10_000)?,
             MemoBytes::empty(),
         )
         .map_err(err)?;
@@ -378,7 +388,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         .ok_or("funding bundle")?
         .decrypt_output_with_key(output, &joint.to_ivk(Scope::External))
         .ok_or("joint output")?;
-    if pending.value().inner() != PRINCIPAL || funding.transparent_bundle().is_some() {
+    if pending.value().inner() != amounts.principal || funding.transparent_bundle().is_some() {
         return Err("funding privacy/amount".into());
     }
     let pending_json = wallet::note_json(&pending);
@@ -396,7 +406,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         .add_ironwood_output::<Infallible>(
             None,
             receiver.address_at(0u32, Scope::External),
-            Zatoshis::from_u64(PAYOUT)?,
+            Zatoshis::from_u64(amounts.payout)?,
             MemoBytes::empty(),
         )
         .map_err(err)?;
@@ -409,10 +419,13 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
     let refund_height = height + 20;
     let mut funding_raw = Vec::new();
     funding_preview(&funding)?.write(&mut funding_raw)?;
-    let policy = json!({"mode":"claim", "joint_fvk":hex::encode(joint.to_bytes()),
+    let mut policy = json!({"mode":"claim", "joint_fvk":hex::encode(joint.to_bytes()),
         "alice_fvk":hex::encode(refund_receiver.to_bytes()),"bob_fvk":hex::encode(receiver.to_bytes()),
         "pending":pending_json,"refund_height":refund_height,"funding":hex::encode(funding_raw),
         "aux":{"txid_le":hex::encode(aux.txid.as_ref()),"index":auxindex,"value":u64::from(auxcoin.value()),"script":hex::encode(&auxcoin.script_pubkey().0.0)}});
+    if let Some(trade) = &trade {
+        policy["trade"] = trade.clone();
+    }
     let target = pair.point;
     storage::write_json(&dir.join("claim-policy.json"), &policy)?;
     let (claim, pre, claim_index) = presign(claim, &mut pair, policy.clone(), target)?;
@@ -426,7 +439,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         .add_ironwood_output::<Infallible>(
             None,
             refund_receiver.address_at(0u32, Scope::External),
-            Zatoshis::from_u64(PAYOUT)?,
+            Zatoshis::from_u64(amounts.payout)?,
             MemoBytes::empty(),
         )
         .map_err(err)?;
@@ -518,7 +531,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
     crate::recovery_bundle::verify_auxiliary_signature(&refund)?;
     let mut terms = json!({"scope":"isolated regtest; independent local signer processes", "independent_signer_processes":true, "funding_txid":funding.txid().to_string(),
         "aux_outpoint":{"txid":aux.txid.to_string(),"index":auxindex,"value_zatoshi":u64::from(auxcoin.value())},
-        "principal_zatoshi":PRINCIPAL,"payout_zatoshi":PAYOUT,"refund_height":refund_height,
+        "principal_zatoshi":amounts.principal,"payout_zatoshi":amounts.payout,"refund_height":refund_height,
         "point_x":pair.point_x,"point_y":pair.point_y,"claim_index":claim_index,
         "refund_index":refund_index,"pending_cmx":pending_json["cmx"],"source_tip":snapshot["tip"],
         "preauthorized_before_funding":true,"exit_circuits_verified_before_funding":true,
@@ -527,6 +540,9 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         "participant_bundles_acknowledged_before_funding":true,
         "funding_authorization_withheld_from_peer_until_acknowledgment":true,
         "refund_transparent_auxiliary":true,"funding_and_claim_fully_shielded":true});
+    if let Some(trade) = &trade {
+        terms["trade"] = trade.clone();
+    }
     if let Some(pins) = &pins {
         terms["source_guard"] = source_guard
             .as_ref()
@@ -651,6 +667,7 @@ pub fn authorize_funding(bank: &Path, dir: &Path, packet: &Path) -> Result<Value
 
 pub fn finish(dir: &Path, scan: &Path, mode: &str, witness: Option<&str>) -> Result<Value> {
     let terms = storage::json(&dir.join("terms.json"))?;
+    let amounts = crate::trade::amounts(&terms)?;
     let snapshot = storage::json(scan)?;
     if snapshot["genesis"] != wallet::GENESIS {
         return Err("wrong observed chain".into());
@@ -663,7 +680,7 @@ pub fn finish(dir: &Path, scan: &Path, mode: &str, witness: Option<&str>) -> Res
         .ok_or("funding note absent/spent")?;
     if source["txid"] != terms["funding_txid"]
         || source["coinbase"] != false
-        || source["value"] != PRINCIPAL
+        || source["value"] != amounts.principal
     {
         return Err("wrong funding note".into());
     }

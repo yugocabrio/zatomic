@@ -76,7 +76,7 @@ class Operators:
             yield
 
 
-def setup(actors, harness):
+def setup(actors, harness, quote=None):
     manifest = {r: actors.invoke(r, 'init')['manifest'] for r in actors.paths}
     actors.isolation()
     packet = lambda m: {'manifest': m, 'expected_manifest_sha256': manifest_digest(m)}
@@ -84,6 +84,16 @@ def setup(actors, harness):
         actors.invoke(role, 'trust-coordinator', dict(packet(manifest['coordinator']), port=port))
         actors.invoke(role, 'trust-peer', packet(manifest['bob' if role == 'alice' else 'alice']))
         actors.invoke('coordinator', 'register-owner', dict(packet(manifest[role]), host='127.0.0.1', port=port))
+    trade = None
+    if quote:
+        offer = actors.invoke('alice', 'offer-create', quote)
+        changed = copy.deepcopy(offer)
+        changed['offer']['payload']['payout_zatoshi'] += 1
+        actors.invoke('bob', 'offer-review', changed, reject=True)
+        review = actors.invoke('bob', 'offer-review', offer)
+        trade = actors.invoke('bob', 'offer-accept', offer)
+        actors.invoke('alice', 'offer-accept', trade)
+        save(harness / 'otc-review.json', review)
     bank = actors.paths['coordinator'] / 'bank'
     funded = owned_process.run(actors.command('coordinator', [sys.executable,
         str(ROOT / 'scripts/regtest_wallet.py'), 'fund', str(bank)]), capture_output=True, text=True, timeout=300)
@@ -91,19 +101,19 @@ def setup(actors, harness):
         (harness / 'source-funding-error.log').write_text(funded.stderr)
         raise RuntimeError('isolated source wallet fixture funding failed')
     with actors.services():
-        terms = actors.invoke('coordinator', 'stage', {'bank': str(bank)})
+        terms = actors.invoke('coordinator', 'stage', dict(bank=str(bank), **({'trade': trade} if trade else {})))
     for role in ('alice', 'bob'):
         actors.invoke(role, 'ready')
     pins = {r: manifest[r]['identity'] for r in ('alice', 'bob')}
     accounts = evm.rpc('eth_accounts')
     for pin in pins.values():
-        evm.rpc('anvil_setBalance', [pin['address'], hex(10**18)])
+        evm.rpc('anvil_setBalance', [pin['address'], hex(10**18 + (trade['offer']['payload']['eth_amount_wei'] if trade else 10**16))])
     artifact = flow.read(ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json')
     contract = send(harness, {'from': accounts[0], 'data': artifact['bytecode']['object'],
         'gas': hex(5_000_000)}, kind='deploy')['contractAddress']
     now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
     agreement = {'native': terms, 'eth_chain_id': evm.CHAIN, 'contract': contract,
-        'maker': pins['bob']['address'], 'recipient': pins['alice']['address'], 'amount_wei': 10**16,
+        'maker': pins['bob']['address'], 'recipient': pins['alice']['address'], 'amount_wei': trade['offer']['payload']['eth_amount_wei'] if trade else 10**16,
         'eth_expiry': now + 3600, 'consent_version': 1, 'eth_salt': '0x' + os.urandom(32).hex(),
         'eth_code_hash': evm_wallet.keccak(bytes.fromhex(evm.rpc('eth_getCode', [contract, 'latest'])[2:])).hex(),
         'scope': 'same-host OS-isolated operators; actual owned chain fixture'}
@@ -163,7 +173,7 @@ def complete(actors, harness, agreement, consents, mode):
             rpc('generate', [2 - result['confirmations']], timeout=300)
         confirmed = actors.invoke(owner, action, {'order': order})
         repeat = actors.invoke(owner, action, {'order': order})
-        if (confirmed['state'] != 'confirmed' or confirmed['received_zatoshi'] != 1_000_000
+        if (confirmed['state'] != 'confirmed' or confirmed['received_zatoshi'] != terms['payout_zatoshi']
                 or confirmed['new_transaction'] or repeat['new_transaction']):
             raise RuntimeError('independent native settlement/restart failed')
     finally:
@@ -176,11 +186,11 @@ def complete(actors, harness, agreement, consents, mode):
     address_topic = '0x' + target[2:].rjust(64, '0')
     if not any(log['address'].lower() == agreement['contract'].lower()
                and log['topics'] == [topic, address_topic, address_topic]
-               and int(log['data'], 16) == 10**16 for log in receipt['logs']):
+               and int(log['data'], 16) == agreement['amount_wei'] for log in receipt['logs']):
         raise RuntimeError('independent ETH withdrawal mismatch')
     return {'scope': 'same-host OS file isolation, actual owned chains; not independent administration',
         'mode': mode, 'funding_txid': terms['funding_txid'], 'native_exit': confirmed, 'native_repeat': repeat,
-        'eth_withdraw_txid': withdrawn['txid'], 'eth_wei_received': 10**16,
+        'eth_withdraw_txid': withdrawn['txid'], 'eth_wei_received': agreement['amount_wei'],
         'new_native_transactions': int(funding_sent) + int(result['new_transaction']),
         'new_evm_transactions': int(locked['new_transaction']) + int(eth_exit['new_transaction']) + int(withdrawn['new_transaction']),
         'all_six_cross_operator_root_reads_denied': True, 'keys_generated_by_own_operator': True,
@@ -190,7 +200,7 @@ def complete(actors, harness, agreement, consents, mode):
         'owner_exit_without_mining_or_node_restore': True, 'independent_hosts': False, 'public_testnet': False}
 
 
-def check(root, mode, resume):
+def check(root, mode, resume, quote=None):
     actors = Operators(root)
     harness = root / 'harness'
     if not resume:
@@ -211,7 +221,7 @@ def check(root, mode, resume):
             consents = flow.read(harness / 'public-consents.json')
         else:
             require_capacity(133)
-            agreement, consents = setup(actors, harness)
+            agreement, consents = setup(actors, harness, quote)
         result = complete(actors, harness, agreement, consents, mode)
         if (harness / 'complete.json').exists():
             original = flow.read(harness / 'complete.json')
@@ -228,6 +238,11 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('mode', choices=['success', 'refund', 'recover'])
     p.add_argument('directory', type=Path)
+    p.add_argument('--zec-amount')
+    p.add_argument('--eth-amount')
     a = p.parse_args()
+    if bool(a.zec_amount) != bool(a.eth_amount):
+        p.error('both OTC decimal amounts are required')
     os.umask(0o077)
-    print(json.dumps(check(a.directory.resolve(), a.mode, a.mode == 'recover'), indent=2))
+    print(json.dumps(check(a.directory.resolve(), a.mode, a.mode == 'recover',
+        {'zec_amount': a.zec_amount, 'eth_amount': a.eth_amount} if a.zec_amount else None), indent=2))

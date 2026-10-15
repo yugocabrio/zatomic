@@ -1,11 +1,14 @@
 # Latch
 
-**Shielded ZEC ↔ ETH, with the way out prepared before funding.**
+**P2P OTC swaps of shielded ZEC for ETH, with recovery prepared before funding.**
 
 Latch is an independent ZECATHON Cross-chain prototype. Two participants prepare
 native shielded claim and refund transactions using a custom RedPallas adaptor
 signature. A scalar revealed to an immutable ETH escrow completes the Zcash
 claim. No Zcash receiver, viewing key or note opening goes into the EVM claim.
+Alice sets the amounts, Bob accepts the signed quote, and both authorize the
+complete exchange after checking their recovery paths. ZEC stays on Zcash and
+ETH stays on Ethereum; Latch exchanges ownership without minting wrapped assets.
 
 The local demo runs **real Zebra NU7 and Anvil transactions**. It includes a
 successful exchange, interruption after secret reveal, and interruption before
@@ -29,6 +32,11 @@ start it, and use **Restart & recover** after an intentional stop. Setup uses
 pinned dependencies and an isolated, ownership-labeled node. It never touches
 another project's wallet or chain.
 
+For peer-selected amounts, use the [OTC offer/accept CLI](docs/otc-offers.md).
+It supports exact decimal amounts and signed quotes between separately pinned
+operators. The browser keeps its fixed demonstration amounts. No market-price
+feed or counterparty matching is implemented.
+
 If already built and the node is running:
 
 ```sh
@@ -49,6 +57,7 @@ python3 scripts/demo_server.py
 - [Owner-held ETH clients, restart and competing-relayer gates](docs/owner-clients.md)
 - [Owner-operated native exits without coordinator files or ETH signing keys](docs/owner-native-recovery.md)
 - [Separate operator CLI and OS-isolated setup/settlement](docs/independent-operators.md)
+- [Alice-created OTC quotes and Bob's signed acceptance](docs/otc-offers.md)
 - [Both owners sign the cross-chain offer before ZEC funding](docs/funding-consent.md)
 - [Cancel interrupted setup or recover a committed source release](docs/setup-recovery.md)
 - [SIGKILL recovery, peer-directory journals and owned worker cleanup](docs/process-recovery.md)
@@ -80,7 +89,9 @@ cancelled; committed funding follows the prepared recovery path.
 The node cannot sign for those owners; the coordinator does not read Alice's
 unrevealed scalar. Browser recovery restarts the same owner clients. Older saved
 runs retain their original recovery driver. Independent-host wallet operation
-and an OS sandbox are not demonstrated. The custom adaptor extension is unaudited.
+is not demonstrated. A separate operator gate enforces private-root file access
+denials on the same host; this is not a hardened machine sandbox or independent
+administration. The custom adaptor extension is unaudited.
 The swap requires monitoring and bounded inclusion/reorg assumptions; it is not
 safe against an arbitrarily long outage. Local controlled heights/times are not
 public-network timing defaults. Mainnet is unsupported.

@@ -16,6 +16,7 @@ import subprocess
 import sys
 import evm_wallet
 import native_funding
+import otc_offer
 from evm_participant import read
 from funding_wallet import authorize
 from regtest_node import ROOT, rpc
@@ -25,7 +26,7 @@ from run_client_swap import client
 ROLES = ('alice', 'bob')
 OPERATIONS = ('init', 'identity', 'trust-coordinator', 'trust-peer', 'register-owner',
     'serve', 'ready', 'stage', 'consent', 'source-fund', 'lock', 'claim', 'refund',
-    'withdraw', 'native-claim', 'native-refund')
+    'withdraw', 'native-claim', 'native-refund', 'offer-create', 'offer-review', 'offer-accept')
 
 
 def manifest_digest(value):
@@ -133,6 +134,14 @@ def execute(directory, action, packet):
         pins = {r: read(directory / (r + '-public.json'))['identity'] for r in ROLES}
         save(directory / 'owner-pins.json', pins)
         if action == 'stage':
+            if 'trade' in packet:
+                candidate = directory / ('trade-candidate-' + manifest_digest(packet['trade']) + '.json')
+                save(candidate, packet['trade'])
+                native('otc-verify-acceptance', candidate)
+                if packet['trade']['offer']['payload']['owners'] != pins:
+                    raise RuntimeError('source OTC identity pins differ')
+                save(directory / 'accepted-trade.json', packet['trade'])
+                os.environ['LATCH_TRADE_TERMS'] = str(directory / 'accepted-trade.json')
             bank = Path(packet['bank']).resolve()  # Local operator input, not a network offer.
             observed = funding_capture(bank)
             commands = {r: [sys.executable, str(ROOT / 'scripts/signer_transport.py'), 'connect',
@@ -158,12 +167,17 @@ def execute(directory, action, packet):
             'source_operator_only': True, 'client_mined_blocks': False}
     if role not in ROLES:
         raise RuntimeError('participant operator required')
+    if action.startswith('offer-'):
+        return otc_offer.execute(directory, action, packet)
     if action == 'trust-coordinator':
         return configure_owner(directory, packet, own)
     if action == 'trust-peer':
         peer = pin(directory, 'trusted-peer.json', packet, 'bob' if role == 'alice' else 'alice')
         return {'trusted_peer': peer['role'], 'manifest_sha256': manifest_digest(peer)}
     if action == 'serve':
+        if (directory / 'accepted-trade.json').exists():
+            otc_offer.verify(directory, read(directory / 'accepted-trade.json'), True)
+            os.environ['LATCH_TRADE_TERMS'] = str(directory / 'accepted-trade.json')
         os.execv(sys.executable, [sys.executable, str(ROOT / 'scripts/signer_transport.py'), 'serve',
             str(directory / 'signer-server.json')])
     if action == 'ready':
@@ -173,6 +187,9 @@ def execute(directory, action, packet):
         if (packet['native']['owner_pins'][peer['role']] != peer['identity']
                 or packet['native']['owner_pins'][role] != own['identity']):
             raise RuntimeError('offer owners differ from independently trusted identities')
+        selected = directory / 'accepted-trade.json'
+        if packet['native'].get('trade') != (read(selected) if selected.exists() else None):
+            raise RuntimeError('full agreement differs from locally accepted OTC quote')
     return client(action, directory, packet)
 
 

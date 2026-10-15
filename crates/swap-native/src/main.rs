@@ -7,6 +7,7 @@ mod recovery_bundle;
 mod regtest_swap;
 mod source_guard;
 mod storage;
+mod trade;
 mod wallet;
 use ff::{Field, PrimeField};
 use ff_old::{Field as OldField, PrimeField as OldPrimeField};
@@ -422,6 +423,8 @@ fn complete(dir: &Path, witness: &str) -> Result<serde_json::Value> {
 fn main() -> Result<()> {
     let a: Vec<_> = std::env::args().collect();
     let value = match a.get(1).map(String::as_str) {
+        Some("otc-verify-offer") if a.len() == 3 => trade::inspect(Path::new(&a[2]), false)?,
+        Some("otc-verify-acceptance") if a.len() == 3 => trade::inspect(Path::new(&a[2]), true)?,
         Some("evm-key-init") if a.len() == 3 => evm_key::init(Path::new(&a[2]))?,
         Some("evm-sign-digest") if a.len() == 3 => evm_key::sign_stdin(Path::new(&a[2]))?,
         Some("regtest-init") if a.len() == 3 => wallet::init(Path::new(&a[2]))?,

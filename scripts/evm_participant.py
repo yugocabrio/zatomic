@@ -93,7 +93,9 @@ def validate_agreement(directory, agreement, initial=False, prefunding=False, mi
     for field in ('maker', 'recipient', 'contract'):
         if not re.fullmatch(r'0x[0-9a-fA-F]{40}', agreement[field]) or int(agreement[field], 16) == 0:
             raise RuntimeError('invalid agreed ETH address')
-    if agreement['eth_chain_id'] != evm.CHAIN or agreement['amount_wei'] != 10**16:
+    expected_eth = terms['trade']['offer']['payload']['eth_amount_wei'] if 'trade' in terms else 10**16
+    if (agreement['eth_chain_id'] != evm.CHAIN or type(agreement['amount_wei']) is not int
+            or agreement['amount_wei'] != expected_eth):
         raise RuntimeError('unsupported agreed chain or amount')
     verify_contract(agreement)
     if agreement.get('consent_version') == 1:
@@ -404,7 +406,7 @@ def execute(directory, action, request, fault_after_send=False):
         data = evm.calldata('lock(bytes32,address,uint64,(uint256,uint256),bytes32)',
             salt, agreement['recipient'], agreement['eth_expiry'],
             f'({terms["point_x"]},{terms["point_y"]})', '0x' + agreement_digest(agreement))
-        gas, value = 700_000, 10**16
+        gas, value = 700_000, agreement['amount_wei']
     elif action == 'claim':
         if state != 1:
             raise RuntimeError('agreed ETH order is not claimable')

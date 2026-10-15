@@ -46,6 +46,7 @@ pub fn verify(dir: &Path, packet_path: &Path, unsigned: &[u8]) -> Result<Value> 
     let packet = storage::json(packet_path)?;
     let agreement = &packet["agreement"];
     let pins = &policy["pins"];
+    let amounts = crate::trade::amounts(&terms)?;
     if policy["terms_digest"] != hash(&terms)?
         || policy["receipts_digest"] != hash(&receipts)?
         || policy["unsigned_digest"] != hex::encode(Sha256::digest(unsigned))
@@ -53,7 +54,7 @@ pub fn verify(dir: &Path, packet_path: &Path, unsigned: &[u8]) -> Result<Value> 
         || terms["owner_pins"] != *pins
         || agreement["consent_version"] != 1
         || agreement["eth_chain_id"] != 31338
-        || agreement["amount_wei"] != 10_000_000_000_000_000u64
+        || agreement["amount_wei"] != amounts.eth
         || agreement["maker"] != pins["bob"]["address"]
         || agreement["recipient"] != pins["alice"]["address"]
     {

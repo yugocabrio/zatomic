@@ -84,7 +84,7 @@ def order_state(agreement, terms, order):
     encoded = evm.rpc('eth_call', [{'to': agreement['contract'], 'data': evm.calldata('orders(bytes32)', order)}, 'latest'])
     words = [int(encoded[2+i:2+i+64], 16) for i in range(0, len(encoded)-2, 64)]
     commitment = hashlib.sha256(json.dumps(agreement, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-    if len(words) != 8 or words[0] != int(agreement['maker'], 16) or words[1] != int(agreement['recipient'], 16) or words[2] != 10**16 or words[3] != agreement['eth_expiry'] or words[5] != int(terms['point_x'], 16) or words[6] != int(terms['point_y'], 16) or words[7] != int(commitment, 16):
+    if len(words) != 8 or words[0] != int(agreement['maker'], 16) or words[1] != int(agreement['recipient'], 16) or words[2] != agreement['amount_wei'] or words[3] != agreement['eth_expiry'] or words[5] != int(terms['point_x'], 16) or words[6] != int(terms['point_y'], 16) or words[7] != int(commitment, 16):
         raise RuntimeError('restored order differs from committed agreement')
     return words[4]
 

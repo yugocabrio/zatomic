@@ -2,7 +2,10 @@
 //! Never expose this digest-signing command as a network signing service.
 use crate::{Result, storage};
 use rand::Rng;
-use secp256k1::{Message, PublicKey, SecretKey, ecdsa::RecoverableSignature};
+use secp256k1::{
+    Message, PublicKey, SecretKey,
+    ecdsa::{self, RecoverableSignature, RecoveryId},
+};
 use serde_json::{Value, json};
 use std::{io::Read, path::Path};
 
@@ -49,6 +52,26 @@ pub fn sign_stdin(dir: &Path) -> Result<Value> {
         .try_into()
         .map_err(|_| "Ethereum key length")?;
     sign(&SecretKey::from_secret_bytes(bytes)?, digest)
+}
+
+/// Verify a domain-separated application digest against the exact pinned key.
+pub fn verify(public: &Value, sig: &Value, digest: [u8; 32]) -> Result<()> {
+    let public = PublicKey::from_byte_array_uncompressed(crate::decode(public, "public_key")?)?;
+    let parity = sig["parity"].as_u64().ok_or("signature parity")?;
+    if parity > 1 {
+        return Err("signature parity".into());
+    }
+    let mut bytes = [0; 64];
+    bytes[..32].copy_from_slice(&crate::decode::<32>(sig, "r")?);
+    bytes[32..].copy_from_slice(&crate::decode::<32>(sig, "s")?);
+    let signature =
+        RecoverableSignature::from_compact(&bytes, RecoveryId::try_from(parity as i32)?)?;
+    let message = Message::from_digest(digest);
+    ecdsa::verify(&signature.to_standard(), message, &public)?;
+    if signature.recover_ecdsa(message)? != public {
+        return Err("signature owner mismatch".into());
+    }
+    Ok(())
 }
 
 #[cfg(test)]

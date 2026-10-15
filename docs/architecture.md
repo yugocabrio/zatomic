@@ -4,6 +4,11 @@ Alice exchanges native shielded ZEC for Bob's ETH. The exchanged ZEC stays in
 Ironwood. A point-lock ETH escrow verifies the scalar that completes a prepared
 RedPallas native spend signature.
 
+This is P2P OTC settlement: assets stay on their native chains and ownership
+changes between Alice and Bob. There is no wrapped token or bridge minting.
+The [OTC quote](otc-offers.md) pins both amounts and owner identities before
+native preparation. It does not replace the final full transaction consent.
+
 ```mermaid
 flowchart LR
   A["Alice participant\nOwn DKG share, witness, ETH key, exit bundle"]

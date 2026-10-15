@@ -30,6 +30,16 @@ exclusive; an unreleased v3 setup can be permanently cancelled. See
 earlier native-funding-first sequence. Owner keys and first secret exposure stay
 in the owner clients; independent-host identity provisioning is still open.
 
+## OTC quote before preparation
+
+The operator path can begin with an Alice-signed exact-amount quote and Bob's
+signed acceptance. Each signer pins the accepted quote locally before preparing
+C/R; the source uses the same amounts. The quote is included in the final native
+terms and both full cross-chain consents. Quotes authorize preparation only;
+contract identity, salt, deadlines and the exact funding graph still require
+final consent. See [OTC offers](otc-offers.md). The legacy browser profile retains
+its fixed amounts, and all current execution profiles remain isolated chains.
+
 ## Transaction order
 
 1. Agree canonical terms: both networks/genesis/branches, deployed ETH code
