@@ -188,3 +188,23 @@ moves are journaled before renaming, and surviving process guardians clean the
 owned prover/node/signer workers after parent SIGKILL. Actual claim/refund and
 setup gates are recorded in [process recovery](process-recovery.md). Arbitrary
 instruction-boundary failures and public-network reorg recovery remain unproven.
+
+Controlled Anvil fork tests now remove a previously observed claim receipt,
+replay the exact bytes into a different block, then replace it with a different
+relayer's canonical claim. Owner settlement observations are append-only per
+block/transaction, and the original exposure intent is retained across forks.
+The replacement event completes the real native exit. See
+[EVM fork recovery](evm-reorg.md); this is before withdrawals/native settlement
+and is not a public-network confirmation policy.
+
+The native owner gate is also exercised by actual Zebra block invalidation:
+one-confirmation or orphaned F prevents first secret exposure and new owner
+lock processing. The original branch is then reconsidered before settlement.
+See [native reorg tests](native-reorg.md). Separate actual claim/refund exit
+forks retain F in the common ancestor. One-confirmation and pending exits regain
+confirmation without a new send; an exit with an orphaned anchor is re-proved
+from the accepted owner bundle with the same v6 effects txid. Native recipients
+decrypt the same payout, old proof versions remain retained, and ETH withdrawals
+are not repeated. The claim test starts after actual ETH secret exposure.
+Funding itself becoming orphaned after exposure, a conflicting refund winning
+beyond the allowed window, and public-network timing/finality remain unproven.

@@ -260,13 +260,16 @@ pub fn scan(dir: &Path, capture: &Path) -> Result<Value> {
         notes.push(n);
     }
     let result = json!({"genesis":GENESIS,"height":height,"tip":previous,"anchor":hex::encode(tree.root().to_bytes()),"notes":notes});
-    let output = dir.join(format!("scan-{height}.json"));
+    if hex::decode(&previous)?.len() != 32 {
+        return Err("invalid capture tip hash".into());
+    }
+    let output = dir.join(format!("scan-{height}-{previous}.json"));
     if output.exists() {
         if storage::json(&output)? != result {
-            return Err("existing scan differs; possible reorg".into());
+            return Err("existing scan differs for the same block hash".into());
         }
     } else {
-        storage::write_json(&output, &result)?;
+        storage::atomic_json(&output, &result)?;
     }
     Ok(
         json!({"scope":"trusted local validating node capture", "height":height,"unspent_notes":notes.len(),"paths_match_node":true,"file":output}),

@@ -20,6 +20,7 @@ use pczt::{
     },
 };
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, convert::Infallible, path::Path};
 use zcash_primitives::transaction::{
     Transaction,
@@ -45,6 +46,8 @@ pub fn inspect(path: &Path) -> Result<Value> {
     Ok(
         json!({"scope":"parsed local transaction; parsing alone is not verification", "txid":tx.txid().to_string(),
         "lock_time":tx.lock_time(),"expiry_height":u32::from(tx.expiry_height()),"file":path,
+        "authorization_bytes_sha256":hex::encode(Sha256::digest(&raw)),
+        "ironwood_anchor":tx.ironwood_bundle().map(|b|hex::encode(b.anchor().to_bytes())),
         "transparent_inputs":tx.transparent_bundle().map(|b|b.vin.len()).unwrap_or(0)}),
     )
 }
@@ -685,12 +688,21 @@ pub fn finish(dir: &Path, scan: &Path, mode: &str, witness: Option<&str>) -> Res
         return Err("reanchoring changed authorization".into());
     }
     let tx = prove(pczt)?;
-    save_tx(&dir.join(format!("{mode}-{}.hex", snapshot["height"])), &tx)?;
+    // A v6 re-proof keeps effects/txid but changes authorization bytes. Preserve
+    // every complete version, including a retry at the same height or anchor.
+    let mut raw = Vec::new();
+    tx.write(&mut raw)?;
+    let output = dir.join(format!(
+        "{mode}-{}-{}.hex",
+        snapshot["height"],
+        hex::encode(Sha256::digest(&raw))
+    ));
+    storage::atomic_write(&output, hex::encode(raw).as_bytes())?;
     Ok(
         json!({"scope":"actual regtest-funded native transaction, not yet broadcast", "mode":mode,
         "txid":tx.txid().to_string(),"lock_time":tx.lock_time(),"expiry_height":u32::from(tx.expiry_height()),
         "transparent_inputs":tx.transparent_bundle().map(|b|b.vin.len()).unwrap_or(0),
         "proof_and_signatures_verified":true,"prepared_before_funding":true,
-        "file":dir.join(format!("{mode}-{}.hex",snapshot["height"]))}),
+        "file":output}),
     )
 }

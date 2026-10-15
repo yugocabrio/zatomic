@@ -25,7 +25,7 @@ def native(*args):
 
 
 def save(path, value):
-    # Immutable snapshot: a reorg is an error, never silent replacement.
+    # Immutable snapshot: callers must give distinct observations distinct names.
     encoded = json.dumps(value, sort_keys=True)
     if path.exists():
         if json.loads(path.read_text()) != value:
@@ -77,9 +77,9 @@ def capture(directory):
         'final_tree': rpc('z_gettreestate', [tip['tip']])['ironwood']['commitments']['finalState']}
     if status()['tip'] != tip['tip']:
         raise RuntimeError('chain changed during capture')
-    path = directory / f'capture-{tip["blocks"]}.json'
+    path = directory / f'capture-{tip["blocks"]}-{tip["tip"]}.json'
     save(path, value)
-    return native('regtest-scan', directory, path)
+    return dict(native('regtest-scan', directory, path), capture_file=str(path))
 
 
 def fund(directory):

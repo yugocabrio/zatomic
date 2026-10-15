@@ -15,7 +15,7 @@ import socket
 import subprocess
 import time
 import run_native_evm_gate as evm
-from regtest_node import ROOT, rpc as zrpc, status
+from regtest_node import ROOT, rpc as zrpc, status, RpcError
 from regtest_wallet import native, capture, save
 from run_regtest_swap import broadcast
 from evm_journal import send as send_evm, replay as replay_outgoing, verify_contract, order_state, validate_intent
@@ -39,24 +39,48 @@ def record_once(directory, stage, value):
 
 
 def native_exit(swap, mode, witness=None):
-    # Reconcile before constructing or re-sending anything. A crash after a
-    # broadcast must not cause a second funding or payment.
+    # Reconcile current chain/mempool, never an old completion journal. Mining
+    # here is explicitly the isolated harness's confirmation mechanism.
+    status()
+    if mode not in ('claim', 'refund'):
+        raise RuntimeError('unknown native exit')
     files = sorted(swap.glob(f'{mode}-*.hex'))
+    txids = set()
     for path in files:
         info = native('regtest-inspect', path)
-        if confirmed(info['txid']):
-            return info['txid'], False
-    if files:
-        path = files[-1]
-        info = native('regtest-inspect', path)
-    else:
-        observed = capture(swap)
-        args = ['regtest-finish', swap, observed['file'], mode]
-        if witness is not None:
-            args.append(witness)
-        info = native(*args)
-        path = Path(info['file'])
-    broadcast(path, info['txid'])
+        txids.add(info['txid'])
+    if len(txids) > 1:
+        raise RuntimeError('native exit history changed signed effects')
+    if txids:
+        txid = next(iter(txids))
+        try:
+            tx = zrpc('getrawtransaction', [txid, 1])
+        except RpcError as exc:
+            if exc.code != -5:
+                raise
+            tx = {}
+        depth = tx.get('confirmations', 0) if tx.get('in_active_chain') else 0
+        if depth >= 2:
+            return txid, False
+        if depth > 0 or txid in zrpc('getrawmempool'):
+            # A canonical or pending transaction must not be sent a second
+            # time: Zebra rejects already-mined effects. Observe this exact
+            # payment reaching depth, without constructing another proof.
+            zrpc('generate', [2 - depth], timeout=300)
+            if not confirmed(txid):
+                raise RuntimeError('observed native exit did not regain confirmations')
+            return txid, False
+    # An orphaned authorization can reference an invalidated anchor. Re-scan
+    # the selected branch and re-prove from the accepted owner bundle. The
+    # signed outputs, fees, nullifier and txid must stay unchanged.
+    observed = capture(swap)
+    args = ['regtest-finish', swap, observed['file'], mode]
+    if witness is not None:
+        args.append(witness)
+    info = native(*args)
+    if txids and info['txid'] not in txids:
+        raise RuntimeError('re-proving changed native payment effects; not broadcast')
+    broadcast(Path(info['file']), info['txid'])
     return info['txid'], True
 
 

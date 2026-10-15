@@ -53,6 +53,12 @@ miner_address = "t27eWDgjFYJGVXmzrXeVjnb5J3uXDM9xH9v"
 '''
 
 
+class RpcError(RuntimeError):
+    def __init__(self, method, error):
+        self.method, self.code = method, error.get('code')
+        super().__init__(f'{method}: {error}')
+
+
 def rpc(method, params=None, timeout=30):
     request = urllib.request.Request(RPC, json.dumps({'jsonrpc': '2.0', 'id': 1,
         'method': method, 'params': params or []}).encode(),
@@ -60,7 +66,7 @@ def rpc(method, params=None, timeout=30):
     with urllib.request.urlopen(request, timeout=timeout) as response:
         value = json.load(response)
     if value.get('error'):
-        raise RuntimeError(f'{method}: {value["error"]}')
+        raise RpcError(method, value['error'])
     return value['result']
 
 

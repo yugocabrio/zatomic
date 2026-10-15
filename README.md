@@ -48,6 +48,9 @@ python3 scripts/demo_server.py
 - [Both owners sign the cross-chain offer before ZEC funding](docs/funding-consent.md)
 - [Cancel interrupted setup or recover a committed source release](docs/setup-recovery.md)
 - [SIGKILL recovery, peer-directory journals and owned worker cleanup](docs/process-recovery.md)
+- [Controlled EVM forks, receipt replay and changed relayers](docs/evm-reorg.md)
+- [Withdrawal recovery when forks change the owner's nonce](docs/withdrawal-recovery.md)
+- [Native confirmation loss and replacement-branch exit recovery](docs/native-reorg.md)
 - [Current status](STATUS.md) and [remaining work](TASKS.md)
 - [Public evidence](evidence/): native/EVM compatibility, chain acceptance,
   interrupted claim/refund recovery, signer nonce replay and tampering tests

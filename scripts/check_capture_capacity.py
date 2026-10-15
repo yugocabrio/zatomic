@@ -33,7 +33,7 @@ def check(bank, directory):
             rpc('generate', [2005 - before], timeout=300)
         observed = capture(bank)
         height = status()['blocks']
-        original = json.loads((bank / f'capture-{height}.json').read_text())
+        original = json.loads(Path(observed['capture_file']).read_text())
         broken = dict(original, blocks=list(original['blocks']))
         broken['blocks'][-1] = dict(broken['blocks'][-1], previousblockhash='00' * 32)
         save(directory / 'broken-chain.json', broken)
@@ -54,7 +54,7 @@ def check(bank, directory):
             raise RuntimeError('rejection changed the chain')
         return {'scope': 'actual isolated-node capture; no new swap funding',
             'height': height, 'blocks_scanned': len(original['blocks']),
-            'original_capture_bytes': (bank / f'capture-{height}.json').stat().st_size,
+            'original_capture_bytes': Path(observed['capture_file']).stat().st_size,
             'unspent_notes': observed['unspent_notes'], 'new_max_capture_height': MAX_CAPTURE_HEIGHT,
             'json_byte_limit_unchanged': 50_000_000,
             'broken_continuity_rejected': True, 'excessive_history_rejected': True,

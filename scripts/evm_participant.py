@@ -144,12 +144,13 @@ def pin_order(directory, agreement, terms, order):
     return state
 
 
-def observe_receipt(directory, intent):
+def observe_receipt(directory, intent, allow_reverted=False):
     observed = evm.rpc('eth_getTransactionReceipt', [intent['txid']])
     if observed is None:
         return None
     block = evm.rpc('eth_getBlockByNumber', [observed['blockNumber'], False])
-    if observed['status'] != '0x1' or observed['transactionHash'] != intent['txid'] or block['hash'] != observed['blockHash']:
+    if (observed['status'] not in ('0x0','0x1') or not allow_reverted and observed['status'] != '0x1'
+        or observed['transactionHash'] != intent['txid'] or not block or block['hash'] != observed['blockHash']):
         raise RuntimeError('owner transaction reverted or receipt is noncanonical')
     folder = directory / 'eth-receipts'
     folder.mkdir(mode=0o700, exist_ok=True)
@@ -172,8 +173,107 @@ def settled(directory, agreement, order, action, previous, role):
     result = {'role':role,'action':action,'txid':found['transactionHash'],'order':order,
         'new_transaction':False,'locally_signed':bool(previous),
         'settlement_via_other_relayer':not previous or previous['txid'] != found['transactionHash']}
-    save(directory / f'eth-settlement-{action}.json',result)
+    # A formerly canonical event can disappear and a different relayer can
+    # settle the same order on the replacement branch. Preserve each validated
+    # observation, but never use the old observation as current chain state.
+    # Older fixed-name files remain historical and are not read for decisions.
+    history = directory / 'eth-settlements'
+    history.mkdir(mode=0o700, exist_ok=True)
+    save(history / f'{action}-{found["transactionHash"]}-{found["blockHash"]}.json',
+        dict(result, block_hash=found['blockHash'], block_number=int(found['blockNumber'],16)))
     return result
+
+
+def withdrawal_attempts(directory, agreement, address):
+    """Validate every immutable withdrawal version before trusting any receipt."""
+    original = directory/'eth-intent-withdraw.json'
+    folder = directory/'eth-withdraw-attempts'
+    extra = sorted(folder.glob('*.json')) if folder.exists() else []
+    if folder.is_symlink() or len(extra)>32 or extra and not original.is_file():
+        raise RuntimeError('invalid withdrawal history')
+    attempts = [read(original)] if original.exists() else []
+    for number,path in enumerate(extra,1):
+        if path.name != f'{number:06d}.json':
+            raise RuntimeError('withdrawal history sequence is incomplete')
+        current = read(path)
+        if current.get('withdrawal_predecessor') != attempts[-1]['txid']:
+            raise RuntimeError('withdrawal history predecessor changed')
+        attempts.append(current)
+    expected = evm.calldata('withdraw(address)',address)
+    nonces = set()
+    for attempt in attempts:
+        tx = validate_intent(attempt)
+        nonce = int(tx['nonce'],16)
+        if (attempt['kind']!='withdraw' or tx['from'].lower()!=address
+            or tx['to'].lower()!=agreement['contract'].lower() or tx['data']!=expected
+            or int(tx.get('value','0x0'),16)!=0 or int(tx['gas'],16)!=200_000
+            or not 0<int(tx['gasPrice'],16)<=100*10**9 or nonce in nonces):
+            raise RuntimeError('withdrawal attempt differs from fixed owner action')
+        nonces.add(nonce)
+    return attempts
+
+
+def withdraw(directory, agreement, identity, order, state, fault_after_send):
+    address,role = identity['address'],identity['role']
+    if state != (2 if role=='alice' else 3):
+        raise RuntimeError('owner withdrawal requires the agreed settlement')
+    attempts = withdrawal_attempts(directory,agreement,address)
+    successes = []
+    topic = '0x'+evm_wallet.keccak(b'Withdrawn(address,address,uint256)').hex()
+    address_topic = '0x'+address[2:].rjust(64,'0')
+    for attempt in attempts:
+        observed = observe_receipt(directory,attempt,allow_reverted=True)
+        if observed and observed['status']=='0x1':
+            events = [log for log in observed['logs']
+                if log['address'].lower()==agreement['contract'].lower()
+                and log['topics']==[topic,address_topic,address_topic]
+                and int(log['data'],16)==agreement['amount_wei']]
+            if len(events)!=1:
+                raise RuntimeError('withdrawal receipt does not pay the exact fixed owner')
+            successes.append(attempt)
+    if len(successes)>1:
+        raise RuntimeError('multiple canonical withdrawals for one accepted order')
+    if successes:
+        return {'role':role,'action':'withdraw','txid':successes[0]['txid'],'order':order,
+            'new_transaction':False,'locally_signed':True}
+    credit = int(evm.rpc('eth_call',[{'to':agreement['contract'],
+        'data':evm.calldata('credits(address)',address)},'latest']),16)
+    if credit != agreement['amount_wei']:
+        raise RuntimeError('owner has no exact agreed ETH credit')
+    current = int(evm.rpc('eth_getTransactionCount',[address,'latest']),16)
+    pending_nonce = int(evm.rpc('eth_getTransactionCount',[address,'pending']),16)
+    intent = next((a for a in attempts if int(a['transaction']['nonce'],16)==current),None)
+    pending = evm.rpc('eth_getTransactionByHash',[intent['txid']]) if intent else None
+    if pending and pending.get('blockNumber') is not None:
+        raise RuntimeError('withdrawal transaction/receipt observations disagree')
+    if pending is None and pending_nonce != current:
+        raise RuntimeError('unrelated pending nonce; refuse new withdrawal attempt')
+    if intent is None:
+        gas_price = evm.rpc('eth_gasPrice')
+        if not 0<int(gas_price,16)<=100*10**9 or len(attempts)>=33:
+            raise RuntimeError('withdrawal fee or attempt limit exceeded')
+        tx = {'from':address,'to':agreement['contract'],'gas':hex(200_000),
+            'gasPrice':gas_price,'nonce':hex(current),'value':'0x0',
+            'data':evm.calldata('withdraw(address)',address)}
+        intent = evm_wallet.sign(directory/'ethereum',tx,'withdraw')
+        validate_intent(intent)
+        if attempts:
+            intent['withdrawal_predecessor'] = attempts[-1]['txid']
+            folder = directory/'eth-withdraw-attempts'
+            folder.mkdir(mode=0o700,exist_ok=True)
+            path = folder/f'{len(attempts):06d}.json'
+        else:
+            path = directory/'eth-intent-withdraw.json'
+        save(path,intent)  # Publish a complete signed version BEFORE sending.
+    if pending is None and evm.rpc('eth_sendRawTransaction',[intent['raw']]) != intent['txid']:
+        raise RuntimeError('withdrawal transaction identity changed')
+    if fault_after_send:
+        raise InjectedStop('owner-send-before-receipt')
+    receipt(intent['txid'])
+    if observe_receipt(directory,intent) is None:
+        raise RuntimeError('withdrawal receipt disappeared')
+    return {'role':role,'action':'withdraw','txid':intent['txid'],'order':order,
+        'new_transaction':pending is None,'locally_signed':True}
 
 
 def execute(directory, action, request, fault_after_send=False):
@@ -198,6 +298,8 @@ def execute(directory, action, request, fault_after_send=False):
     else:
         order = request.get('order')
         state = pin_order(directory, agreement, terms, order)
+    if action=='withdraw':
+        return withdraw(directory,agreement,identity,order,state,fault_after_send)
     # Existing intents are never replaced. Validate actual signed bytes and
     # current chain receipts before treating a repeated operation as complete.
     if previous:
@@ -243,12 +345,6 @@ def execute(directory, action, request, fault_after_send=False):
         if state != 1 or now < agreement['eth_expiry']:
             raise RuntimeError('ETH refund not available')
         data, gas, value = evm.calldata('refund(bytes32)', order), 200_000, 0
-    elif action == 'withdraw':
-        credit = int(evm.rpc('eth_call', [{'to': agreement['contract'],
-            'data': evm.calldata('credits(address)', address)}, 'latest']), 16)
-        if credit != agreement['amount_wei']:
-            raise RuntimeError('owner has no exact agreed ETH credit')
-        data, gas, value = evm.calldata('withdraw(address)', address), 200_000, 0
     else:
         raise RuntimeError('unsupported owner operation')
     if previous:
