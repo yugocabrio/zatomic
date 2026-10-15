@@ -242,6 +242,53 @@ pub fn inspect_exit(portable: &Path, transaction: &Path) -> Result<Value> {
     verify_exit_bytes(&a, &hex::decode(storage::read(transaction, 4_000_000)?)?)
 }
 
+fn adapted_claim(a: &Accepted, witness: &[u8; 32]) -> Result<(Pczt, Pczt)> {
+    if a.report["role"] != "bob" {
+        return Err("only Bob accepts a claim opening".into());
+    }
+    let pre = regtest_swap::parse_pre(&a.bundle["presignatures"]["claim"])?;
+    let sig = pre.adapt(witness)?;
+    let mut index = None;
+    let p = pczt(&a.bundle["review"], "claim")?;
+    for (i, action) in p.ironwood().actions().iter().enumerate() {
+        if action.spend().spend_auth_sig().is_none() && index.replace(i).is_some() {
+            return Err("ambiguous conditional spend".into());
+        }
+    }
+    let index = index.ok_or("missing conditional spend")?;
+    Ok((
+        regtest_swap::apply(p, index, sig, pre.message)?,
+        regtest_swap::apply(
+            pczt(&a.bundle["review"], "claim_check")?,
+            index,
+            sig,
+            pre.message,
+        )?,
+    ))
+}
+
+/// Accept an already observed candidate without any chain-finality dependency.
+/// Verify canonical scalar, exact adaptor relation and actual native claim
+/// authorization. Preserve privately before a caller performs further RPCs.
+/// The pre-funding check proof is not a spend of a confirmed public note.
+pub fn accept_opening(dir: &Path, input: &Path, output: &Path) -> Result<Value> {
+    let a = accepted(dir)?;
+    let witness: [u8; 32] = decode(&storage::json(input)?, "witness_le")?;
+    let (_, checked) = adapted_claim(&a, &witness)?;
+    let tx = regtest_swap::extract_checked(checked)?;
+    let value = json!({"format":"latch-public-observed-opening-v1",
+        "bundle_digest":a.report["bundle_digest"],"witness_le":hex::encode(witness),
+        "synthetic_inputs":a.report["synthetic_inputs"]});
+    unchanged(output, &serde_json::to_vec(&value)?)?;
+    Ok(
+        json!({"format":"latch-public-opening-accepted-v1","role":"bob",
+        "bundle_digest":a.report["bundle_digest"],"claim_txid":tx.txid().to_string(),
+        "native_claim_authorization_verified":true,"opening_file":output,
+        "synthetic_inputs":a.report["synthetic_inputs"],"broadcast":false,
+        "settlement_verified":false,"send_authorized":false}),
+    )
+}
+
 /// Prepare a PRIVATE fully authorized exit. Always revalidate the original
 /// checkpoints/bundle; a caller-supplied snapshot/report is not authority.
 /// Bob supplies an already observed opening in a private file, never argv/RPC.
@@ -264,28 +311,9 @@ pub fn prove(
             "refund",
         ),
         Some("bob") => {
-            let pre = regtest_swap::parse_pre(&a.bundle["presignatures"]["claim"])?;
             let opening = storage::json(witness.ok_or("Bob requires observed opening file")?)?;
-            let sig = pre.adapt(&decode(&opening, "witness_le")?)?;
-            // Derive the real action from its exact signed context, not a caller index.
-            let mut index = None;
-            let p = pczt(&a.bundle["review"], "claim")?;
-            for (i, action) in p.ironwood().actions().iter().enumerate() {
-                if action.spend().spend_auth_sig().is_none() && index.replace(i).is_some() {
-                    return Err("ambiguous conditional spend".into());
-                }
-            }
-            let index = index.ok_or("missing conditional spend")?;
-            (
-                regtest_swap::apply(p, index, sig, pre.message)?,
-                regtest_swap::apply(
-                    pczt(&a.bundle["review"], "claim_check")?,
-                    index,
-                    sig,
-                    pre.message,
-                )?,
-                "claim",
-            )
+            let (deferred, checked) = adapted_claim(&a, &decode(&opening, "witness_le")?)?;
+            (deferred, checked, "claim")
         }
         _ => return Err("receipt role / opening mismatch".into()),
     };

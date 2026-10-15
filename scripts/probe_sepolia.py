@@ -15,7 +15,9 @@ ENDPOINT = 'https://ethereum-sepolia-rpc.publicnode.com'
 CHAIN_ID = 11155111
 GENESIS = '0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9'
 ALLOWED = {'eth_chainId', 'eth_getBlockByNumber', 'eth_maxPriorityFeePerGas',
-    'eth_getCode', 'eth_call', 'eth_getBalance', 'eth_getTransactionCount', 'eth_gasPrice'}
+    'eth_getCode', 'eth_call', 'eth_getBalance', 'eth_getTransactionCount', 'eth_gasPrice',
+    'eth_getTransactionByHash', 'eth_getLogs'}
+CLAIM_TOPIC = '0x169b739a046258cd705133851f0d46ac08a0cbc8b1b35f2c486df6965302296f'
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -40,6 +42,20 @@ def read_method(method, params):
                 or not re.fullmatch(r'0x[0-9a-f]{40}', params[0]['to'])
                 or not re.fullmatch(r'0x9c3f1e90[0-9a-f]{64}', params[0]['data'])):
             raise ValueError('only the public order getter is permitted')
+    if method == 'eth_getTransactionByHash':
+        if len(params) != 1 or not isinstance(params[0], str) or not re.fullmatch(r'0x[0-9a-f]{64}', params[0]):
+            raise ValueError('one exact public transaction hash required')
+    if method == 'eth_getLogs':
+        if len(params) != 1 or not isinstance(params[0], dict):
+            raise ValueError('one bounded exact-order claim filter required')
+        q = params[0]
+        if (set(q) != {'address', 'fromBlock', 'toBlock', 'topics'}
+                or not isinstance(q['address'], str) or not re.fullmatch(r'0x[0-9a-f]{40}', q['address'])
+                or not isinstance(q['topics'], list) or len(q['topics']) != 2
+                or q['topics'][0] != CLAIM_TOPIC or not isinstance(q['topics'][1], str)
+                or not re.fullmatch(r'0x[0-9a-f]{64}', q['topics'][1])
+                or not 0 <= quantity(q['toBlock'])-quantity(q['fromBlock']) < 256):
+            raise ValueError('only an exact order claim event over at most 256 numbered blocks is permitted')
 
 
 class ReadOnlyRpc:

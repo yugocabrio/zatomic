@@ -9,6 +9,7 @@ import subprocess
 import uuid
 import public_authority as authority
 import public_evm_observation as eth
+import public_opening
 from public_outgoing import private_directory
 from probe_sepolia import ReadOnlyRpc, ENDPOINT
 from source_inputs import publish
@@ -51,6 +52,10 @@ def observe(owner, consents, endpoint=ENDPOINT):
         if checked['synthetic_inputs'] is not False:
             raise RuntimeError('synthetic inputs cannot enter public ETH recovery')
         agreement = files['proposal']['agreement']
+        observed_opening = None
+        opening_path = owner/'public-observed-opening'
+        if role == 'bob' and (opening_path.exists() or opening_path.is_symlink()):
+            observed_opening = public_opening.accepted(public_opening.workspace(owner, files, checked), checked)
         rpc = ReadOnlyRpc(endpoint) # Validate configuration before any directory/query.
         parent = owner/'public-eth-observations'
         prior = history(parent, checked['agreement_digest'])
@@ -65,7 +70,8 @@ def observe(owner, consents, endpoint=ENDPOINT):
         if authority.bind_owner(owner, files, checked, phase) != caller or read(consents) != files['consents']:
             raise RuntimeError('owner acceptance/consents changed during ETH observation')
         result.update(prior=prior, claim_seen_ever=prior['claim_seen_before'] or result['claim_observed_by_provider'],
-            scope='ETH order status only; no opening extraction, mempool monitor, balance withdrawal or send authorization')
+            verified_native_opening_available=observed_opening is not None,
+            scope='ETH order status plus locally reverified opening if already captured; no mempool completeness, withdrawal or send authorization')
         publish(directory/'report.json', result)
         return dict(result, observation_directory=str(directory))
 

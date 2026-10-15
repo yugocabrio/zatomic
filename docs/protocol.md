@@ -84,11 +84,15 @@ absence/reorg reports. If still unobserved, watch sync must obtain the prepared
 bytes' exact anchor; an exit appearing during sync supersedes a spent-note error.
 An owner-bound ETH recovery reader also accepts the exact agreed order's
 empty/locked/claimed/refunded states after expiry and preserves checked claim
-observations even if later reads fail. It neither extracts the opening nor
-excludes previous mempool exposure or proves withdrawal. Public secret capture,
-cross-chain/auxiliary reconciliation, durable send attempts and source-release
-signing remain unfinished. The integrated positive public path has not run with
-funded public inputs.
+observations even if later reads fail. A separate bounded reader now extracts
+candidate openings from an exact pending/mined claim hash or exact-order events.
+Native adaptor/signature verification, independent of ETH finality, accepts the
+opening privately; offline restart can resume from a saved raw response. A real
+isolated pending claim has fed a synthetic-profile native C reproof. This does
+not establish complete mempool visibility, public funding or ETH settlement.
+Continuous bounded monitoring, cross-chain/auxiliary reconciliation, durable
+send attempts and source-release signing remain unfinished. The integrated
+positive public path has not run with funded public inputs.
 No public sender is enabled. See
 [public preflight and its tested scope](public-testnet.md#agreement-bound-read-only-preflight).
 
