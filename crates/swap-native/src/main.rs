@@ -5,8 +5,10 @@ mod evm_key;
 mod funding_consent;
 mod observed_transaction;
 mod participants;
+mod public_consent;
 mod public_graph;
 mod public_presign;
+mod public_recovery;
 mod public_review;
 mod public_setup;
 mod recovery_bundle;
@@ -459,6 +461,40 @@ fn main() -> Result<()> {
         }
         Some("testnet-presign-review") if a.len() == 4 => {
             public_presign::prepare(Path::new(&a[2]), Path::new(&a[3]))?
+        }
+        Some("testnet-prepare-recovery") if a.len() == 6 => public_recovery::prepare(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            Path::new(&a[4]),
+            Path::new(&a[5]),
+        )?,
+        Some("check-public-recovery-synthetic") if a.len() == 5 => {
+            public_recovery::synthetic(Path::new(&a[2]), Path::new(&a[3]), Path::new(&a[4]))?
+        }
+        Some("testnet-owner-recovery") if a.len() == 4 => {
+            public_recovery::accept(Path::new(&a[2]), Path::new(&a[3]))?
+        }
+        Some("testnet-recovery-receipts") if a.len() == 4 => {
+            public_recovery::receipts(Path::new(&a[2]), Path::new(&a[3]))?
+        }
+        Some("testnet-export-recovery") if a.len() == 4 => {
+            public_recovery::export(Path::new(&a[2]), Path::new(&a[3]))?
+        }
+        Some("testnet-inspect-recovery") if a.len() == 3 => {
+            public_recovery::inspect(Path::new(&a[2]))?
+        }
+        Some("testnet-stage-agreement") if a.len() == 7 => public_consent::stage(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            &a[4],
+            &a[5],
+            Path::new(&a[6]),
+        )?,
+        Some("testnet-owner-consent") if a.len() == 4 => {
+            public_consent::sign(Path::new(&a[2]), Path::new(&a[3]))?
+        }
+        Some("testnet-check-consents") if a.len() == 5 => {
+            public_consent::verify(Path::new(&a[2]), Path::new(&a[3]), Path::new(&a[4]))?
         }
         Some("evm-key-init") if a.len() == 3 => evm_key::init(Path::new(&a[2]))?,
         Some("evm-sign-digest") if a.len() == 3 => evm_key::sign_stdin(Path::new(&a[2]))?,

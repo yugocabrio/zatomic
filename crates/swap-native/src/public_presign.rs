@@ -221,7 +221,7 @@ fn report(output: &Path, result: &Value, reused: bool) -> Value {
         "reused_presignatures":reused,"refund_auxiliary_signed":false,"recovery_bundle_complete":false,"funding_authorized":false})
 }
 
-fn validate_result(packet: &Value, review: &Value, result: &Value) -> Result<()> {
+pub(crate) fn validate_result(packet: &Value, review: &Value, result: &Value) -> Result<()> {
     if result.as_object().is_none_or(|o| o.len() != 10)
         || result["format"] != "latch-public-exit-presignatures-v1"
         || result["review_packet_digest"] != hash(packet)?

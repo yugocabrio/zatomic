@@ -26,9 +26,9 @@ def plan(directory):
     candidate=timestamp_policy.build(now)
     arithmetic=timestamp_policy.validate(candidate)
     blockers=timestamp_policy.clock_blockers(candidate,zcash,eth,now)
-    remaining=['public-source-and-owner-adapter-disabled','final-native-graph-and-both-consents-missing',
+    remaining=['public-source-and-owner-adapter-disabled','graph-and-conditional-consents-not-attached-to-this-plan',
         'public-escrow-and-fee-inclusion-strategy-unverified','funded-public-wallet-and-reservation-unverified',
-        'public-confirmation-and-reorg-thresholds-unimplemented']
+        'public-confirmation-and-reorg-enforcement-unimplemented']
     result={'scope':'candidate public timing policy, not executable public swap authorization',
         'plan_digest':timestamp_policy.digest(candidate),'plan':candidate,'arithmetic':arithmetic,
         'clock_blockers':blockers,'remaining_execution_gates':remaining,

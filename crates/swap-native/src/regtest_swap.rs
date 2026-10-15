@@ -230,7 +230,7 @@ fn presign(
     }
     Ok((pczt, pre, index))
 }
-fn apply(pczt: Pczt, index: usize, sig: [u8; 64], digest: [u8; 32]) -> Result<Pczt> {
+pub(crate) fn apply(pczt: Pczt, index: usize, sig: [u8; 64], digest: [u8; 32]) -> Result<Pczt> {
     if message(&pczt)? != digest {
         return Err("signature context mismatch".into());
     }

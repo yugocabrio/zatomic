@@ -47,7 +47,7 @@ fn parse_fvk(v: &Value, field: &str) -> Result<FullViewingKey> {
 
 /// Fail before prover work if any member differs from the wallet's durable
 /// reservation. This only binds a historical private observation, not live UTXOs.
-fn package(bank: &Path, folder: &Path) -> Result<Value> {
+pub(crate) fn package(bank: &Path, folder: &Path) -> Result<Value> {
     let reservation = storage::json(&bank.join("source-reservation.json"))?;
     let raw = storage::read(&folder.join("manifest.json"), 50_000_000)?;
     let manifest: Value = serde_json::from_slice(&raw)?;

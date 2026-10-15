@@ -46,10 +46,15 @@ authenticated DKG messages and matching destination receipts. The unsigned
 testnet graph verifies those receipts and its reserved principal against the
 quote. These setup approvals are distinct from transaction consent. Each public
 owner can now verify a source-redacted graph packet and participate in C/R
-shielded spend presigning using its local DKG share. The native R signature is
-not a complete refund until the dedicated auxiliary input is signed and the
-full recovery bundle is verified/delivered. Final consent to the graph/clock/
-escrow and public source/ETH gates remain unfinished. No public sender is enabled.
+shielded spend presigning using its local DKG share. A separate source stage
+signs the reserved R auxiliary; both owners independently verify and durably
+save the exact native exits before signing bundle/graph/plan-bound receipts.
+Portable exports can be verified without original owner or source directories.
+These public-profile checks have used synthetic nonexistent inputs with real
+signatures/proofs, not public funded coins. A separate conditional agreement now
+binds the native graph/receipts, clock/gas/confirmation policy and intended ETH
+escrow target/code. Both owners sign it with a distinct public consent domain.
+Live public source/ETH release gates remain unfinished. No public sender is enabled.
 
 ## Transaction order
 
@@ -141,8 +146,9 @@ This private package is not F authorization and does not change the transaction
 order above. A reservation's age or candidate expiry cannot establish that a
 previously signed transaction is impossible; no automatic release is permitted.
 An offline public-profile builder can now produce an unsigned F/C/R draft with
-native proof checks from this package. The draft has no owner authentication,
-adaptor presignatures, bundle receipts or final consents, and cannot authorize F.
+native proof checks from this package. The draft binds authenticated owner
+destinations but has no adaptor presignatures, bundle receipts or final graph
+consents, and cannot authorize F.
 The public signing/sending adapter remains disabled. See the exact preparation
 thresholds and evidence limits in [public-testnet.md](public-testnet.md).
 

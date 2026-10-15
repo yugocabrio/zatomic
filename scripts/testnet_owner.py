@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline public-testnet owner setup; no RPC, funding, or transaction signing.
+"""Offline public-testnet owner setup/recovery receipts; no RPC or funding.
 
 Run separately on each owner's machine. Authenticate identity fingerprints out
 of band. Exchange all setup files privately over an authenticated encrypted
@@ -22,7 +22,7 @@ from regtest_wallet import native, save
 
 CHAIN = 11155111
 ACTIONS = ('init','identity','trust-peer','offer-create','offer-review','offer-accept',
-    'setup-start','setup-round2','setup-finish','setup-agree','verify-destinations','graph-review')
+    'setup-start','setup-round2','setup-finish','setup-agree','verify-destinations','graph-review','recovery-accept','consent')
 
 
 def fingerprint(value):
@@ -80,6 +80,14 @@ def execute(directory, action, packet, role=None, incoming=None):
         result = native('testnet-owner-review',directory,incoming)
         return dict(result, candidate_clock_bounds_validated=True,
             live_clock_or_chain_checked=False)
+    if action == 'recovery-accept':
+        timestamp_policy.validate(packet['review']['plan'])
+        return native('testnet-owner-recovery',directory,incoming)
+    if action == 'consent':
+        from public_agreement import validate_policy
+        validate_policy()
+        timestamp_policy.validate(packet['agreement']['execution_plan'])
+        return native('testnet-owner-consent',directory,incoming)
     if action == 'verify-destinations':
         if packet['trade'] != accepted:
             raise RuntimeError('destinations belong to another accepted quote')

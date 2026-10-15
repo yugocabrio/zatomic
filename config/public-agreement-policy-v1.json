@@ -1,0 +1,60 @@
+{
+  "format": "latch-public-agreement-policy-v1",
+  "timestamp_policy": {
+    "version": 1,
+    "profile": "candidate-testnet-timestamp-v1",
+    "native_genesis": "05a60a92d99d85997cce3b87616c089f6124d7342af37106edc76126334a2c38",
+    "native_branch": "77190ad9",
+    "eth_chain_id": 11155111,
+    "clock_error_seconds": 60,
+    "native_early_header_seconds": 7200,
+    "secret_observation_seconds": 300,
+    "native_proof_seconds": 600,
+    "native_inclusion_seconds": 1800,
+    "native_confirmation_seconds": 3600,
+    "native_reorg_recovery_seconds": 3600,
+    "eth_inclusion_seconds": 600,
+    "eth_settlement_seconds": 1800,
+    "eth_retry_seconds": 600,
+    "observation_max_age_seconds": 120,
+    "native_tip_max_age_seconds": 600,
+    "eth_tip_max_age_seconds": 120,
+    "eth_expiry_after_creation_seconds": 21600,
+    "funding_cutoff_before_expiry_seconds": 7200,
+    "reveal_cutoff_before_expiry_seconds": 3600,
+    "native_refund_after_eth_expiry_seconds": 86400
+  },
+  "fee_policy": {
+    "profile": "bounded-legacy-eth-v1",
+    "max_gas_price_wei": 100000000000,
+    "gas_limits": {
+      "lock": 700000,
+      "claim": 1000000,
+      "refund": 200000,
+      "withdraw": 200000
+    },
+    "withdrawal_attempt_limit": 33
+  },
+  "observation_policy": {
+    "profile": "candidate-trusted-rpc-finality-v1",
+    "native_min_confirmations": 12,
+    "native_assumed_max_rollback_blocks": 11,
+    "eth_lock_requires_finalized": true,
+    "eth_claim_finality_for_withdrawal": "finalized",
+    "native_and_eth_provider_trusted": true,
+    "source_and_auxiliary_recheck_before_funding_lock_and_first_reveal": true,
+    "reorgs_beyond_bounds": "safety-not-guaranteed",
+    "rpc_labels_are_not_consensus_proofs": true
+  },
+  "escrow": {
+    "chain_id": 11155111,
+    "genesis": "0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9",
+    "compiler": "0.8.25+commit.b61c2a91",
+    "creation_code_hash": "0x3d5bdd90ec5db993616ce4af134cff0f8fbed34c250c5039e3fd6d949ebe1113",
+    "runtime_code_hash": "0x6267f59be4896a2d311e0eb7bdf9bfb5ada76fcecb140ac6589aaee8a85b569a",
+    "source_sha256": {
+      "contracts/src/Pallas.sol": "4b09b61777c5c449223227a4c387e50ae5a31c4e2a609859196dd87f1d02cdc6",
+      "contracts/src/PointEscrow.sol": "4fe735b57efa5cb5d02dab21dfabc056da7cf01b0440530ffeac9b39e62b5a97"
+    }
+  }
+}
