@@ -124,8 +124,8 @@ pub(crate) fn validate(
             return Err("claim must be shielded and immediately spendable".into());
         }
     } else {
-        let lock = u32::try_from(policy["refund_height"].as_u64().ok_or("refund height")?)?;
-        if !(1..500_000_000).contains(&lock) || effects.lock_time() != lock {
+        let lock = crate::refund_lock::RefundLock::parse(policy)?;
+        if effects.lock_time() != lock.value() {
             return Err("refund lock changed".into());
         }
         Verifier::new(pczt.clone())
@@ -140,6 +140,13 @@ pub(crate) fn validate(
                 if hex::encode(input.prevout_txid().as_ref()) != aux["txid_le"]
                     || *input.prevout_index() != aux["index"].as_u64().unwrap_or(u64::MAX) as u32
                     || *input.sequence() != Some(u32::MAX - 1)
+                    // SpendFinalizer may strip these planning hints. The
+                    // signed global lock above remains mandatory. Any retained
+                    // hint must agree with its units and value.
+                    || (input.required_time_lock_time().is_some()
+                        && *input.required_time_lock_time() != lock.required_time())
+                    || (input.required_height_lock_time().is_some()
+                        && *input.required_height_lock_time() != lock.required_height())
                     || u64::from(*input.value()) != aux["value"].as_u64().unwrap_or(0)
                     || hex::encode(input.script_pubkey().to_bytes()) != aux["script"]
                     || hex::encode(output.script_pubkey().to_bytes()) != aux["script"]

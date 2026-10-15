@@ -224,7 +224,8 @@ pub fn accept(
     let amounts = crate::trade::amounts(&policy)?;
     if terms["funding_txid"] != funding.txid().to_string()
         || terms["pending_cmx"] != policy["pending"]["cmx"]
-        || terms["refund_height"] != policy["refund_height"]
+        || crate::refund_lock::RefundLock::parse(terms)?
+            != crate::refund_lock::RefundLock::parse(&policy)?
         || terms.get("trade") != policy.get("trade")
         || terms["principal_zatoshi"] != amounts.principal
         || terms["payout_zatoshi"] != amounts.payout
@@ -247,7 +248,10 @@ pub fn accept(
         let root = funding.ironwood_bundle().ok_or("funding bundle")?.anchor();
         if anchor_height < 2
             || anchor_height >= source_height
-            || terms["refund_height"].as_u64() != source_height.checked_add(20)
+            || (matches!(
+                crate::refund_lock::RefundLock::parse(terms)?,
+                crate::refund_lock::RefundLock::Height(_)
+            ) && terms["refund_height"].as_u64() != source_height.checked_add(20))
             || encoded(terms, "funding_anchor_tip")?.len() != 32
             || terms["funding_anchor"] != hex::encode(root.to_bytes())
         {
@@ -403,6 +407,19 @@ mod tests {
         let original_receipt = storage::json(&dir.join("recovery-receipt.json"))?;
         assert_eq!(accept(&dir, 2, &own, &public, &original)?, original_receipt);
         let mut cases = Vec::new();
+        if let Some(lock) = original["terms"].get("refund_lock") {
+            let mut altered = original.clone();
+            altered["terms"]["refund_lock"]["value"] =
+                json!(lock["value"].as_u64().ok_or("timestamp")? - 1);
+            cases.push(("timestamp changed", altered));
+            let mut altered = original.clone();
+            altered["terms"]
+                .as_object_mut()
+                .unwrap()
+                .remove("refund_lock");
+            altered["terms"]["refund_height"] = json!(42);
+            cases.push(("timestamp downgraded to height", altered));
+        }
         if original["terms"].get("trade").is_some() {
             let mut altered = original.clone();
             altered["terms"]["trade"]["offer"]["payload"]["payout_zatoshi"] = json!(1);

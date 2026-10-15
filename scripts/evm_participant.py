@@ -87,6 +87,7 @@ def validate_agreement(directory, agreement, initial=False, prefunding=False, mi
     if acknowledged['durably_saved'] is not True or acknowledged['bundle_digest'] != digest or agreement['native'] != bundle['terms']:
         raise RuntimeError('ETH agreement differs from owner native recovery bundle')
     terms = bundle['terms']
+    native_funding.controlled_refund_height(terms)
     own_field = 'recipient' if identity['role'] == 'alice' else 'maker'
     if agreement[own_field].lower() != identity['address']:
         raise RuntimeError('owner ETH address changed')

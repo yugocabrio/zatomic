@@ -105,13 +105,18 @@ In a time-domain deployment design, let ΔE bound ETH inclusion; ΔO bound secre
 inclusion; κZ bound early Zcash block timestamps. Require conservatively
 `tZ - κZ > tE + ΔO + ΔZ`; Alice reveals only when `now + ΔE < tE`.
 This is an abstract safety condition, **not the implemented clock policy**:
-the current native refund uses block height HZ, while ETH expiry is a timestamp.
+the current cross-chain profile uses block height HZ, while ETH expiry is a timestamp.
 HZ cannot be substituted for tZ, nor converted into a guaranteed time by using
 the target block interval. Public deployment requires either a tested timestamp
 refund path or an explicitly bounded/probabilistic block-rate assumption.
 Deployed-network policy must account for clock error, node lag, fees, confirmation
 depth and upgrades. Regtest parameters are not public-network defaults.
 Native timestamps use block time, not an assumed MTP rule; see pinned Zebra.
+The native-only timestamp primitive now passes an actual isolated refund and
+watch-only recovery gate. Existing source/ETH clients refuse that profile until
+its cross-chain timing and observation policy is implemented; see
+[public-network readiness](public-testnet.md). No height-to-seconds conversion
+or public reveal policy has been enabled by this primitive.
 
 scripts/check_swap_model.py reproduces theft when the refund lock is ineffective
 or the safety gap too short. This finite model is not a complete security proof.

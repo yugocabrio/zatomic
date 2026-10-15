@@ -266,6 +266,27 @@ fn apply(pczt: Pczt, index: usize, sig: [u8; 64], digest: [u8; 32]) -> Result<Pc
 }
 
 pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Result<Value> {
+    prepare_inner(bank, scan, dir, pins, None)
+}
+
+/// Native-only isolated timestamp gate. Public chain funding remains disabled.
+pub fn prepare_timestamp(bank: &Path, scan: &Path, dir: &Path, timestamp: u32) -> Result<Value> {
+    prepare_inner(
+        bank,
+        scan,
+        dir,
+        None,
+        Some(crate::refund_lock::RefundLock::timestamp(timestamp)?),
+    )
+}
+
+fn prepare_inner(
+    bank: &Path,
+    scan: &Path,
+    dir: &Path,
+    pins: Option<&Path>,
+    selected_lock: Option<crate::refund_lock::RefundLock>,
+) -> Result<Value> {
     let pins = pins.map(storage::json).transpose()?;
     let trade = crate::trade::configured()?;
     if let Some(trade) = &trade
@@ -416,13 +437,16 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
     let claim = IoFinalizer::new(Creator::build_from_parts(claim.pczt_parts).ok_or("claim parts")?)
         .finalize_io(&mut rng)
         .map_err(err)?;
-    let refund_height = height + 20;
+    let refund_lock = selected_lock.unwrap_or(crate::refund_lock::RefundLock::Height(
+        height.checked_add(20).ok_or("refund height overflow")?,
+    ));
     let mut funding_raw = Vec::new();
     funding_preview(&funding)?.write(&mut funding_raw)?;
     let mut policy = json!({"mode":"claim", "joint_fvk":hex::encode(joint.to_bytes()),
         "alice_fvk":hex::encode(refund_receiver.to_bytes()),"bob_fvk":hex::encode(receiver.to_bytes()),
-        "pending":pending_json,"refund_height":refund_height,"funding":hex::encode(funding_raw),
+        "pending":pending_json,"funding":hex::encode(funding_raw),
         "aux":{"txid_le":hex::encode(aux.txid.as_ref()),"index":auxindex,"value":u64::from(auxcoin.value()),"script":hex::encode(&auxcoin.script_pubkey().0.0)}});
+    refund_lock.attach(&mut policy);
     if let Some(trade) = &trade {
         policy["trade"] = trade.clone();
     }
@@ -460,15 +484,15 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         .build_for_pczt(&mut rng, &FeeRule::standard())
         .map_err(err)?
         .pczt_parts;
-    refund.lock_time = refund_height;
+    refund.lock_time = refund_lock.value();
     let bundle = refund.transparent.as_mut().ok_or("refund transparent")?;
     let old = &bundle.inputs()[0];
     let new = zcash_transparent::pczt::Input::parse(
         *old.prevout_txid().as_ref(),
         *old.prevout_index(),
         Some(u32::MAX - 1),
-        None,
-        Some(refund_height),
+        refund_lock.required_time(),
+        refund_lock.required_height(),
         None,
         u64::from(*old.value()),
         auxcoin.script_pubkey().0.0.clone(),
@@ -511,7 +535,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         return Err("refund not deferred".into());
     }
     let effects = refund.clone().into_effects().map_err(err)?;
-    if effects.lock_time() != refund_height
+    if effects.lock_time() != refund_lock.value()
         || effects.transparent_bundle().ok_or("refund input")?.vin[0].sequence() == u32::MAX
     {
         return Err("refund lock ineffective".into());
@@ -531,7 +555,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
     crate::recovery_bundle::verify_auxiliary_signature(&refund)?;
     let mut terms = json!({"scope":"isolated regtest; independent local signer processes", "independent_signer_processes":true, "funding_txid":funding.txid().to_string(),
         "aux_outpoint":{"txid":aux.txid.to_string(),"index":auxindex,"value_zatoshi":u64::from(auxcoin.value())},
-        "principal_zatoshi":amounts.principal,"payout_zatoshi":amounts.payout,"refund_height":refund_height,
+        "principal_zatoshi":amounts.principal,"payout_zatoshi":amounts.payout,
         "point_x":pair.point_x,"point_y":pair.point_y,"claim_index":claim_index,
         "refund_index":refund_index,"pending_cmx":pending_json["cmx"],"source_tip":snapshot["tip"],
         "preauthorized_before_funding":true,"exit_circuits_verified_before_funding":true,
@@ -540,6 +564,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         "participant_bundles_acknowledged_before_funding":true,
         "funding_authorization_withheld_from_peer_until_acknowledgment":true,
         "refund_transparent_auxiliary":true,"funding_and_claim_fully_shielded":true});
+    refund_lock.attach(&mut terms);
     if let Some(trade) = &trade {
         terms["trade"] = trade.clone();
     }
@@ -723,6 +748,12 @@ pub fn finish(dir: &Path, scan: &Path, mode: &str, witness: Option<&str>) -> Res
     };
     if pczt.ironwood().anchor().is_some() {
         return Err("expected deferred transaction".into());
+    }
+    if mode == "refund"
+        && pczt.clone().into_effects().map_err(err)?.lock_time()
+            != crate::refund_lock::RefundLock::parse(&terms)?.value()
+    {
+        return Err("refund recovery lock differs from accepted terms".into());
     }
     let pczt = anchor_for_check(pczt, path, anchor)?;
     if message(&pczt)? != expected {

@@ -14,12 +14,14 @@ from regtest_node import status, rpc as zrpc
 from regtest_wallet import native
 from evm_journal import verify_contract, InjectedStop
 from run_regtest_swap import require_aux_unspent
+from native_funding import controlled_refund_height
 
 
 def authorize(bank, staged, packet, stop_before_sign=False):
     # Signatures/immutable policy are checked first, even if funding.hex exists.
     verified = native('regtest-check-consent', staged, packet)
     agreement = json.loads(packet.read_text())['agreement']
+    controlled_refund_height(agreement['native'])
     if int(evm.rpc('eth_chainId'), 16) != evm.CHAIN:
         raise RuntimeError('source wallet observed wrong EVM chain')
     verify_contract(agreement)

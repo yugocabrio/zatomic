@@ -13,6 +13,14 @@ from signer_transport import private_file
 from evm_journal import InjectedStop
 
 
+def controlled_refund_height(terms):
+    """Do not let the new native timestamp primitive enter height-based clients."""
+    height = terms.get('refund_height')
+    if 'refund_lock' in terms or type(height) is not int or not 1 <= height < 500_000_000:
+        raise RuntimeError('cross-chain client requires the controlled height profile; timestamp timing is not enabled')
+    return height
+
+
 def inspect_raw(directory, raw, expected):
     if not isinstance(raw, str) or len(raw) > 4_000_000 or not re.fullmatch(r'(?:[0-9a-f]{2})+', raw):
         raise RuntimeError('invalid observed native funding encoding')

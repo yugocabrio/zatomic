@@ -5,6 +5,7 @@ mod evm_key;
 mod funding_consent;
 mod participants;
 mod recovery_bundle;
+mod refund_lock;
 mod regtest_swap;
 mod source_guard;
 mod storage;
@@ -443,6 +444,12 @@ fn main() -> Result<()> {
         Some("regtest-prepare") if a.len() == 5 => {
             regtest_swap::prepare(Path::new(&a[2]), Path::new(&a[3]), Path::new(&a[4]), None)?
         }
+        Some("regtest-prepare-timestamp") if a.len() == 6 => regtest_swap::prepare_timestamp(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            Path::new(&a[4]),
+            a[5].parse()?,
+        )?,
         Some("regtest-setup-init") if a.len() == 3 => source_guard::init(Path::new(&a[2]))?,
         Some("regtest-cancel-setup") if a.len() == 3 => {
             source_guard::Guard::open(Path::new(&a[2]))?.cancel()?

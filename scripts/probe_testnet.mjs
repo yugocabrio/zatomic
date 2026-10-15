@@ -20,6 +20,8 @@ try {
   console.log(JSON.stringify({scope:'Read-only TLS lightwalletd observation; provider trusted, no consensus validation',
     observed_at: new Date().toISOString(), endpoint: ENDPOINT, network:'Zcash public testnet', genesis:GENESIS,
     tip_height:height, tip_hash:tip, branch_id:branch, nu7_activation_height:NU7_HEIGHT,
+    provider_header_timestamp:integer(compact,5),
+    header_age_seconds_by_local_clock:Math.floor(Date.now()/1000)-integer(compact,5),
     lightwalletd_version:string(info,1), lightwallet_protocol_version:string(info,18),
     ironwood_tree_encoding_bytes:encoded.length/2, ironwood_tree_size_reported:integer(metadata,3),
     funded_swap:false, broadcast:false, keys_or_addresses_sent:false,
