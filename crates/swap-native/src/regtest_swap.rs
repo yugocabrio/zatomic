@@ -164,6 +164,18 @@ fn anchor_for_check(pczt: Pczt, path: MerklePath, anchor: orchard::Anchor) -> Re
     Ok(anchored)
 }
 
+/// Complete only the deferred proof. Existing authorizations must remain valid;
+/// no signer, source wallet or peer participates in this operation.
+pub(crate) fn reprove_exit(pczt: Pczt, source: &Value) -> Result<Transaction> {
+    if pczt.ironwood().anchor().is_some() || pczt.ironwood().zkproof().is_some() {
+        return Err("expected deferred exit".into());
+    }
+    let note = wallet::parse_note(source)?;
+    let path = wallet::parse_path(source)?;
+    let anchor = path.root(note.commitment().into());
+    prove(anchor_for_check(pczt, path, anchor)?)
+}
+
 /// Check the conditional claim's circuit without asking Alice to reveal t.
 /// Placeholder signatures below only satisfy the proof-verifier's data type;
 /// they are NOT valid authorizations, never extracted and never serialized.
@@ -661,11 +673,10 @@ pub fn finish(dir: &Path, scan: &Path, mode: &str, witness: Option<&str>) -> Res
     {
         return Err("refund recovery lock differs from accepted terms".into());
     }
-    let pczt = anchor_for_check(pczt, path, anchor)?;
     if message(&pczt)? != expected {
         return Err("reanchoring changed authorization".into());
     }
-    let tx = prove(pczt)?;
+    let tx = reprove_exit(pczt, source)?;
     // A v6 re-proof keeps effects/txid but changes authorization bytes. Preserve
     // every complete version, including a retry at the same height or anchor.
     let mut raw = Vec::new();

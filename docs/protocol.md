@@ -60,8 +60,16 @@ code/order state and gas reserves, and requires twelve fresh native F
 confirmations for lock/reveal. This is preparation, never a release token.
 It also derives the exact R auxiliary outpoint from the verified bundle and
 checks its current index/origin/confirmations without source-wallet key access.
-Source note/reservation revalidation, public recovery and durable outgoing
-intents remain unfinished. No public sender is enabled. See
+Funding preflight additionally binds the reserved note/nullifier/FVK/anchor to
+the private unsigned F, synchronizes the source under its wallet lock and
+rechecks the same unspent note and canonical old/current trees. This has real
+isolated-history component tests but no funded public positive run. Portable
+watch-only recovery now connects compact note/witness acquisition to private
+native reproof of the original C/R authorizations. The native proofs have been
+exercised with synthetic public-profile blocks and a retained real isolated
+refund, not funded public recovery. Live observations are separate from offline
+proving; post-proof reconciliation and durable outgoing intents remain unfinished.
+No public sender is enabled. See
 [public preflight and its tested scope](public-testnet.md#agreement-bound-read-only-preflight).
 
 ## Transaction order

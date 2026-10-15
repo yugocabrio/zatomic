@@ -391,6 +391,87 @@ pub fn source_snapshot(
     )
 }
 
+/// Find the EXACT agreed funding output at a confirmed historical anchor and
+/// require it still unspent in the current scan. Provider canonicality is checked
+/// separately. A different note, even of the same value, is never substituted.
+pub(crate) fn funding_snapshot(
+    old: &Value,
+    current: &Value,
+    fvk: &orchard::keys::FullViewingKey,
+    pending: &Value,
+    funding_txid: &str,
+    action: usize,
+) -> Result<Value> {
+    let genesis = current["genesis"].as_str().ok_or("recovery genesis")?;
+    let activation = match genesis {
+        TESTNET_GENESIS => 4_465_026,
+        wallet::GENESIS => 2,
+        _ => return Err("recovery network unsupported".into()),
+    };
+    let height = number(current, "height")?;
+    let anchor_height = number(old, "height")?;
+    let birthday = number(current, "birthday_height")?;
+    if birthday < activation
+        || birthday > anchor_height
+        || anchor_height > height
+        || height >= u64::from(u32::MAX)
+        || height - anchor_height + 1 < 12
+    {
+        return Err("recovery anchor needs twelve observed confirmations".into());
+    }
+    let fingerprint = hex::encode(Sha256::digest(fvk.to_bytes()));
+    let cmx = decode::<32>(pending, "cmx")?;
+    let mut found = Vec::new();
+    for p in [old, current] {
+        if p["format"] != FORMAT
+            || p["genesis"] != genesis
+            || p["branch"] != "77190ad9"
+            || p["fvk_fingerprint"] != fingerprint
+            || p["birthday_height"] != current["birthday_height"]
+            || p["birthday_hash"] != current["birthday_hash"]
+        {
+            return Err("recovery checkpoint identity/lineage mismatch".into());
+        }
+        hash(p, "tip")?;
+        hash(p, "birthday_hash")?;
+        let tree = wallet::tree(p["tree"].as_str().ok_or("recovery tree")?)?;
+        let owned = restore_notes(p, fvk, &tree)?;
+        let data = &owned.get(&cmx).ok_or("exact funding note absent/spent")?.0;
+        if data["txid"] != funding_txid
+            || data["action"] != action
+            || data["coinbase"] != false
+            || number(data, "height")? <= birthday
+            || number(data, "height")? > anchor_height
+        {
+            return Err("recovery funding origin mismatch".into());
+        }
+        for name in ["recipient", "value", "rho", "rseed", "cmx"] {
+            if data[name] != pending[name] {
+                return Err("recovery pending note mismatch".into());
+            }
+        }
+        found.push(data.clone());
+    }
+    for name in ["position", "height", "txid", "action", "coinbase"] {
+        if found[0][name] != found[1][name] {
+            return Err("recovery funding metadata changed between scans".into());
+        }
+    }
+    let mut note = found.remove(0);
+    note.as_object_mut()
+        .ok_or("recovery note")?
+        .remove("witness");
+    Ok(
+        json!({"format":"latch-native-exit-snapshot-v1","genesis":genesis,"branch":"77190ad9",
+        "fvk_fingerprint":fingerprint,"height":height,"tip":current["tip"],"tree":current["tree"],
+        "anchor_height":anchor_height,"anchor_tip":old["tip"],"anchor_tree":old["tree"],
+        "anchor":old["anchor"],"notes":[note],"funding_txid":funding_txid,
+        "anchor_confirmations":height-anchor_height+1,
+        "funding_confirmations":height-number(&note,"height")?+1,
+        "provider_trusted":true,"live_chain_checked":false,"broadcast":false}),
+    )
+}
+
 /// Convert an existing real regtest full capture into bounded compact batches.
 /// Test/reproduction helper only; never synthesizes ciphertext or creates funds.
 pub fn export_regtest(input: &Path, output: &Path) -> Result<Value> {

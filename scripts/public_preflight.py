@@ -17,6 +17,7 @@ from otc_offer import read
 from public_agreement import validate_policy
 import public_evm_observation as eth
 import probe_sepolia
+import public_source
 from regtest_wallet import ROOT, native, save
 import timestamp_policy
 
@@ -92,13 +93,26 @@ def native_auxiliary(agreement, expected, observation, now):
         'mempool_conflicts_excluded': False}
 
 
-def preflight(bundle, proposal, consents, phase, directory, endpoint):
+def preflight(bundle, proposal, consents, phase, directory, endpoint, source_wallet=None):
     agreement, verified = agreement_from_files(bundle, proposal, consents)
+    if phase == 'funding':
+        if source_wallet is None:
+            raise RuntimeError('funding preflight requires the reserved source wallet')
+        with public_source.locked(source_wallet):
+            return observe_verified(bundle, agreement, verified, phase, directory, endpoint, source_wallet)
+    if source_wallet is not None:
+        raise RuntimeError('source wallet is used only before native funding')
+    return observe_verified(bundle, agreement, verified, phase, directory, endpoint, None)
+
+
+def observe_verified(bundle, agreement, verified, phase, directory, endpoint, source_wallet):
     plan = agreement['execution_plan']
     window = 'first_reveal' if phase == 'first_reveal' else 'funding'
     timestamp_policy.require_window(plan, window, int(time.time()))
     directory.mkdir(mode=0o700)
     save(directory/'verified-consents.json', verified)
+    source_context = (public_source.prepare(source_wallet, bundle, agreement, verified, directory/'source')
+        if source_wallet is not None else None)
     # No fallback endpoint and no cached success. A failed identity/finality/code
     # observation terminates this invocation before native observer queries.
     observation = eth.observe(agreement, phase, probe_sepolia.ReadOnlyRpc(endpoint), endpoint)
@@ -110,10 +124,9 @@ def preflight(bundle, proposal, consents, phase, directory, endpoint):
         capture_output=True, text=True, timeout=150, check=True)
     auxiliary_observation = read(auxiliary_dir/'observation.json')
     native_auxiliary(agreement, verified['native_auxiliary'], auxiliary_observation, int(time.time()))
+    source_check = None
     if phase == 'funding':
-        result = subprocess.run(['node', str(ROOT/'scripts/probe_testnet.mjs')],
-            capture_output=True, text=True, timeout=60, check=True)
-        zcash = json.loads(result.stdout)
+        zcash, source_check = public_source.observe(source_context, agreement)
         funding = None
     else:
         folder = directory/'native-funding'
@@ -135,8 +148,8 @@ def preflight(bundle, proposal, consents, phase, directory, endpoint):
     result = {'format': 'latch-public-preflight-v1', 'agreement_digest': verified['agreement_digest'],
         'phase': phase, 'both_conditional_consents_verified': True,
         'eth_exact_code_state_reserves_checked': True, 'native_funding': funding,
-        'native_auxiliary': auxiliary,
-        'remaining_gates': ['live-native-source-reservation-recheck',
+        'native_auxiliary': auxiliary, 'native_source': source_check,
+        'remaining_gates': ['caller-identity-and-public-source-release-guard',
             'public-sender-intent-and-reconciliation', 'mined-witness-public-recovery',
             'public-deployment-and-transfer-authorization'],
         'execution_enabled': False, 'funding_authorized': False, 'reveal_authorized': False,
@@ -152,9 +165,11 @@ def main():
     p.add_argument('phase', choices=('funding', 'eth_lock', 'first_reveal'))
     p.add_argument('directory', type=Path, help='new private observation directory')
     p.add_argument('--eth-rpc', default=probe_sepolia.ENDPOINT, help='explicit trusted HTTPS Sepolia provider; never auto-fallback')
+    p.add_argument('--source-wallet', type=Path, help='reserved source wallet; required only for funding preflight')
     a = p.parse_args()
     os.umask(0o077)
-    result = preflight(a.bundle, a.proposal, a.consents, a.phase, a.directory.resolve(), a.eth_rpc)
+    result = preflight(a.bundle, a.proposal, a.consents, a.phase, a.directory.resolve(), a.eth_rpc,
+        a.source_wallet.absolute() if a.source_wallet is not None else None)
     print(json.dumps(result, indent=2))
     return 2  # Partial preparation, including when every implemented check passes.
 

@@ -185,8 +185,51 @@ fn assemble(
 /// No alternate synthetic path here. The bank's existing immutable reservation
 /// and single graph draft must match before touching its auxiliary key. This
 /// does NOT touch the native source spending key or authorize F.
-pub fn prepare(bank: &Path, folder: &Path, review_path: &Path, presigned: &Path) -> Result<Value> {
-    let _lock = lock(&bank.join("sync.lock"))?;
+fn source_spend(funding: &Pczt, source: &Value) -> Result<()> {
+    public_graph::unsigned(funding, false)?;
+    let notes = source["notes"].as_array().ok_or("reserved source notes")?;
+    if notes.len() != 1 {
+        return Err("exactly one reserved source note required".into());
+    }
+    let note = wallet::parse_note(&notes[0])?;
+    let path = wallet::parse_path(&notes[0])?;
+    let anchor = path.root(note.commitment().into()).to_bytes();
+    if source["anchor"] != hex::encode(anchor) || funding.ironwood().anchor() != &Some(anchor) {
+        return Err("reserved source witness/PCZT anchor mismatch".into());
+    }
+    let index = funding
+        .ironwood()
+        .actions()
+        .iter()
+        .position(|a| a.spend().spend_auth_sig().is_none())
+        .ok_or("source spend")?;
+    pczt::roles::verifier::Verifier::new(funding.clone())
+        .with_ironwood::<String, _>(|bundle| {
+            let bad = |s: &str| pczt::roles::verifier::OrchardError::Custom(s.to_owned());
+            let spend = bundle.actions()[index].spend();
+            let fvk = spend.fvk().as_ref().ok_or_else(|| bad("source FVK"))?;
+            if source["fvk_fingerprint"] != sha(&fvk.to_bytes())
+                || spend.nullifier() != &note.nullifier(fvk)
+            {
+                return Err(bad("reserved source note/FVK/nullifier mismatch"));
+            }
+            spend.verify_nullifier(None).map_err(|e| bad(&err(e)))?;
+            spend.verify_rk(None).map_err(|e| bad(&err(e)))?;
+            Ok(())
+        })
+        .map_err(err)?;
+    Ok(())
+}
+
+/// Offline inspection only; no current unspentness or inclusion assertion.
+pub fn check_source_spend(pczt_path: &Path, snapshot: &Path) -> Result<Value> {
+    let funding = Pczt::parse(&storage::read(pczt_path, 1_000_000)?).map_err(err)?;
+    source_spend(&funding, &storage::json(snapshot)?)?;
+    Ok(json!({"source_note_nullifier_fvk_and_anchor_bound":true,
+        "live_chain_checked":false,"funding_authorized":false,"broadcast":false}))
+}
+
+fn reserved_graph(bank: &Path, folder: &Path, packet: &Value) -> Result<Value> {
     let manifest = public_graph::package(bank, folder)?;
     let draft = storage::json(&folder.join("graph-draft.json"))?;
     let name = draft["directory"]
@@ -202,8 +245,6 @@ pub fn prepare(bank: &Path, folder: &Path, review_path: &Path, presigned: &Path)
     }
     let graph_raw = storage::read(&graph_dir.join("graph.json"), 200_000)?;
     let graph: Value = serde_json::from_slice(&graph_raw)?;
-    let packet = storage::json(review_path)?;
-    let pre = storage::json(presigned)?;
     if graph != packet["graph"]
         || draft["graph_digest"] != sha(&graph_raw)
         || draft["destinations_sha256"] != hash(&packet["destinations"])?
@@ -232,12 +273,35 @@ pub fn prepare(bank: &Path, folder: &Path, review_path: &Path, presigned: &Path)
         return Err("source PCZT changed".into());
     }
     let funding = Pczt::parse(&raw).map_err(err)?;
-    public_graph::unsigned(&funding, false)?;
+    source_spend(&funding, &storage::json(&folder.join("source.json"))?)?;
     let mut preview = Vec::new();
     regtest_swap::unsigned_preview(&funding)?.write(&mut preview)?;
     if packet["funding_preview"] != hex::encode(preview) {
         return Err("source preview changed".into());
     }
+    Ok(manifest)
+}
+
+/// Read-only binding check. The Python source preflight holds sync.lock across
+/// this check, compact scanning and fresh provider queries. No key is read and
+/// this result cannot authorize a source signature.
+pub fn check_reserved_graph(bank: &Path, folder: &Path, review: &Path) -> Result<Value> {
+    let packet = storage::json(review)?;
+    let manifest = reserved_graph(bank, folder, &packet)?;
+    let verified = public_review::verify(&packet, &alice(&packet)?, 1)?;
+    Ok(json!({"format":"latch-reserved-public-graph-check-v1",
+        "review_packet_digest":verified.report["review_packet_digest"],
+        "plan_digest":manifest["plan_digest"],"principal_zatoshi":manifest["principal_zatoshi"],
+        "selected_note_commitment":manifest["selected_note_commitment"],
+        "selected_auxiliary_outpoint":manifest["selected_auxiliary_outpoint"],
+        "live_chain_checked":false,"funding_authorized":false,"broadcast":false}))
+}
+
+pub fn prepare(bank: &Path, folder: &Path, review_path: &Path, presigned: &Path) -> Result<Value> {
+    let _lock = lock(&bank.join("sync.lock"))?;
+    let packet = storage::json(review_path)?;
+    let pre = storage::json(presigned)?;
+    let manifest = reserved_graph(bank, folder, &packet)?;
     let verified = public_review::verify(&packet, &alice(&packet)?, 1)?;
     public_presign::validate_result(&packet, &verified.report, &pre)?;
     let height = u32::try_from(
@@ -264,7 +328,7 @@ pub fn prepare(bank: &Path, folder: &Path, review_path: &Path, presigned: &Path)
     immutable(
         &folder.join("native-recovery-intent.json"),
         &json!({"review_packet_digest":hash(&packet)?,"presignatures_digest":hash(&pre)?,
-            "graph_digest":draft["graph_digest"],"funding_authorized":false}),
+            "graph_digest":storage::json(&folder.join("graph-draft.json"))?["graph_digest"],"funding_authorized":false}),
     )?;
     assemble(
         packet,

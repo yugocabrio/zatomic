@@ -11,6 +11,7 @@ mod public_presign;
 mod public_recovery;
 mod public_review;
 mod public_setup;
+mod public_witness;
 mod recovery_bundle;
 mod refund_lock;
 mod regtest_swap;
@@ -483,6 +484,22 @@ fn main() -> Result<()> {
         Some("testnet-inspect-recovery") if a.len() == 3 => {
             public_recovery::inspect(Path::new(&a[2]))?
         }
+        Some("testnet-recovery-watch") if a.len() == 5 => {
+            public_witness::init(Path::new(&a[2]), Path::new(&a[3]), a[4].parse()?)?
+        }
+        Some("testnet-recovery-snapshot") if a.len() == 6 => public_witness::select(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            Path::new(&a[4]),
+            Path::new(&a[5]),
+        )?,
+        Some("testnet-recovery-prove") if a.len() == 6 || a.len() == 7 => public_witness::prove(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            Path::new(&a[4]),
+            Path::new(&a[5]),
+            a.get(6).map(Path::new),
+        )?,
         Some("testnet-stage-agreement") if a.len() == 7 => public_consent::stage(
             Path::new(&a[2]),
             Path::new(&a[3]),
@@ -495,6 +512,16 @@ fn main() -> Result<()> {
         }
         Some("testnet-check-consents") if a.len() == 5 => {
             public_consent::verify(Path::new(&a[2]), Path::new(&a[3]), Path::new(&a[4]))?
+        }
+        Some("testnet-check-reserved-graph") if a.len() == 5 => {
+            public_recovery::check_reserved_graph(
+                Path::new(&a[2]),
+                Path::new(&a[3]),
+                Path::new(&a[4]),
+            )?
+        }
+        Some("check-source-spend") if a.len() == 4 => {
+            public_recovery::check_source_spend(Path::new(&a[2]), Path::new(&a[3]))?
         }
         Some("evm-key-init") if a.len() == 3 => evm_key::init(Path::new(&a[2]))?,
         Some("evm-sign-digest") if a.len() == 3 => evm_key::sign_stdin(Path::new(&a[2]))?,
