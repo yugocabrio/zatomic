@@ -50,6 +50,8 @@ python3 scripts/demo_server.py
 
 ## Inspect the work
 
+- [Start here: evidence by guarantee level](docs/evidence-index.md)
+- [Submission draft](docs/submission.md) and [two-minute presentation](docs/demo-walkthrough.md#two-minute-presentation)
 - [Reproduction and CLI gates](docs/reproduce.md)
 - [Protocol, assumptions and recovery graph](docs/protocol.md)
 - [Architecture and secret/authority boundaries](docs/architecture.md)

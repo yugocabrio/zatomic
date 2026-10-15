@@ -75,12 +75,32 @@ def inspect():
     if p.returncode:
         return None
     item = json.loads(p.stdout)[0]
-    if item['Config'].get('Labels', {}).get(LABEL) != OWNER:
-        raise RuntimeError('container ownership mismatch')
+    validate_container(item)
     return item
 
 
+def validate_container(item):
+    if item['Config'].get('Labels', {}).get(LABEL) != OWNER:
+        raise RuntimeError('container ownership mismatch')
+    # Labels/name identify this project, but not this checkout. Reusing an old
+    # container from another checkout would mine/stop its retained wallet chain.
+    expected = {'/zebra': (DEPS.resolve(), False),
+        '/config/zebra.toml': ((NODE_DIR/'zebra.toml').resolve(), False),
+        '/state': ((NODE_DIR/'state').resolve(), True)}
+    mounts = item.get('Mounts', [])
+    if len(mounts) != len(expected): raise RuntimeError('container mount ownership mismatch')
+    seen = set()
+    for mount in mounts:
+        destination = mount.get('Destination')
+        if (destination not in expected or destination in seen or mount.get('Type') != 'bind'
+                or not isinstance(mount.get('Source'), str)
+                or (Path(mount['Source']).resolve(), mount.get('RW')) != expected[destination]):
+            raise RuntimeError('container belongs to another checkout or has changed mounts; preserve its state')
+        seen.add(destination)
+
+
 def status():
+    if inspect() is None: raise RuntimeError('owned checkout container required')
     info = rpc('getblockchaininfo')
     if rpc('getblockhash', [0]) != GENESIS or info['chain'] not in ('test', 'regtest'):
         raise RuntimeError('wrong network; refuse any transaction or mining')
@@ -133,6 +153,7 @@ def prepare():
 
 def start():
     os.umask(0o077)
+    inspect() # Refuse a different checkout before creating/downloading anything.
     prepare()
     NODE_DIR.mkdir(parents=True, mode=0o700, exist_ok=True)
     if NODE_DIR.is_symlink() or NODE_DIR.stat().st_mode & 0o077:
