@@ -39,6 +39,7 @@ python3 scripts/demo_server.py
 
 - [Reproduction and CLI gates](docs/reproduce.md)
 - [Protocol, assumptions and recovery graph](docs/protocol.md)
+- [Focused security review, cryptographic cross-check and deployment blockers](docs/security.md)
 - [Skyhook comparison and intended differentiation](docs/competitive-position.md)
 - [Judge walkthrough](docs/demo-walkthrough.md)
 - [Public-network readiness](docs/public-testnet.md) and [dependencies](docs/dependencies.md)

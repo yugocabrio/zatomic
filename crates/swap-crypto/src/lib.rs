@@ -51,7 +51,9 @@ impl Nonce {
     }
 }
 
-/// Public, agreed context. `session` must commit to canonical swap terms.
+/// Public signing context. `session` identifies a fresh attempt; it does not
+/// replace application validation of transaction effects and canonical terms.
+/// The native client independently computes `message` and pins its full policy.
 #[derive(Clone)]
 pub struct Context {
     pub session: [u8; 32],

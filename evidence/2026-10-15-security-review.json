@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-15",
+  "base_commit": "3543669296dc6c2b1363683e0c4808b195a2169f",
+  "scope": "focused internal review and separately implemented arithmetic, not independent audit",
+  "arithmetic": {
+    "scope": "independent Python affine arithmetic and hashlib; implementation cross-check, not external audit",
+    "transcript_sha256": "6ca38181dd5c7971f910af2d5e9cb2f2a52d79ed90655d6d06235b06841b45b4",
+    "transcripts": 3,
+    "randomizers": [
+      "zero",
+      "random",
+      "q-minus-one"
+    ],
+    "signature_and_share_equations": true,
+    "binding_factor_context_verified": true,
+    "witness_extraction_verified": true,
+    "changed_fields_rejected": [
+      "adaptor_point",
+      "binding",
+      "hiding",
+      "id",
+      "message",
+      "r_hat",
+      "randomized_key",
+      "randomizer",
+      "s_hat",
+      "session",
+      "signature",
+      "signature_share",
+      "verifying_share",
+      "witness"
+    ],
+    "solidity_vectors_cross_checked": 15,
+    "private_transcript_committed": false
+  },
+  "commands": [
+    "cargo run --locked -j 2 -p shielded-swap-crypto --example audit_transcript -- .local/crypto-review-001.json",
+    "python3 scripts/verify_crypto_transcript.py .local/crypto-review-001.json",
+    "cargo clippy --workspace --all-targets --locked -j 2 -- -D warnings",
+    "cargo test --workspace --locked -j 2",
+    "forge test -vv"
+  ],
+  "checks": {
+    "enabled_rust_tests": 4,
+    "fixture_dependent_rust_test_skipped": 1,
+    "contract_tests": 22,
+    "strict_clippy": true,
+    "native_final_signature_verifier": "reddsa 0.6.1",
+    "python_arithmetic_dependencies": "standard library only"
+  },
+  "deployment_blockers": [
+    "public timing/finality policy",
+    "conflicting source spends or all funding anchors lost",
+    "late/reverted/orphaned ETH exposure outside bounds",
+    "independent provisioning and source-wallet isolation"
+  ],
+  "private_transcript_and_presignatures_published": false
+}
