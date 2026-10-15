@@ -23,6 +23,7 @@ assert.equal(Number(fields(utxoRequest(receiver)).get(3)[0]),9);
 const coin=decodeUtxos(fields(entry()),receiver,4500010)[0];
 const origin={status:'mined',mined_block:{height:coin.height},transaction:{txid:coin.txid,transparent_outputs:[{script:coin.script,value_zatoshi:coin.value_zatoshi}]}};
 verifyOrigin(coin,origin);
+assert.throws(()=>verifyOrigin(coin,{status:'not_found',transaction:null,mined_block:null}));
 for(const alter of [o=>{o.status='mempool';o.mined_block=null;},o=>{o.mined_block.height--;},o=>{o.transaction.txid='00'.repeat(32);},o=>{o.transaction.transparent_outputs[0].value_zatoshi++;},o=>{o.transaction.transparent_outputs[0].script='51';}]) {
   const changed=structuredClone(origin);alter(changed);assert.throws(()=>verifyOrigin(coin,changed));
 }

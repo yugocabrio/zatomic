@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -20,9 +22,11 @@ import fee_policy
 import probe_sepolia as sepolia
 import public_evm_observation as obs
 import public_preflight as preflight
+import public_eth_reconcile as eth_recovery
 from regtest_wallet import ROOT, save
 from run_native_evm_gate import calldata
 import timestamp_policy
+from check_public_authority import OWNER_FILES
 
 
 def refuse(fn, message=None):
@@ -137,6 +141,34 @@ def model_checks(agreement, code):
         'exact_native_f_confirmation_freshness_upgrade_checks': True}
 
 
+def recovery_model_checks(agreement, code):
+    # Recovery remains readable after BOTH original funding/reveal windows.
+    model = copy.deepcopy(agreement)
+    plan = timestamp_policy.build(int(time.time())-2*86400)
+    model.update(execution_plan=plan, execution_plan_digest=timestamp_policy.digest(plan), eth_expiry=plan['eth_expiry'])
+    model['native']['refund_lock'] = plan['native_refund_lock']
+    call, calls, _ = transcript(model, code)
+    report = obs.observe_recovery(model, call, 'explicit-model-no-network')
+    assert not report['prior_exposure_excluded'] and not report['opening_obtained'] and not report['send_authorized']
+    assert not any(m in ('eth_getTransactionCount', 'eth_getBalance', 'eth_gasPrice') for m, _ in calls)
+    # A contradictory lifecycle is refused, but a checked claim response must
+    # already have been handed to the durable recorder before the later failure.
+    call, _, blocks = transcript(model, code)
+    recorded = []
+    def inconsistent(method, params=None):
+        if method == 'eth_call':
+            words = obs.expected_order(model)
+            words[4] = 2 if params[-1]['blockHash'] == blocks['finalized']['hash'] else 3
+            return '0x'+''.join(f'{w:064x}' for w in words)
+        return call(method, params)
+    refuse(lambda: obs.observe_recovery(model, inconsistent, 'explicit-model-no-network',
+        lambda label, state: recorded.append((label, state))))
+    assert recorded[0][1]['state'] == 2 and recorded[1][1]['state'] == 3
+    return {'expired_windows_do_not_block_recovery': True,
+        'no_new_action_nonce_or_balance_gate': True, 'contradictory_terminal_states_refused': True,
+        'checked_claim_recorded_before_later_failure': True, 'prior_exposure_never_excluded': True}
+
+
 def check(root, fixture):
     source = fixture/'coordinator'
     agreement = json.loads((source/'conditional-proposal.json').read_text())['agreement']
@@ -152,6 +184,12 @@ def check(root, fixture):
             source/'conditional-consents.json', 'funding', root/'must-not-exist', sepolia.ENDPOINT),
             'synthetic inputs cannot enter public execution observations')
         assert not (root/'must-not-exist').exists()
+        copied_owner = root/'owner'; copied_owner.mkdir(mode=0o700)
+        for name in OWNER_FILES:
+            shutil.copyfile(fixture/'alice'/name, copied_owner/name); os.chmod(copied_owner/name, 0o600)
+        refuse(lambda: eth_recovery.observe(copied_owner, source/'conditional-consents.json'),
+            'synthetic inputs cannot enter public ETH recovery')
+        assert not (copied_owner/'public-eth-observations').exists()
     finally:
         sepolia.ReadOnlyRpc = original
     artifact = json.loads((ROOT/'.local/forge-out/PointEscrow.sol/PointEscrow.json').read_text())
@@ -159,6 +197,7 @@ def check(root, fixture):
     if not code.startswith('0x'): code = '0x'+code
     assert '0x'+obs.keccak(bytes.fromhex(code[2:])).hex() == agreement['escrow']['runtime_code_hash']
     models = model_checks(agreement, code)
+    recovery_models = recovery_model_checks(agreement, code)
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
     def rpc(method, params=None):
@@ -204,6 +243,7 @@ def check(root, fixture):
                 return {'provider_finalized': b, 'latest': b}
             empty = blocks()
             before = obs.inspect_escrow(local, rpc, empty, 'funding')
+            assert obs.inspect_escrow(local, rpc, empty, 'recovery')['states']['latest']['state'] == 0
             obs.balances(local, rpc, empty['latest'], 'funding')
             bad = copy.deepcopy(local); bad['escrow']['runtime_code_hash'] = '0x'+'22'*32
             refuse(lambda: obs.inspect_escrow(bad, rpc, empty, 'funding'))
@@ -214,22 +254,55 @@ def check(root, fixture):
             assert locked['logs'][0]['topics'][1] == before['order_id']
             current = blocks()
             obs.inspect_escrow(local, rpc, current, 'first_reveal')
+            assert obs.inspect_escrow(local, rpc,
+                {'provider_finalized': empty['latest'], 'latest': current['latest']}, 'recovery')['states']['latest']['state'] == 1
             refuse(lambda: obs.inspect_escrow(local, rpc, current, 'eth_lock'))
             refuse(lambda: obs.inspect_escrow(local, rpc,
                 {'provider_finalized': empty['latest'], 'latest': current['latest']}, 'first_reveal'))
             bad = copy.deepcopy(local); bad['amount_wei'] += 1
             refuse(lambda: obs.inspect_escrow(bad, rpc, current, 'first_reveal'))
             obs.balances(local, rpc, current['latest'], 'first_reveal')
+            # Separate purely local order with explicit public test scalar1.
+            # This exercises the terminal reader against real contract storage,
+            # not the native agreement or any retained owner's adaptor opening.
+            pallas = (ROOT/'contracts/src/Pallas.sol').read_text()
+            claimed_order = copy.deepcopy(local)
+            claimed_order['escrow']['salt'] = '0x'+'91'*32
+            claimed_order['point_x'] = re.search(r'GX = (0x[0-9a-f]+);', pallas)[1]
+            claimed_order['point_y'] = re.search(r'GY = (0x[0-9a-f]+);', pallas)[1]
+            send({'from': bob, 'to': local['escrow']['contract'], 'value': hex(local['amount_wei']),
+                'gas': hex(700_000), 'data': calldata('lock(bytes32,address,uint64,(uint256,uint256),bytes32)',
+                claimed_order['escrow']['salt'], alice, local['eth_expiry'],
+                f'({claimed_order["point_x"]},{claimed_order["point_y"]})', '0x'+obs.digest(claimed_order))})
+            claimed = send({'from': bob, 'to': local['escrow']['contract'], 'gas': hex(1_000_000),
+                'data': calldata('claim(bytes32,uint256)', obs.order_id(claimed_order), 1)})
+            history_root = root/'history'; history_root.mkdir(mode=0o700)
+            interrupted = history_root/('01'*16); interrupted.mkdir(mode=0o700)
+            save(interrupted/'intent.json', {'agreement_digest': obs.digest(claimed_order)})
+            def record(label, state):
+                save(interrupted/(label+'.json'), {'agreement_digest': obs.digest(claimed_order), 'state': state})
+            terminal = obs.inspect_escrow(claimed_order, rpc, blocks(), 'recovery', record)
+            assert terminal['states']['latest']['state'] == 2
+            # Simulate no final report after RPC/clock failure; the exact checked
+            # claim state was already persisted by the production callback path.
+            prior = eth_recovery.history(history_root, obs.digest(claimed_order))
+            assert prior['claim_seen_before'] and prior['incomplete'] == 1
+            absent = history_root/('02'*16); absent.mkdir(mode=0o700)
+            save(absent/'intent.json', {'agreement_digest': obs.digest(claimed_order)})
+            save(absent/'latest.json', {'agreement_digest': obs.digest(claimed_order),
+                'state': dict(terminal['states']['latest'], state=0)})
+            assert eth_recovery.history(history_root, obs.digest(claimed_order))['claim_seen_before']
             rpc('anvil_setBalance', [alice, '0x0']); rpc('evm_mine')
             refuse(lambda: obs.balances(local, rpc, blocks()['latest'], 'first_reveal'))
             rpc('evm_setNextBlockTimestamp', [local['eth_expiry']]); rpc('evm_mine')
             refunded = send({'from': bob, 'to': local['escrow']['contract'], 'gas': hex(200_000),
                 'data': calldata('refund(bytes32)', before['order_id'])})
             refuse(lambda: obs.inspect_escrow(local, rpc, blocks(), 'first_reveal'))
+            assert obs.inspect_escrow(local, rpc, blocks(), 'recovery')['states']['latest']['state'] == 3
             withdrawn = send({'from': bob, 'to': local['escrow']['contract'], 'gas': hex(200_000),
                 'data': calldata('withdraw(address)', bob)})
             save(root/'local-transactions.json', {'deploy': deployed, 'lock': locked,
-                'refund': refunded, 'withdraw': withdrawn})
+                'refund': refunded, 'withdraw': withdrawn, 'separate_test_order_claim': claimed})
             return {'scope': 'actual isolated EVM reader tests plus explicitly modeled public identity/clock responses',
                 'signed_synthetic_fixture_refused_before_network': True, 'synthetic_native_inputs': True,
                 'same_chain_id_wrong_genesis_refused': True,
@@ -238,7 +311,10 @@ def check(root, fixture):
                 'lock_not_finalized_refused': True, 'actual_insufficient_reserve_refused': True,
                 'local_refund_withdrawal_completed': True, 'public_network': False,
                 'public_finality_verified': False, 'public_funding_authorized': False,
-                'transcript_checks': models}
+                'transcript_checks': models, 'recovery_transcript_checks': recovery_models,
+                'actual_empty_locked_claimed_refunded_recovery_readers': True,
+                'partial_claim_history_survives_later_negative_observation': True,
+                'synthetic_public_recovery_refused_before_network': True}
         finally:
             process.terminate()
             try: process.wait(timeout=10)

@@ -39,13 +39,13 @@ def expected_order(agreement):
         int(agreement['point_x'], 16), int(agreement['point_y'], 16), int(digest(agreement), 16)]
 
 
-def inspect_escrow(agreement, call, blocks, phase):
+def inspect_escrow(agreement, call, blocks, phase, record=None):
     """Lower-level state reader, also exercised against a real isolated EVM.
 
     It does not establish the RPC network, signatures, input state or wall clock.
     The public entry point must do those checks separately.
     """
-    if phase not in ('funding', 'eth_lock', 'first_reveal'):
+    if phase not in ('funding', 'eth_lock', 'first_reveal', 'recovery'):
         raise RuntimeError('unsupported public preflight phase')
     target, identifier = agreement['escrow']['contract'], order_id(agreement)
     states = {}
@@ -59,11 +59,20 @@ def inspect_escrow(agreement, call, blocks, phase):
             raise RuntimeError('escrow code differs from signed runtime hash')
         encoded = data(call('eth_call', [{'to': target, 'data': '0x9c3f1e90' + identifier[2:]}, at]), 256)
         words = [int.from_bytes(encoded[i:i+32], 'big') for i in range(0, 256, 32)]
-        expected = expected_order(agreement) if phase == 'first_reveal' else [0]*8
+        expected = expected_order(agreement) if phase in ('first_reveal', 'recovery') else [0]*8
+        if phase == 'recovery':
+            if words[4] == 0: expected = [0]*8
+            elif words[4] in (1, 2, 3): expected[4] = words[4]
+            else: raise RuntimeError('unknown escrow state')
         if words != expected:
             raise RuntimeError('escrow order/state differs from signed phase conditions')
         states[label] = {'block': blocks[label], 'runtime_code_hash': code_hash,
             'state': words[4], 'exact_order_matched': True}
+        if record is not None: record(label, states[label])
+    if phase == 'recovery':
+        final, latest = states['provider_finalized']['state'], states['latest']['state']
+        if latest not in {0: (0, 1, 2, 3), 1: (1, 2, 3), 2: (2,), 3: (3,)}[final]:
+            raise RuntimeError('escrow finalized/latest states contradict immutable lifecycle')
     return {'order_id': identifier, 'states': states}
 
 
@@ -137,3 +146,30 @@ def observe(agreement, phase, call, endpoint):
         'provider_trusted': True, 'owner_addresses_and_order_disclosed_to_provider': True,
         'keys_or_witness_sent': False, 'broadcast': False, 'funding_authorized': False,
         'reveal_authorized': False}
+
+
+def observe_recovery(agreement, call, endpoint, record=None):
+    """Read the exact order after expiry too; no first-reveal or sending decision.
+
+    Persist each checked state before later RPCs can fail. A claimed order means
+    a witness was exposed on the provider's branch, but the getter doesn't return
+    that witness. Empty/locked/refunded never exclude earlier mempool exposure.
+    """
+    plan = agreement['execution_plan']
+    timestamp_policy.require_agreement_binding(plan, agreement)
+    start = time.monotonic()
+    blocks = sepolia.observe(call, endpoint)
+    if not blocks['rpc_genesis_verified'] or blocks['status'] != 'observed':
+        raise RuntimeError('ETH provider identity incomplete; no escrow/address request made')
+    escrow = inspect_escrow(agreement, call, blocks, 'recovery', record)
+    recheck(blocks, call)
+    now = int(time.time())
+    if (time.monotonic()-start > plan['policy']['observation_max_age_seconds']
+            or not -plan['policy']['clock_error_seconds'] <= now-blocks['latest']['timestamp'] <= plan['policy']['eth_tip_max_age_seconds']):
+        raise RuntimeError('ETH recovery observation exceeded signed duration/clock bounds')
+    return {'format': 'latch-public-escrow-recovery-observation-v1', 'agreement_digest': digest(agreement),
+        'clock': blocks, 'escrow': escrow, 'observed_at': datetime.fromtimestamp(now, timezone.utc).isoformat(),
+        'claim_observed_by_provider': any(v['state'] == 2 for v in escrow['states'].values()),
+        'opening_obtained': False, 'prior_exposure_excluded': False, 'withdrawal_verified': False,
+        'provider_trusted': True, 'owner_addresses_and_order_disclosed_to_provider': True,
+        'keys_or_witness_sent': False, 'broadcast': False, 'send_authorized': False}

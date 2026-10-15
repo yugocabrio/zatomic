@@ -33,6 +33,9 @@ export function decodeUtxos(reply, receiver, tip) {
 }
 
 export function verifyOrigin(entry, origin) {
+  if (origin.status !== 'mined' || !origin.transaction || !origin.mined_block) {
+    throw new Error('auxiliary origin is not a mined transaction');
+  }
   const out = origin.transaction.transparent_outputs[entry.index];
   if (origin.transaction.txid !== entry.txid || origin.status !== 'mined'
       || origin.mined_block.height !== entry.height

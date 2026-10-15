@@ -42,6 +42,7 @@ def native_funding(agreement, observation, now):
     if (observation['format'] != 'latch-testnet-transaction-observation-v1'
             or observation['genesis'] != agreement['native_genesis']
             or observation['branch'] != agreement['native_branch']
+            or tx is None
             or tx['txid'] != agreement['native']['funding_txid']
             or tx['version'] != 6 or tx['branch'] != agreement['native_branch']
             or observation['status'] != 'mined' or mined is None):

@@ -77,8 +77,18 @@ proving. A private outgoing journal now rechecks actual native bytes against the
 accepted effects/proofs/signatures and persists each version before it can be
 used by a future sender; interrupted raw persistence can resume without replacing
 history. It requires the owner's saved acceptance and both consents. This does
-not establish non-exposure or authorize a send. Live post-proof reconciliation,
-durable send attempts and source-release signing remain unfinished.
+not establish non-exposure or authorize a send. A native-only post-proof reader
+now observes the exact exit before requiring an unspent input, verifies the
+provider's actual proof/signature bytes, and retains earlier observations across
+absence/reorg reports. If still unobserved, watch sync must obtain the prepared
+bytes' exact anchor; an exit appearing during sync supersedes a spent-note error.
+An owner-bound ETH recovery reader also accepts the exact agreed order's
+empty/locked/claimed/refunded states after expiry and preserves checked claim
+observations even if later reads fail. It neither extracts the opening nor
+excludes previous mempool exposure or proves withdrawal. Public secret capture,
+cross-chain/auxiliary reconciliation, durable send attempts and source-release
+signing remain unfinished. The integrated positive public path has not run with
+funded public inputs.
 No public sender is enabled. See
 [public preflight and its tested scope](public-testnet.md#agreement-bound-read-only-preflight).
 

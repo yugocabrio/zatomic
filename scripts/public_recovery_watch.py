@@ -38,53 +38,75 @@ def observe(wallet, directory, batches):
     This is not the first-reveal preflight and grants no execution permission.
     """
     with locked(wallet):
-        report = checked(wallet)  # Full offline bundle/receipt validation before RPC.
-        directory.mkdir(mode=0o700)
-        scanned = sync(wallet, batches)
-        if scanned['caught_up_to_observed_tip'] is not True:
-            raise RuntimeError('watch wallet behind provider; continue explicit sync')
-        info, current = checkpoint(wallet)
-        anchors = []
-        for file in wallet.glob('compact-*.json'):
-            value = read(file)
-            if (value['genesis'] == GENESIS and value['birthday_height'] == info['birthday']
-                    and type(value['height']) is int and value['height'] <= current['height']-11):
-                anchors.append((value['height'], value))
-        if not anchors:
-            raise RuntimeError('retain a checkpoint with twelve confirmations, then resume')
-        _, anchor = max(anchors, key=lambda a: a[0])
-        save(directory/'anchor.json', anchor)
-        save(directory/'current.json', current)
-        invoke(NATIVE, 'testnet-recovery-snapshot', wallet, directory/'anchor.json',
-            directory/'current.json', directory/'snapshot.json')
-        selected = read(directory/'snapshot.json')
-        invoke('node', ROOT/'scripts/observe_testnet_transaction.mjs', report['funding_txid'], directory/'funding')
-        funding = read(directory/'funding/observation.json')
-        bundle = read(wallet/'native-recovery.json')
-        # Same fixed native clock/confirmation rules as consent/preflight, without
-        # pretending that this partial descriptor is a signed cross-chain agreement.
-        descriptor = {'execution_plan': bundle['review']['plan'], 'native_genesis': GENESIS,
-            'native_branch': '77190ad9', 'native': {'funding_txid': report['funding_txid']},
-            'observation_policy': {'native_min_confirmations': 12}}
-        native_funding(descriptor, funding, int(time.time()))
-        if funding['mined_block']['height'] != selected['notes'][0]['height']:
-            raise RuntimeError('raw funding observation differs from scanned note origin')
-        # LAST provider operation rechecks the old tree and current nullifier tip.
-        # A tip advance/reorg refuses; no blind rewind, snapshot reuse or auto-retry.
-        invoke('node', ROOT/'scripts/observe_testnet_source.mjs', directory/'snapshot.json', directory/'canonical.json')
-        canonical = read(directory/'canonical.json')
-        fresh(canonical, int(time.time()))
-        native_funding(descriptor, funding, int(time.time()))
-        result = {'format': 'latch-public-recovery-observation-v1',
-            'bundle_digest': report['bundle_digest'], 'role': report['role'],
-            'funding_txid': report['funding_txid'], 'height': selected['height'],
-            'anchor_height': selected['anchor_height'], 'exact_funding_note_unspent_in_scan': True,
-            'canonical_trees_rechecked': True, 'provider_trusted': True,
-            'spending_keys_read': False, 'secret_opening_read': False, 'broadcast': False,
-            'execution_enabled': False, 'refund_auxiliary_checked': False,
-            'scope': 'fresh trusted-provider native witness acquisition only; not outgoing recovery authorization'}
-        save(directory/'observation.json', result)
-        return result
+        return observe_locked(wallet, directory, batches)
+
+
+def snapshot_for_anchor(wallet, directory, exact_anchor=None):
+    """Offline exact-anchor selection; native verifier checks every witness/root.
+
+    This does not query a provider or establish canonicality/unspentness now.
+    """
+    info, current = checkpoint(wallet)
+    anchors = []
+    for file in wallet.glob('compact-*.json'):
+        value = read(file)
+        if (value['genesis'] == GENESIS and value['birthday_height'] == info['birthday']
+                and type(value['height']) is int and value['height'] <= current['height']-11
+                and (exact_anchor is None or value['anchor'] == exact_anchor)):
+            anchors.append((value['height'], value))
+    if not anchors:
+        raise RuntimeError('no twelve-confirmed checkpoint for the required anchor; retain state and reprove if necessary')
+    _, anchor = max(anchors, key=lambda a: a[0])
+    save(directory/'anchor.json', anchor)
+    save(directory/'current.json', current)
+    invoke(NATIVE, 'testnet-recovery-snapshot', wallet, directory/'anchor.json',
+        directory/'current.json', directory/'snapshot.json')
+    selected = read(directory/'snapshot.json')
+    if exact_anchor is not None and selected['anchor'] != exact_anchor:
+        raise RuntimeError('recovery snapshot differs from prepared transaction anchor')
+    return selected
+
+
+def observe_locked(wallet, directory, batches, exact_anchor=None):
+    """Caller holds sync.lock; optionally require a prepared raw tx's anchor.
+
+    A newer usable anchor cannot silently validate already-proved bytes.
+    Reproof is a separate operation retaining every old outgoing version.
+    """
+    report = checked(wallet)  # Full offline bundle/receipt validation before RPC.
+    directory.mkdir(mode=0o700)
+    scanned = sync(wallet, batches)
+    if scanned['caught_up_to_observed_tip'] is not True:
+        raise RuntimeError('watch wallet behind provider; continue explicit sync')
+    selected = snapshot_for_anchor(wallet, directory, exact_anchor)
+    invoke('node', ROOT/'scripts/observe_testnet_transaction.mjs', report['funding_txid'], directory/'funding')
+    funding = read(directory/'funding/observation.json')
+    bundle = read(wallet/'native-recovery.json')
+    # Same fixed native clock/confirmation rules as consent/preflight, without
+    # pretending that this partial descriptor is a signed cross-chain agreement.
+    descriptor = {'execution_plan': bundle['review']['plan'], 'native_genesis': GENESIS,
+        'native_branch': '77190ad9', 'native': {'funding_txid': report['funding_txid']},
+        'observation_policy': {'native_min_confirmations': 12}}
+    native_funding(descriptor, funding, int(time.time()))
+    if funding['mined_block']['height'] != selected['notes'][0]['height']:
+        raise RuntimeError('raw funding observation differs from scanned note origin')
+    # LAST provider operation rechecks the old tree and current nullifier tip.
+    # A tip advance/reorg refuses; no blind rewind, snapshot reuse or auto-retry.
+    invoke('node', ROOT/'scripts/observe_testnet_source.mjs', directory/'snapshot.json', directory/'canonical.json')
+    canonical = read(directory/'canonical.json')
+    fresh(canonical, int(time.time()))
+    native_funding(descriptor, funding, int(time.time()))
+    result = {'format': 'latch-public-recovery-observation-v1',
+        'bundle_digest': report['bundle_digest'], 'role': report['role'],
+        'funding_txid': report['funding_txid'], 'height': selected['height'],
+        'anchor_height': selected['anchor_height'], 'anchor': selected['anchor'],
+        'exact_funding_note_unspent_in_scan': True,
+        'canonical_trees_rechecked': True, 'provider_trusted': True,
+        'spending_keys_read': False, 'secret_opening_read': False, 'broadcast': False,
+        'execution_enabled': False, 'refund_auxiliary_checked': False,
+        'scope': 'fresh trusted-provider native witness acquisition only; not outgoing recovery authorization'}
+    save(directory/'observation.json', result)
+    return result
 
 
 def main():

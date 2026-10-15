@@ -70,6 +70,18 @@ export function bytes(map, key) { const b = one(map, key); if (!Buffer.isBuffer(
 export function string(map, key) { return bytes(map, key).toString('utf8'); }
 export function hash(map, key) { const b = bytes(map, key); if (b.length !== 32) throw new Error('invalid hash length'); return Buffer.from(b).reverse().toString('hex'); }
 export const blockRequest = height => Buffer.concat([Buffer.from([8]), varint(height)]);
+export class GrpcError extends Error {
+  constructor(method, code) {
+    super(`${method} gRPC status ${code}`);
+    this.method = method; this.code = code;
+  }
+}
+export function requireGrpcSuccess(method, status, contentType, grpcStatus) {
+  if (status !== 200 || !/^application\/grpc(?:\+proto)?(?:\s*;.*)?$/i.test(String(contentType))
+      || !/^(?:[0-9]|1[0-6])$/.test(String(grpcStatus))) throw new Error(`${method} invalid gRPC envelope`);
+  const code = Number(grpcStatus);
+  if (code !== 0) throw new GrpcError(method, code);
+}
 export async function rpc(method, message = Buffer.alloc(0)) {
   if (!ALLOWED.has(method)) throw new Error('read-only method required');
   return new Promise((resolve, reject) => {
@@ -96,7 +108,7 @@ export async function rpc(method, message = Buffer.alloc(0)) {
       });
       stream.on('end', () => {
         try {
-          if (status !== 200 || !String(contentType).startsWith('application/grpc') || String(grpcStatus) !== '0') throw new Error(`${method} non-success gRPC status`);
+          requireGrpcSuccess(method, status, contentType, grpcStatus);
           const raw = Buffer.concat(chunks);
           finish(null, messages(raw, method === 'GetBlockRange'));
         } catch (error) { finish(error); }

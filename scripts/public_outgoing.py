@@ -113,20 +113,28 @@ def versions(directory, binding):
             status = 'private-bytes-reverified'
         else:
             status = 'interrupted-before-raw-persistence'
-        result.append({'bytes_sha256': path.stem, 'status': status})
+        result.append({'bytes_sha256': path.stem, 'status': status,
+            'checked': checked if status == 'private-bytes-reverified' else None})
     return result
 
 
-def inspect_locked(owner):
+def verified_journal_locked(owner):
     directory = owner/JOURNAL
     if not directory.exists() and not directory.is_symlink():
         raise RuntimeError('no native outgoing journal')
     private_directory(directory)
-    _, receipt, _, binding = context(owner, directory/'native-recovery.json',
+    files, receipt, caller, binding = context(owner, directory/'native-recovery.json',
         directory/'proposal.json', directory/'consents.json')
     if read(directory/'binding.json') != binding or read(directory/'owner-receipt.json') != receipt:
         raise RuntimeError('outgoing context differs from local acceptance')
     retained = versions(directory, binding)
+    return {'directory': directory, 'files': files, 'caller': caller, 'binding': binding, 'versions': retained}
+
+
+def inspect_locked(owner):
+    journal = verified_journal_locked(owner)
+    binding = journal['binding']
+    retained = [{k: v[k] for k in ('bytes_sha256', 'status')} for v in journal['versions']]
     return {'format': 'latch-public-native-outgoing-status-v1', 'role': binding['role'],
         'mode': binding['mode'], 'agreement_digest': binding['agreement_digest'],
         'synthetic_inputs': binding['synthetic_inputs'], 'versions': retained,

@@ -15,7 +15,10 @@ async function main() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const result = await observeTransaction(txid, async raw => {
     const file = path.join(directory, 'transaction.hex');
-    fs.writeFileSync(file, raw.toString('hex'), {flag: 'wx', mode: 0o600});
+    const fd = fs.openSync(file, 'wx', 0o600);
+    try {fs.writeFileSync(fd, raw.toString('hex')); fs.fsyncSync(fd);} finally {fs.closeSync(fd);}
+    const parent = fs.openSync(directory, 'r');
+    try {fs.fsyncSync(parent);} finally {fs.closeSync(parent);}
     return JSON.parse(execFileSync(path.join(root, 'target/release/shielded-swap-native'),
       ['inspect-transaction', file], {encoding: 'utf8', timeout: 30000, maxBuffer: 4_000_000}));
   });

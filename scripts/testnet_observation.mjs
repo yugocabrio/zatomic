@@ -1,5 +1,5 @@
 // Provider-trusted observations, kept separate from every transaction sender.
-import {GENESIS, NU7_HEIGHT, rpc, fields, one, integer, bytes, string, hash, blockRequest} from './lightwallet_rpc.mjs';
+import {GENESIS, NU7_HEIGHT, rpc, GrpcError, fields, one, integer, bytes, string, hash, blockRequest} from './lightwallet_rpc.mjs';
 
 const uint = (m, k) => m.has(k) ? integer(m, k) : 0;
 const nested = (m, k) => (m.get(k) || []).map(b => {
@@ -62,40 +62,51 @@ function blockIdentity(block, height, expectedHash) {
   return {height, hash: hash(block, 3), timestamp: integer(block, 5)};
 }
 
-export async function observeTransaction(txid, decode) {
+export async function observeTransaction(txid, decode, call=rpc) {
+  transactionRequest(txid);
   const started = performance.now();
-  const info = await rpc('GetLightdInfo');
+  const info = await call('GetLightdInfo');
   if (string(info, 4) !== 'test' || string(info, 6).replace(/^0x/, '').toLowerCase() !== '77190ad9'
       || string(info, 18) !== 'v0.5.0') throw new Error('testnet NU7/protocol v0.5.0 required');
-  const first = await rpc('GetBlock', blockRequest(1));
+  const first = await call('GetBlock', blockRequest(1));
   if (integer(first, 2) !== 1 || hash(first, 4) !== GENESIS) throw new Error('public testnet genesis mismatch');
-  const latest = await rpc('GetLatestBlock');
+  const latest = await call('GetLatestBlock');
   const tipHeight = integer(latest, 1), tipHash = hash(latest, 2);
   if (tipHeight < NU7_HEIGHT || tipHeight > 0xffffffff) throw new Error('tip outside NU7 profile');
-  const tip = blockIdentity(await rpc('GetBlock', blockRequest(tipHeight)), tipHeight, tipHash);
-  const received = await rpc('GetTransaction', transactionRequest(txid));
-  const state = transactionHeight(received);
-  const raw = bytes(received, 1);
-  if (!raw.length || raw.length > 2_000_000) throw new Error('transaction size bound');
-  const decoded = await decode(raw);
-  if (decoded.txid !== txid || decoded.version !== 6 || decoded.branch !== '77190ad9'
-      || decoded.format !== 'latch-observed-transaction-v1') throw new Error('decoded transaction identity/version mismatch');
+  const tip = blockIdentity(await call('GetBlock', blockRequest(tipHeight)), tipHeight, tipHash);
+  let state, received, decoded = null;
+  try {
+    received = await call('GetTransaction', transactionRequest(txid));
+  } catch (error) {
+    // Only an authenticated, well-formed NOT_FOUND from this exact method is
+    // an index absence. Timeout, HTTP, malformed and other gRPC errors propagate.
+    if (!(error instanceof GrpcError) || error.method !== 'GetTransaction' || error.code !== 5) throw error;
+    state = {status:'not_found', height:null};
+  }
+  if (received !== undefined) {
+    state = transactionHeight(received);
+    const raw = bytes(received, 1);
+    if (!raw.length || raw.length > 2_000_000) throw new Error('transaction size bound');
+    decoded = await decode(raw);
+    if (decoded.txid !== txid || decoded.version !== 6 || decoded.branch !== '77190ad9'
+        || decoded.format !== 'latch-observed-transaction-v1') throw new Error('decoded transaction identity/version mismatch');
+  }
   let mined = null, index = null;
   if (state.status === 'mined') {
     if (state.height > tipHeight) throw new Error('transaction mined after observed tip; retry later');
-    const block = await rpc('GetBlock', blockRequest(state.height));
+    const block = await call('GetBlock', blockRequest(state.height));
     mined = blockIdentity(block, state.height);
     index = compactMembership(block, decoded);
-    blockIdentity(await rpc('GetBlock', blockRequest(state.height)), state.height, mined.hash);
+    blockIdentity(await call('GetBlock', blockRequest(state.height)), state.height, mined.hash);
   }
   // Recheck the original tip, allowing normal forward growth but not an observed
   // replacement of the pinned branch. This still trusts the provider's index.
-  blockIdentity(await rpc('GetBlock', blockRequest(tipHeight)), tipHeight, tipHash);
+  blockIdentity(await call('GetBlock', blockRequest(tipHeight)), tipHeight, tipHash);
   const elapsed = (performance.now() - started) / 1000;
   if (elapsed > 120) throw new Error('observation duration bound');
   return {format: 'latch-testnet-transaction-observation-v1', genesis: GENESIS, branch: '77190ad9',
     observed_at: new Date().toISOString(), elapsed_seconds: Math.round(elapsed * 1000) / 1000,
-    provider_trusted: true, status: state.status, transaction: decoded, mined_block: mined,
+    provider_trusted: true, requested_txid: txid, status: state.status, transaction: decoded, mined_block: mined,
     transaction_index: index, observed_tip: tip,
     confirmations_by_provider: mined ? tipHeight - mined.height + 1 : 0,
     header_age_seconds_by_local_clock: Math.floor(Date.now()/1000) - tip.timestamp,
@@ -105,5 +116,6 @@ export async function observeTransaction(txid, decode) {
     limitations: ['Provider canonical membership and confirmations are not PoW/consensus/finality proofs.',
       'Transaction parsing checks encoding and txid, not spend signatures or zero-knowledge proofs.',
       'This observation does not check unspent notes/auxiliary inputs, clock safety, fees or counter-chain state.',
+      'NOT_FOUND is only this provider index response, not evidence that bytes were never exposed or can be replaced.',
       'Negative or stale observations must never erase a durable secret-exposure intent.']};
 }
