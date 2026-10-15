@@ -6,6 +6,11 @@ local browser demo at http://127.0.0.1:8787. See docs/demo-walkthrough.md.
 The current node bootstrap targets Apple Silicon / Linux ARM64. No public
 endpoint, wallet seed, faucet, paid service or mainnet funds are used.
 
+The commands below reproduce the older native-funding-first fixtures. New
+browser runs use signed cross-chain consent before native source authorization;
+use [the current consent/recovery guide](funding-consent.md) for that driver.
+Each saved browser job selects its own matching recovery command.
+
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
 cargo build --locked --release -j 2 -p shielded-swap-native

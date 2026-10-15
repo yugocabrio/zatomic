@@ -19,11 +19,13 @@ whole spending key. Both obtain shared viewing data and can prove spends.
 The FROST adaptor extension is custom and unaudited; upstream FROST security
 does NOT automatically establish security of this modified protocol.
 
-The transaction sequence below is the target protocol. The current isolated
-runner prepares/funds native ZEC before deploying and agreeing the ETH escrow;
-Alice's pre-authorized refund handles failed ETH negotiation. Authenticated
-offer/accept before funding remains to be implemented. The separate owner CLI
-now keeps ETH keys and first secret exposure out of the coordinator process.
+New browser runs prepare the native graph without generating a source spend
+signature, then deploy the isolated escrow and obtain both owners' signatures
+on the full cross-chain agreement. The source wallet verifies these against
+pre-provisioned identity pins before signing/releasing F. See
+[funding consent](funding-consent.md). Older reproduction runners retain the
+earlier native-funding-first sequence. Owner keys and first secret exposure stay
+in the owner clients; independent-host identity provisioning is still open.
 
 ## Transaction order
 

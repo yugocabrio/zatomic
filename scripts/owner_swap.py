@@ -165,6 +165,14 @@ def validate_recovery(directory):
     if not confirmed(agreement['native']['funding_txid']):
         raise RuntimeError('native funding no longer canonical')
     verify_contract(agreement)
+    validate_owners(directory, agreement)
+    return agreement
+
+
+def validate_owners(directory, agreement):
+    flow = read(directory / 'owner-flow.json')
+    if flow['agreement_digest'] != agreement_digest(agreement) or read(directory / 'agreement.json') != agreement:
+        raise RuntimeError('owner lifecycle agreement changed')
     # Missing owner state is not evidence that no claim was exposed. Require
     # the initialized owners and immutable acceptance before any route decision.
     for role in ('alice', 'bob'):
@@ -177,7 +185,6 @@ def validate_recovery(directory):
         ready = read(owner / 'recovery/recovery-ready.json')
         if ready['funding_txid'] != agreement['native']['funding_txid'] or ready['mode'] != ('refund' if role == 'alice' else 'claim'):
             raise RuntimeError('owner recovery workspace mismatch')
-    return agreement
 
 
 def finish(directory, agreement, order, recovered=False, fault=None):
@@ -248,6 +255,8 @@ def finish(directory, agreement, order, recovered=False, fault=None):
         'owner_signed_eth': True, 'node_cannot_sign_for_owners': True,
         'peer_offline_during_native_exit': True, 'coordinator_native_files_offline': True,
         'public_testnet': False, 'independent_hosts': False}
+    if agreement.get('consent_version') == 1:
+        result['signed_cross_chain_consent_before_funding'] = True
     record_once(directory, '08-complete', result)
     if recovered:
         record_once(directory, '09-recovered', result)

@@ -19,7 +19,7 @@ DEMO = ROOT / '.local/demo'
 WEB = ROOT / 'web'
 SCENARIOS = {'success': ('success', None), 'claim-stop': ('success', 'eth-claimed'),
              'refund-stop': ('refund', 'eth-locked')}
-STAGES = ('00-funding-preview-rejected', '01-prepared', '02-funded', '03-early-refund-rejected', '04-eth-locked',
+STAGES = ('00-funding-preview-rejected', '01-prepared', '01-consented', '01-authorized', '02-funded', '03-early-refund-rejected', '04-eth-locked',
           '05-eth-claimed', '05-eth-refunded', '06-zec-claimed', '06-zec-refunded',
           '07-conflicting-refund-rejected', '08-complete', '09-recovered')
 PUBLIC_EVIDENCE = {p.name: p for p in (ROOT / 'evidence').glob('*.json')}
@@ -86,7 +86,10 @@ class Manager:
                 job['events'].append({'stage': name, 'value': value})
         if job['state'] in ('running', 'recovering') and (self.worker is None or not self.worker.is_alive()) and not driver_busy():
             job['state'] = 'complete' if (run / '08-complete.json').exists() else 'interrupted'
-        if job.get('driver') == 'owner-clients-v1':
+        if job.get('driver') == 'owner-consent-v2':
+            checkpoint = all((run / name).exists() for name in ('owner-flow.json',
+                'consent-packet.json', 'evm-checkpoint.json', 'coordinator-native-offline/funding.hex'))
+        elif job.get('driver') == 'owner-clients-v1':
             checkpoint = all((run / name).exists() for name in ('owner-flow.json',
                 'agreement.json', 'evm-checkpoint.json', 'owners/bob/eth-intent-lock.json'))
         else:
@@ -123,7 +126,9 @@ class Manager:
                 job.pop('events', None)
                 job.pop('recoverable', None)
                 job['state'] = 'recovering'
-                if job.get('driver') == 'owner-clients-v1':
+                if job.get('driver') == 'owner-consent-v2':
+                    args = ['python3', str(ROOT / 'scripts/prefunding_swap.py'), 'recover', str(path.parent / 'run')]
+                elif job.get('driver') == 'owner-clients-v1':
                     args = ['python3', str(ROOT / 'scripts/owner_swap.py'), 'recover', str(path.parent / 'run')]
                 else:
                     args = ['python3', str(ROOT / 'scripts/recover_regtest_swap.py'), str(path.parent / 'run')]
@@ -144,9 +149,9 @@ class Manager:
                 folder.mkdir(mode=0o700)
                 path = folder / 'job.json'
                 job = {'id': job_id, 'scenario': scenario, 'state': 'running',
-                       'driver': 'owner-clients-v1', 'started_at': int(time.time())}
+                       'driver': 'owner-consent-v2', 'started_at': int(time.time())}
                 mode, fault = SCENARIOS[scenario]
-                args = ['python3', str(ROOT / 'scripts/owner_swap.py'), mode, str(folder / 'run')]
+                args = ['python3', str(ROOT / 'scripts/prefunding_swap.py'), mode, str(folder / 'run')]
                 # Reuse only completed demo banks with an unspent small auxiliary
                 # coin. The runner rechecks/reserves it under the chain lock.
                 # Refund scenarios receive a fresh coin and do not consume a

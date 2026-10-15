@@ -1,6 +1,7 @@
 //! Local native development CLI. Synthetic fixtures MUST NEVER be broadcast.
 mod auxiliary;
 mod evm_key;
+mod funding_consent;
 mod participants;
 mod recovery_bundle;
 mod regtest_swap;
@@ -428,8 +429,22 @@ fn main() -> Result<()> {
             auxiliary::compact(Path::new(&a[2]), Path::new(&a[3]))?
         }
         Some("regtest-prepare") if a.len() == 5 => {
-            regtest_swap::prepare(Path::new(&a[2]), Path::new(&a[3]), Path::new(&a[4]))?
+            regtest_swap::prepare(Path::new(&a[2]), Path::new(&a[3]), Path::new(&a[4]), None)?
         }
+        Some("regtest-stage") if a.len() == 6 => regtest_swap::prepare(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            Path::new(&a[4]),
+            Some(Path::new(&a[5])),
+        )?,
+        Some("regtest-authorize-funding") if a.len() == 5 => {
+            regtest_swap::authorize_funding(Path::new(&a[2]), Path::new(&a[3]), Path::new(&a[4]))?
+        }
+        Some("regtest-check-consent") if a.len() == 4 => funding_consent::verify(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            &storage::read(&Path::new(&a[2]).join("unsigned-funding.pczt"), 100_000)?,
+        )?,
         Some("regtest-finish") if a.len() == 5 || a.len() == 6 => regtest_swap::finish(
             Path::new(&a[2]),
             Path::new(&a[3]),

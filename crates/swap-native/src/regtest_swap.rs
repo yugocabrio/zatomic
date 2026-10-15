@@ -114,6 +114,39 @@ fn funding_preview(funding: &Transaction) -> Result<Transaction> {
     }
     Ok(preview)
 }
+
+/// Construct effect-identical preview bytes without ever generating a real
+/// source spend signature. Proof verification is separate from authorization.
+fn unsigned_preview(pczt: &Pczt) -> Result<Transaction> {
+    let proof = orchard::Proof::new(pczt.ironwood().zkproof().clone().ok_or("funding proof")?);
+    let effects = pczt.clone().into_effects().map_err(err)?;
+    if effects.transparent_bundle().is_some()
+        || effects.sapling_bundle().is_some()
+        || effects.orchard_bundle().is_some()
+    {
+        return Err("source preview must be Ironwood only".into());
+    }
+    Ok(effects
+        .map_bundles::<zcash_primitives::transaction::Authorized>(
+            |_| None,
+            |_| None,
+            |bundle| {
+                bundle.map(|b| {
+                    b.map_authorization(
+                        &mut (),
+                        |_, _, _| orchard::primitives::redpallas::Signature::from([0u8; 64]),
+                        |_, _| {
+                            orchard::bundle::Authorized::from_parts(
+                                proof.clone(),
+                                orchard::primitives::redpallas::Signature::from([0u8; 64]),
+                            )
+                        },
+                    )
+                })
+            },
+        )
+        .freeze()?)
+}
 fn prove_pczt(pczt: Pczt) -> Result<Pczt> {
     let mut rng = rand::rng();
     let pk = ProvingKey::build(OrchardCircuitVersion::PostNu6_3);
@@ -232,7 +265,8 @@ fn apply(pczt: Pczt, index: usize, sig: [u8; 64], digest: [u8; 32]) -> Result<Pc
         .finish())
 }
 
-pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
+pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Result<Value> {
+    let pins = pins.map(storage::json).transpose()?;
     let snapshot = storage::json(scan)?;
     if snapshot["genesis"] != wallet::GENESIS {
         return Err("wrong source network".into());
@@ -313,21 +347,12 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
         IoFinalizer::new(Creator::build_from_parts(funding.pczt_parts).ok_or("funding parts")?)
             .finalize_io(&mut rng)
             .map_err(err)?;
-    let real = pczt
-        .ironwood()
-        .actions()
-        .iter()
-        .enumerate()
-        .filter(|(_, a)| a.spend().spend_auth_sig().is_none())
-        .map(|(i, _)| i)
-        .collect::<Vec<_>>();
-    let mut signer = Signer::new(pczt).map_err(err)?;
-    for i in real {
-        signer
-            .sign_ironwood(&mut rng, i, &SpendAuthorizingKey::from(&alice_key))
-            .map_err(err)?;
-    }
-    let funding = prove(signer.finish())?;
+    // No real source signature is generated until the release gate succeeds.
+    // Placeholder authorization fields are only for preview serialization.
+    let pczt = prove_pczt(pczt)?;
+    verify_claim_proof(pczt.clone())?;
+    let unsigned_funding = pczt.clone().serialize().map_err(err)?;
+    let funding = unsigned_preview(&pczt)?;
     let (pending, _, _) = funding
         .ironwood_bundle()
         .ok_or("funding bundle")?
@@ -471,7 +496,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
     let refund_check = prove_pczt(anchor_for_check(refund.clone(), dummy_path, dummy_anchor)?)?;
     let _checked_refund = extract_checked(refund_check.clone())?;
     crate::recovery_bundle::verify_auxiliary_signature(&refund)?;
-    let terms = json!({"scope":"isolated regtest; independent local signer processes", "independent_signer_processes":true, "funding_txid":funding.txid().to_string(),
+    let mut terms = json!({"scope":"isolated regtest; independent local signer processes", "independent_signer_processes":true, "funding_txid":funding.txid().to_string(),
         "aux_outpoint":{"txid":aux.txid.to_string(),"index":auxindex,"value_zatoshi":u64::from(auxcoin.value())},
         "principal_zatoshi":PRINCIPAL,"payout_zatoshi":PAYOUT,"refund_height":refund_height,
         "point_x":pair.point_x,"point_y":pair.point_y,"claim_index":claim_index,
@@ -482,6 +507,10 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
         "participant_bundles_acknowledged_before_funding":true,
         "funding_authorization_withheld_from_peer_until_acknowledgment":true,
         "refund_transparent_auxiliary":true,"funding_and_claim_fully_shielded":true});
+    if let Some(pins) = &pins {
+        terms["owner_pins"] = pins.clone();
+        terms["cross_chain_consent_required"] = json!(true);
+    }
     // Both participants verify and fsync their own complete recovery bundle.
     // The coordinator's copy alone is insufficient authorization to fund.
     let bundle = json!({"version":1,"native_genesis":wallet::GENESIS,"native_branch":"77190ad9",
@@ -502,10 +531,77 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
         &refund.serialize().map_err(err)?,
     )?;
     storage::write_json(&dir.join("terms.json"), &terms)?;
-    // This is the first point where the funding transaction becomes available
-    // to the broadcast driver. No RPC exists in this Rust process.
-    save_tx(&dir.join("funding.hex"), &funding)?;
+    if let Some(pins) = pins {
+        storage::write(&dir.join("unsigned-funding.pczt"), &unsigned_funding)?;
+        crate::funding_consent::stage(dir, pins, &unsigned_funding, &terms)?;
+    } else {
+        // Legacy fixture: requires both native receipts but no ETH consent.
+        let real = pczt
+            .ironwood()
+            .actions()
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| a.spend().spend_auth_sig().is_none())
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        let mut signer = Signer::new(pczt).map_err(err)?;
+        for i in real {
+            signer
+                .sign_ironwood(&mut rng, i, &SpendAuthorizingKey::from(&alice_key))
+                .map_err(err)?;
+        }
+        save_tx(&dir.join("funding.hex"), &extract_checked(signer.finish())?)?;
+    }
     Ok(terms)
+}
+
+pub fn authorize_funding(bank: &Path, dir: &Path, packet: &Path) -> Result<Value> {
+    let unsigned = storage::read(&dir.join("unsigned-funding.pczt"), 100_000)?;
+    let consent = crate::funding_consent::verify(dir, packet, &unsigned)?;
+    // Revalidate even on replay; an existing file never bypasses consent checks.
+    if dir.join("funding.hex").exists() {
+        if storage::json(&dir.join("funding-consent.json"))? != consent {
+            return Err("funding consent changed".into());
+        }
+        let existing = inspect(&dir.join("funding.hex"))?;
+        if existing["txid"] != consent["funding_txid"] {
+            return Err("persisted funding identity changed".into());
+        }
+        return Ok(existing);
+    }
+    let pczt = Pczt::parse(&unsigned).map_err(err)?;
+    let real = pczt
+        .ironwood()
+        .actions()
+        .iter()
+        .enumerate()
+        .filter(|(_, a)| a.spend().spend_auth_sig().is_none())
+        .map(|(i, _)| i)
+        .collect::<Vec<_>>();
+    if real.len() != 1 {
+        return Err("expected one unsigned source spend".into());
+    }
+    let mut signer = Signer::new(pczt).map_err(err)?;
+    signer
+        .sign_ironwood(
+            rand::rng(),
+            real[0],
+            &SpendAuthorizingKey::from(&wallet::key(bank)?),
+        )
+        .map_err(err)?;
+    let funding = extract_checked(signer.finish())?;
+    if funding.txid().to_string() != consent["funding_txid"] {
+        return Err("authorized funding identity changed".into());
+    }
+    if dir.join("funding-consent.json").exists() {
+        if storage::json(&dir.join("funding-consent.json"))? != consent {
+            return Err("interrupted funding consent changed".into());
+        }
+    } else {
+        storage::write_json(&dir.join("funding-consent.json"), &consent)?;
+    }
+    save_tx(&dir.join("funding.hex"), &funding)?;
+    inspect(&dir.join("funding.hex"))
 }
 
 pub fn finish(dir: &Path, scan: &Path, mode: &str, witness: Option<&str>) -> Result<Value> {

@@ -45,6 +45,7 @@ python3 scripts/demo_server.py
 - [Authenticated signer channel and its limits](docs/signer-transport.md)
 - [Participant-owned recovery data and funding-order safeguards](docs/recovery-bundles.md)
 - [Owner-held ETH clients, restart and competing-relayer gates](docs/owner-clients.md)
+- [Both owners sign the cross-chain offer before ZEC funding](docs/funding-consent.md)
 - [Current status](STATUS.md) and [remaining work](TASKS.md)
 - [Public evidence](evidence/): native/EVM compatibility, chain acceptance,
   interrupted claim/refund recovery, signer nonce replay and tampering tests
@@ -61,6 +62,8 @@ and value are public on refund. ETH-side activity is public.
 
 Both signers run in separate processes on one host. New browser runs use pinned
 mutual TLS for native preparation and separate owner-held ETH keys and journals.
+Both owners sign the full cross-chain offer before source funding is authorized;
+their identity pins are provisioned locally and are not remote identity discovery.
 The node cannot sign for those owners; the coordinator does not read Alice's
 unrevealed scalar. Browser recovery restarts the same owner clients. Older saved
 runs retain their original recovery driver. Independent-host wallet operation

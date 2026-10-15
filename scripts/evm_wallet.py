@@ -46,9 +46,18 @@ def initialize(directory):
     public = bytes.fromhex(native('evm-key-init', directory)['public_key'])
     if len(public) != 65 or public[0] != 4:
         raise RuntimeError('unexpected Ethereum public key')
-    identity = {'address': '0x' + keccak(public[1:])[-20:].hex(), 'chain_id': evm.CHAIN}
+    identity = {'address': '0x' + keccak(public[1:])[-20:].hex(), 'chain_id': evm.CHAIN,
+        'public_key': public.hex()}
     save(directory / 'identity.json', identity)
     return identity
+
+
+def sign_digest(directory, digest):
+    result = subprocess.run([str(NATIVE), 'evm-sign-digest', str(directory)],
+        input=digest.hex() + '\n', capture_output=True, text=True, timeout=10)
+    if result.returncode:
+        raise RuntimeError('owner digest signing failed')
+    return json.loads(result.stdout)
 
 
 def sign(directory, transaction, kind):

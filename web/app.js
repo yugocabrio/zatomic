@@ -44,7 +44,7 @@ function render(data) {
   text('#timeline li[data-step="lock"] strong', fundingOnly ? 'ETH remains with Bob' : 'Lock the ETH');
   text('#resolution-title', refund || fundingOnly ? 'Wait for expiry & refund' : 'Reveal & settle');
   text('#resolution-copy', refund || fundingOnly ? 'No secret revealed. Each owner recovers their asset.' : 'Public witness completes the prepared ZEC signature.');
-  const finished = [events.has('01-prepared'), events.has('02-funded'), events.has('04-eth-locked') || fundingOnly, events.has('06-zec-claimed') || events.has('06-zec-refunded') || complete, complete];
+  const finished = [events.has(job?.driver === 'owner-consent-v2' ? '01-consented' : '01-prepared'), events.has('02-funded'), events.has('04-eth-locked') || fundingOnly, events.has('06-zec-claimed') || events.has('06-zec-refunded') || complete, complete];
   let active = finished.findIndex(value => !value);
   const items = [...document.querySelectorAll('#timeline li')];
   items.forEach((item, i) => {
@@ -85,7 +85,7 @@ function renderReceipt(job, events) {
   add('Recovered ZEC', events.get('09-recovered')?.native_txid);
   add('ETH withdrawal', events.get('08-complete')?.eth_withdraw_tx);
   $('#receipt').hidden = !rows.length;
-  text('#receipt-detail', job ? `Run ${job.id.slice(-8)} · ${job.driver === 'owner-clients-v1' ? 'each owner signs locally' : 'legacy local fixture'} · private artifacts stay on this machine` : '');
+  text('#receipt-detail', job ? `Run ${job.id.slice(-8)} · ${job.driver === 'owner-consent-v2' ? 'both owners signed before funding' : job.driver === 'owner-clients-v1' ? 'each owner signs locally' : 'legacy local fixture'} · private artifacts stay on this machine` : '');
   const container = $('#transactions');
   container.replaceChildren();
   for (const [label, value] of rows) {

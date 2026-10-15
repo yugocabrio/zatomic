@@ -26,6 +26,13 @@ def read(path):
     return json.loads(private_file(path, 200_000))
 
 
+def initialize_key(directory, role):
+    identity = evm_wallet.initialize(directory / 'ethereum')
+    identity['role'] = role
+    save(directory / 'identity.json', identity)
+    return identity
+
+
 def initialize(directory, role):
     manifest = read(directory / 'native/dkg-complete.json')
     if manifest['id'] != (1 if role == 'alice' else 2):
@@ -33,9 +40,9 @@ def initialize(directory, role):
     # The client itself invokes the native verifier. A coordinator-supplied
     # boolean or receipt file is not an initialization substitute.
     native('regtest-export-recovery', directory / 'native', directory / 'recovery')
-    identity = evm_wallet.initialize(directory / 'ethereum')
-    identity['role'] = role
-    save(directory / 'identity.json', identity)
+    identity = read(directory / 'identity.json') if (directory / 'identity.json').exists() else initialize_key(directory, role)
+    if identity['role'] != role:
+        raise RuntimeError('ETH owner role changed')
     return identity
 
 
@@ -64,7 +71,7 @@ def unspent_funding(directory, terms):
         raise RuntimeError('owner did not observe the unspent agreed shared note')
 
 
-def validate_agreement(directory, agreement, initial=False):
+def validate_agreement(directory, agreement, initial=False, prefunding=False):
     tip = domain()
     identity = read(directory / 'identity.json')
     bundle = read(directory / 'native/recovery-bundle.json')
@@ -85,12 +92,39 @@ def validate_agreement(directory, agreement, initial=False):
     if agreement['eth_chain_id'] != evm.CHAIN or agreement['amount_wei'] != 10**16:
         raise RuntimeError('unsupported agreed chain or amount')
     verify_contract(agreement)
-    funding(terms)
+    if agreement.get('consent_version') == 1:
+        if terms.get('cross_chain_consent_required') is not True or terms['owner_pins'][identity['role']] != identity:
+            raise RuntimeError('native bundle does not pin this ETH owner')
+        if not re.fullmatch(r'0x[0-9a-f]{64}', agreement['eth_salt']):
+            raise RuntimeError('exact agreed order salt required')
+        code = bytes.fromhex(evm.rpc('eth_getCode', [agreement['contract'], 'latest'])[2:])
+        if agreement['eth_code_hash'] != evm_wallet.keccak(code).hex():
+            raise RuntimeError('agreed escrow code digest changed')
+    elif prefunding or terms.get('cross_chain_consent_required'):
+        raise RuntimeError('cross-chain consent version required')
+    if not prefunding:
+        funding(terms)
     if initial:
         now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
         if not now + 300 < agreement['eth_expiry'] <= now + 7200 or tip['blocks'] + 12 >= terms['refund_height']:
             raise RuntimeError('agreement outside controlled fixture time policy')
     return identity, terms
+
+
+def consent(directory, agreement):
+    identity, _ = validate_agreement(directory, agreement, initial=True, prefunding=True)
+    payload = {'version': 1, 'role': identity['role'], 'agreement_digest': agreement_digest(agreement),
+        'bundle_digest': read(directory / 'native/recovery-receipt.json')['bundle_digest']}
+    digest = hashlib.sha256(b'Latch cross-chain funding consent v1\0' +
+        json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).digest()
+    # Pin the agreement before making a reusable signature available. This
+    # owner's client cannot accept a replacement offer after a restart.
+    save(directory / 'eth-agreement.json', agreement)
+    signed = {'payload': payload, 'signature': evm_wallet.sign_digest(directory / 'ethereum', digest)}
+    save(directory / 'funding-consent.json', signed)
+    save(directory / 'eth-acceptance.json', {'role': identity['role'], 'address': identity['address'],
+        'agreement_digest': payload['agreement_digest'], 'native_bundle_matches': True})
+    return signed
 
 
 def accept(directory, agreement):
@@ -156,6 +190,8 @@ def execute(directory, action, request, fault_after_send=False):
         salt = request.get('salt')
         if not isinstance(salt, str) or not re.fullmatch(r'0x[0-9a-f]{64}', salt):
             raise RuntimeError('canonical salt required')
+        if agreement.get('consent_version') == 1 and salt != agreement['eth_salt']:
+            raise RuntimeError('lock salt differs from signed offer')
         order = evm.rpc('eth_call', [{'to': agreement['contract'],
             'data': evm.calldata('orderId(address,bytes32)', address, salt)}, 'latest'])
         save(directory / 'eth-lock-request.json', {'salt': salt, 'order': order})
@@ -243,7 +279,7 @@ def execute(directory, action, request, fault_after_send=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['init','accept','lock','claim','refund','withdraw'])
+    parser.add_argument('action', choices=['key-init','init','accept','consent','lock','claim','refund','withdraw'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--role', choices=['alice','bob'])
     parser.add_argument('--fault-after-send', action='store_true')
@@ -252,10 +288,10 @@ def main():
     directory = args.directory.resolve()
     with (directory / 'eth-client.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        if args.action == 'init':
+        if args.action in ('init', 'key-init'):
             if not args.role:
                 raise RuntimeError('initialization requires an owner role')
-            result = initialize(directory, args.role)
+            result = (initialize_key if args.action == 'key-init' else initialize)(directory, args.role)
         else:
             raw = sys.stdin.buffer.read(65537)
             if len(raw) > 65536:
@@ -263,7 +299,8 @@ def main():
             request = json.loads(raw)
             if not isinstance(request, dict):
                 raise RuntimeError('owner request object required')
-            result = accept(directory, request) if args.action == 'accept' else execute(directory, args.action, request, args.fault_after_send)
+            result = (consent(directory, request) if args.action == 'consent' else
+                accept(directory, request) if args.action == 'accept' else execute(directory, args.action, request, args.fault_after_send))
         print(json.dumps(result))
 
 
