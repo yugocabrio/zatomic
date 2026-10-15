@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-15",
+  "base_commit": "472d4ff",
+  "scope": "Read-only real public networks plus actual unfunded owner setup; funded end-to-end public path unexecuted",
+  "owner_setup": {
+    "owner_setup_complete": true,
+    "both_quote_signatures": true,
+    "funding_authorized": false,
+    "payout_zatoshi": 100000,
+    "eth_amount_wei": 1000000000000000,
+    "owner_pair_sha256": "8d07725f3b776328a753299813bc0b638cb3258edd51a28a18bc930a5261d65e",
+    "public_transactions": 0
+  },
+  "native_scan": {
+    "endpoint": "testnet.zec.rocks:443",
+    "from_height": 4505329,
+    "through_height": 4505523,
+    "blocks": 194,
+    "actions": 251,
+    "received_notes": 0,
+    "unspent_notes": 0,
+    "caught_up_to_observed_tip": true,
+    "provider_trusted": true
+  },
+  "sepolia": {
+    "endpoint": "https://sepolia.drpc.org",
+    "observed_at": "2026-10-15T17:15:45+00:00",
+    "chain_id": 11155111,
+    "genesis_verified": true,
+    "latest": {
+      "base_fee_wei": 16,
+      "hash": "0x7a187e79869f094f0195dcc296b170bc80327ad879ccd9a3510d44a7f6ba77e5",
+      "height": 11921853,
+      "timestamp": 1792084536
+    },
+    "provider_finalized": {
+      "base_fee_wei": 16,
+      "hash": "0x911c29803e88156b9b14350bcd1e56f6800e35eb2faf98ddd394e19393ee19b0",
+      "height": 11921770,
+      "timestamp": 1792083540
+    },
+    "gas_price_wei": 1000016,
+    "suggested_priority_fee_wei": 1000000,
+    "balances": {
+      "balances": {
+        "alice": {
+          "confirmed_wei": 0,
+          "nonce": 0,
+          "pending_wei": 0
+        },
+        "bob": {
+          "confirmed_wei": 0,
+          "nonce": 0,
+          "pending_wei": 0
+        },
+        "deployment-owner": {
+          "confirmed_wei": 0,
+          "nonce": 0,
+          "pending_wei": 0
+        }
+      },
+      "observed_at": "2026-10-15T17:29:32+00:00",
+      "provider_trusted": true,
+      "public_transactions": 0
+    }
+  },
+  "unfunded_deployment": {
+    "result": "insufficient deployer gas reserve",
+    "signed_raw_created": false,
+    "delivery_intent_created": false
+  },
+  "new_initial_funding": {
+    "test_zec_single_source_note": "0.002",
+    "test_zec_exact_auxiliary": "0.0002",
+    "sepolia_alice": "0.0012",
+    "sepolia_bob_including_trade": "0.0021",
+    "sepolia_deployer": "0.001",
+    "sepolia_total": "0.0043",
+    "gas_cap_wei": 1000000000,
+    "deployment_gas_limit": 1000000,
+    "swap_gas_limits_unchanged": true,
+    "timing_and_confirmation_policy_unchanged": true
+  },
+  "public_swap_succeeded": false,
+  "public_transactions": 0,
+  "public_deployment": false,
+  "faucet_requested": false,
+  "remaining": [
+    "Explicit permission to request test coins, deploy and execute this one public test trade",
+    "Fund native single note and exact noncoinbase v6 auxiliary; all three Sepolia balances are zero",
+    "Execute and validate the real funded positive path; integration defects may remain",
+    "Independent external security review not performed"
+  ],
+  "execution_checklist": "docs/public-execution.md",
+  "private_address_manifest": ".local/public-launch-001/launch-plan.md"
+}

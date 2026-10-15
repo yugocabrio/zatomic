@@ -22,19 +22,21 @@
   </section>
   <section id="swap" class="demo-grid" aria-label="Interactive swap demo">
     <div class="swap-card">
-      <div class="card-heading"><h2>Try a swap</h2><span class="tag">LOCAL TEST FUNDS</span></div>
-      <div class="asset-box"><div class="asset-label">Alice sends <span>shielded</span></div><div class="asset-amount"><strong>0.010000</strong><span><b class="coin zec">Z</b> ZEC</span></div><div class="asset-foot">Native Ironwood note <span>Private amount on Zcash</span></div></div>
+      <div class="card-heading"><h2>Make a private offer</h2><span class="tag">LOCAL TEST FUNDS</span></div>
+      <div class="asset-box"><div class="asset-label">Alice sends <span>shielded</span></div><div class="asset-amount"><input id="zec-amount" aria-label="ZEC amount Alice sells" inputmode="decimal" value="0.01" maxlength="32" autocomplete="off"><span><b class="coin zec">Z</b> ZEC</span></div><div class="asset-foot">Native Ironwood note <span>Private amount on Zcash</span></div></div>
       <div class="swap-direction" aria-hidden="true">↓</div>
-      <div class="asset-box eth-box"><div class="asset-label">Bob sends <span>public</span></div><div class="asset-amount"><strong>0.0100</strong><span><b class="coin eth">◇</b> ETH</span></div><div class="asset-foot">Point-lock escrow <span>Fixed recipient</span></div></div>
+      <div class="asset-box eth-box"><div class="asset-label">Bob sends <span>public</span></div><div class="asset-amount"><input id="eth-amount" aria-label="ETH amount Bob pays" inputmode="decimal" value="0.01" maxlength="32" autocomplete="off"><span><b class="coin eth">◇</b> ETH</span></div><div class="asset-foot">Point-lock escrow <span>Fixed recipient</span></div></div>
+      <div class="offer-review" aria-live="polite"><strong id="quote-status">Choose your exact amounts</strong><p id="quote-copy">Alice sets the price. Bob reviews before accepting. Up to 1 ZEC and 10 ETH in this local demo.</p><code id="quote-digest" hidden></code></div>
+      <div class="offer-actions"><button id="create-offer" class="secondary" disabled>Alice: sign offer</button><button id="accept-offer" class="secondary" disabled>Bob: accept offer</button><button id="new-offer" class="text-button" hidden>Change amounts</button></div>
       <div class="scenario-heading">CHOOSE WHAT HAPPENS <span>01 — 03</span></div>
       <fieldset class="scenarios"><legend class="sr-only">Demo scenario</legend>
         <label class="scenario selected"><input type="radio" name="scenario" value="success" checked><span class="radio-dot"></span><span><strong>Complete the exchange</strong><small>Both sides receive the agreed asset.</small></span><span class="scenario-glyph">↗</span></label>
         <label class="scenario"><input type="radio" name="scenario" value="claim-stop"><span class="radio-dot"></span><span><strong>Stop after the secret is revealed</strong><small>Restart and finish the ZEC claim.</small></span><span class="scenario-glyph">Ⅱ</span></label>
         <label class="scenario"><input type="radio" name="scenario" value="refund-stop"><span class="radio-dot"></span><span><strong>Stop before the secret is revealed</strong><small>Restart and return both original assets.</small></span><span class="scenario-glyph">↶</span></label>
       </fieldset>
-      <button id="start" class="primary" disabled><span>Start local swap</span><span>↗</span></button>
+      <button id="start" class="primary" disabled><span>Prepare exits & fund this swap</span><span>↗</span></button>
       <p id="action-error" class="error" role="alert" hidden></p>
-      <p class="fixture-note">Each owner signs with a separate local key. Disposable test funds; no browser wallet required. Fixed amounts, not a market quote.</p>
+      <p class="fixture-note">The browser controls two separate local test owners. A signed quote is not funding permission. The final button prepares both exits, obtains full consent, then funds. No market price feed.</p>
     </div>
     <div class="live-card">
       <div class="live-heading"><div><p class="eyebrow">LIVE SETTLEMENT</p><h2 id="live-title">Two chains. One agreement.</h2></div><span id="run-status" class="status-pill">Ready when you are</span></div>

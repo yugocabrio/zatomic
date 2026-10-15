@@ -43,6 +43,13 @@ def main():
         ('arbitrary command', '/api/start', 'POST', auth, b'{"scenario":"; echo unsafe"}', 409),
         ('arbitrary recovery path', '/api/recover', 'POST', auth, b'{"id":"../../outside"}', 409),
         ('oversized request', '/api/start', 'POST', auth, b' ' * 4097, 409),
+        ('offer foreign origin', '/api/offer', 'POST', {**auth, 'Origin': 'https://evil.example'}, b'{"zec_amount":"0.1","eth_amount":"0.2"}', 403),
+        ('offer numeric amount', '/api/offer', 'POST', auth, b'{"zec_amount":0.1,"eth_amount":"0.2"}', 409),
+        ('offer excess ZEC precision', '/api/offer', 'POST', auth, b'{"zec_amount":"0.123456789","eth_amount":"0.2"}', 409),
+        ('offer excess ETH precision', '/api/offer', 'POST', auth, b'{"zec_amount":"0.1","eth_amount":"0.1234567890123456789"}', 409),
+        ('offer exceeds local bankroll', '/api/offer', 'POST', auth, b'{"zec_amount":"1.1","eth_amount":"0.2"}', 409),
+        ('accept missing offer', '/api/accept', 'POST', auth, b'{"id":"missing-offer"}', 409),
+        ('fund without accepted offer', '/api/start', 'POST', auth, b'{"scenario":"success"}', 409),
     ]
     for name, path, method, headers, payload, expected in cases:
         got, _, _ = request(path, method, headers, payload)

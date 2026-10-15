@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-15",
+  "base_commit": "472d4ff",
+  "scope": "Actual browser-driven signed OTC quotes and settlement on isolated Zebra NU7 + Anvil, both owners on one host",
+  "runs": {
+    "success": {
+      "browser_run": "1792085274008-8116f4f0",
+      "signed_quote": {
+        "alice_signed": true,
+        "bob_accepted": true,
+        "eth_amount": "0.037000000000000001",
+        "funding_authorized": false,
+        "quote_digest": "e5915836e39371da8b7ee2670ce780e5164962aa5469114ef7ec5413336be393",
+        "zec_amount": "0.02345678"
+      },
+      "actual_completion": {
+        "coordinator_native_files_offline": true,
+        "driver": "owner-clients-v1",
+        "eth_wei_received": 37000000000000001,
+        "eth_withdraw_tx": "0x03d4c2d110204081fffc472737ffdbe21ad5d418de1a3ef7cccfa5a90b65c8f3",
+        "independent_hosts": false,
+        "mode": "success",
+        "native_amount_zatoshi": 2345678,
+        "native_txid": "7b72183546014c46842b4c11f312a8a1f1e59684def58b251de18d4d9515a240",
+        "node_cannot_sign_for_owners": true,
+        "owner_signed_eth": true,
+        "peer_offline_during_native_exit": true,
+        "public_testnet": false,
+        "scope": "actual isolated chains; owner-held keys on one host",
+        "signed_cross_chain_consent_before_funding": true
+      },
+      "receipt_gas_used": {
+        "0xd5b8ef42743d42565c284f0a334cce629945d48f226124d0a02f35b4770f8f85": 183707,
+        "0x03d4c2d110204081fffc472737ffdbe21ad5d418de1a3ef7cccfa5a90b65c8f3": 30719,
+        "0xa9f9d362d63f9eb027c21848b67caf543b453523b2956a9893f65568821b1230": 508771
+      },
+      "replay_new_native_transactions": 0,
+      "replay_new_evm_transactions": 0
+    },
+    "refund": {
+      "browser_run": "1792085569396-cd96ebca",
+      "signed_quote": {
+        "alice_signed": true,
+        "bob_accepted": true,
+        "eth_amount": "0.012345678901234567",
+        "funding_authorized": false,
+        "quote_digest": "62f6866b2deb50dca6f845b6b314e6927d2b25dc0d3f76458ffdd7c32624132e",
+        "zec_amount": "0.07654321"
+      },
+      "actual_completion": {
+        "coordinator_native_files_offline": true,
+        "driver": "owner-clients-v1",
+        "eth_wei_received": 12345678901234567,
+        "eth_withdraw_tx": "0x34f59264932d654e09fa9520c4db9d8080d09d46a2c105d5a8672ae572c327de",
+        "independent_hosts": false,
+        "mode": "refund",
+        "native_amount_zatoshi": 7654321,
+        "native_txid": "fbc148e55f2879449a79cac60b4edb2d3389a99a51ae80cb48dbbbed42056ae2",
+        "node_cannot_sign_for_owners": true,
+        "owner_signed_eth": true,
+        "peer_offline_during_native_exit": true,
+        "public_testnet": false,
+        "scope": "actual isolated chains; owner-held keys on one host",
+        "signed_cross_chain_consent_before_funding": true
+      },
+      "receipt_gas_used": {
+        "0x34f59264932d654e09fa9520c4db9d8080d09d46a2c105d5a8672ae572c327de": 30719,
+        "0x443b2e8734247ce6d30d80574bf1562a394ec68214dde358da818b07bf43cb94": 54611,
+        "0x817e7257a684833c365395187fd889545c2bfcbf4ce4980c695a3d8a0cb94b9e": 183719
+      },
+      "replay_new_native_transactions": 0,
+      "replay_new_evm_transactions": 0
+    }
+  },
+  "http_boundary": {
+    "scope": "local HTTP API boundary checks; no valid action submitted",
+    "rejected": [
+      "private filesystem",
+      "path traversal",
+      "encoded traversal",
+      "host rebinding",
+      "foreign origin read",
+      "missing token",
+      "foreign origin action",
+      "invalid content type",
+      "malformed JSON",
+      "non-object JSON",
+      "arbitrary command",
+      "arbitrary recovery path",
+      "oversized request",
+      "offer foreign origin",
+      "offer numeric amount",
+      "offer excess ZEC precision",
+      "offer excess ETH precision",
+      "offer exceeds local bankroll",
+      "accept missing offer",
+      "fund without accepted offer"
+    ],
+    "private_state_not_exposed": true,
+    "cache_and_framing_headers_checked": true
+  },
+  "validation": [
+    "Alice entered decimal strings, signed an offer; Bob reviewed and accepted; separate funding action",
+    "Actual success and refund after process/node interruption operated via in-app browser",
+    "Both recovery replays used prefunding_swap.py recover and sent zero new transactions",
+    "Python py_compile and node --check web/app.js passed"
+  ],
+  "limits": [
+    "No public network transaction",
+    "Same host, not independent administration",
+    "Browser limits: 1 ZEC / 10 ETH with local test funds",
+    "Canonical signing remains in existing native/owner implementation",
+    "Public ETH transaction receipt amounts are JSON integers; user-facing amount strings avoid JavaScript rounding"
+  ],
+  "legacy_fixed_quote_replay": {
+    "new_native_transactions": 0,
+    "new_evm_transactions": 0,
+    "native_txid": "f932c2a0047f67c492f11a8cf5ce0cacb159072bda4e1cb577d062623b2303c5",
+    "eth_withdraw_tx": "0xc0bea080630fd9ca2e079488fe63fd03b13b15f6259f3cda53bb219bbdbd0c7a"
+  }
+}

@@ -38,18 +38,31 @@ def stop(fault, boundary):
         raise InjectedStop(boundary)
 
 
-def setup(directory, mode, bank, fault=None):
+def setup(directory, mode, bank, fault=None, quote=None):
     require_capacity((0 if bank else 104) + 23 + FUNDING_ANCHOR_LAG)
     native('regtest-setup-init', directory)
     bank = bank or directory / 'bank'
     save(directory / 'setup.json', {'driver': VERSION, 'mode': mode, 'bank': str(bank)})
-    (directory / 'owners').mkdir(mode=0o700)
     pins = {}
-    for role in ('alice', 'bob'):
-        owner = directory / 'owners' / role
-        owner.mkdir(mode=0o700)
-        pins[role] = client('key-init', owner, role=role)
-        stop(fault, f'{role}-key')
+    if quote is not None:
+        import otc_offer
+        trade = otc_offer.read(quote / 'accepted.json')
+        native('otc-verify-acceptance', quote / 'accepted.json')
+        for role in ('alice', 'bob'):
+            owner = quote / 'owners' / role
+            if otc_offer.read(owner / 'accepted-trade.json') != trade:
+                raise RuntimeError('owner has not accepted the selected browser quote')
+            otc_offer.verify(owner, trade, True)
+            pins[role] = otc_offer.read(owner / 'identity.json')
+        (quote / 'owners').rename(directory / 'owners')
+        os.environ['LATCH_TRADE_TERMS'] = str(quote / 'accepted.json')
+    else:
+        (directory / 'owners').mkdir(mode=0o700)
+        for role in ('alice', 'bob'):
+            owner = directory / 'owners' / role
+            owner.mkdir(mode=0o700)
+            pins[role] = client('key-init', owner, role=role)
+            stop(fault, f'{role}-key')
     save(directory / 'owner-pins.json', pins)
     if not bank.exists():
         fund(bank)
@@ -113,10 +126,11 @@ def setup(directory, mode, bank, fault=None):
 
 def offer(directory, pins, terms, fault=None):
     accounts = evm.rpc('eth_accounts')
+    eth_amount = terms.get('trade', {}).get('offer', {}).get('payload', {}).get('eth_amount_wei', 10**16)
     for pin in pins.values():
         if pin['address'] in [a.lower() for a in accounts]:
             raise RuntimeError('owner key unexpectedly unlocked')
-        evm.rpc('anvil_setBalance', [pin['address'], hex(10**18)])
+        evm.rpc('anvil_setBalance', [pin['address'], hex(10**18 + eth_amount)])
         try:
             evm.rpc('eth_signTransaction', [{'from':pin['address'],'to':accounts[0],
                 'gas':hex(21000),'value':'0x0'}])
@@ -130,7 +144,7 @@ def offer(directory, pins, terms, fault=None):
     stop(fault, 'eth-deployed')
     now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
     agreement = {'native': terms, 'eth_chain_id': evm.CHAIN, 'contract': deployed['contractAddress'],
-        'maker': pins['bob']['address'], 'recipient': pins['alice']['address'], 'amount_wei': 10**16,
+        'maker': pins['bob']['address'], 'recipient': pins['alice']['address'], 'amount_wei': eth_amount,
         'eth_expiry': now + 3600, 'fee_policy': fee_policy.default(), 'consent_version': 1, 'eth_salt': '0x' + os.urandom(32).hex(),
         'eth_code_hash': evm_wallet.keccak(bytes.fromhex(evm.rpc('eth_getCode', [deployed['contractAddress'],'latest'])[2:])).hex(),
         'scope': 'signed prefunding consent on isolated chains; locally provisioned owner pins'}
@@ -178,9 +192,9 @@ def settle(directory, agreement, fault=None):
     return owners.finish(directory, agreement, locked['order'], fault=fault)
 
 
-def run(directory, mode, bank=None, fault=None):
+def run(directory, mode, bank=None, fault=None, quote=None):
     with owners.chain_lock():
-        pins, terms = setup(directory, mode, bank, fault)
+        pins, terms = setup(directory, mode, bank, fault, quote)
         with owners.node(directory):
             agreement = offer(directory, pins, terms, fault)
             stop(fault, 'both-consented')
@@ -284,10 +298,10 @@ def recover_locked(directory, fault=None):
             refunded, sent = owners.native_exit(directory / 'owners/alice/recovery', 'refund')
             owners.crash(directory, fault, 'native-exit-confirmed')
         observed = capture(directory / 'owners/alice/recovery/alice')
-        if not any(n['txid'] == refunded and n['value'] == 1_000_000 for n in owners.read(Path(observed['file']))['notes']):
+        if not any(n['txid'] == refunded and n['value'] == agreement['native']['payout_zatoshi'] for n in owners.read(Path(observed['file']))['notes']):
             raise RuntimeError('source owner did not decrypt refund')
         result = {'scope':'isolated prefunding setup recovery','mode':'funding-only-refund',
-            'native_txid':refunded,'native_amount_zatoshi':1_000_000,'eth_wei_locked':0,'eth_not_locked':True,
+            'native_txid':refunded,'native_amount_zatoshi':agreement['native']['payout_zatoshi'],'eth_wei_locked':0,'eth_not_locked':True,
             'peer_offline_during_native_exit':True,'public_testnet':False}
         owners.record_once(directory,'08-complete',result)
         owners.record_once(directory,'09-recovered',result)
@@ -299,10 +313,11 @@ if __name__ == '__main__':
     parser.add_argument('action', choices=['success','refund','resume','recover','cancel'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--existing-bank', type=Path)
+    parser.add_argument('--accepted-quote', type=Path)
     parser.add_argument('--fault-after', choices=FAULTS)
     args = parser.parse_args()
     os.umask(0o077)
-    if args.action in ('resume','recover','cancel') and args.existing_bank:
+    if args.action in ('resume','recover','cancel') and (args.existing_bank or args.accepted_quote):
         parser.error('continuation does not accept a source bank override')
     if args.fault_after and (args.action == 'cancel' or args.action == 'recover' and args.fault_after not in owners.RECOVERY_FAULTS):
         parser.error('recovery does not accept new faults')
@@ -315,7 +330,8 @@ if __name__ == '__main__':
         directory = args.directory.resolve()
         result = (cancel(directory) if args.action == 'cancel' else recover(directory,args.fault_after) if args.action == 'recover' else resume(directory,args.fault_after)
             if args.action == 'resume' else run(directory,args.action,
-                args.existing_bank.resolve() if args.existing_bank else None,args.fault_after))
+                args.existing_bank.resolve() if args.existing_bank else None,args.fault_after,
+                args.accepted_quote.resolve() if args.accepted_quote else None))
         print(json.dumps(result,indent=2))
     except InjectedStop as exc:
         print(json.dumps({'interrupted':True,'boundary':str(exc)}))

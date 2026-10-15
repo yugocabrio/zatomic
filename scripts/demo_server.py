@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import threading
 import time
+import demo_otc
+from otc_offer import decimal_amount
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from regtest_node import ROOT, status as node_status, rpc as zrpc
@@ -106,6 +108,10 @@ class Manager:
         checkpoint |= job['cancellable_setup']
         job['recoverable'] = checkpoint and job['state'] not in ('running', 'recovering')
         job['eth_setup_started'] = (run / 'agreement.json').exists()
+        complete = next((e['value'] for e in job['events'] if e['stage'] == '08-complete'), {})
+        if 'native_amount_zatoshi' in complete and 'eth_wei_received' in complete:
+            job['settled_amounts'] = {'zec': decimal_amount(complete['native_amount_zatoshi'], 8),
+                'eth': decimal_amount(complete['eth_wei_received'], 18)}
         return job
 
     def snapshot(self):
@@ -118,7 +124,43 @@ class Manager:
                     'evidence': sorted(PUBLIC_EVIDENCE),
                     'scope': 'Real transactions on isolated local chains. No mainnet or public-testnet claim.'}
 
-    def start(self, scenario, recovery_id=None):
+    def quote_path(self, identifier):
+        if not isinstance(identifier, str) or not re.fullmatch(r'\d{13}-[a-f0-9]{8}', identifier):
+            raise ValueError('Unknown offer.')
+        path = DEMO / identifier / 'job.json'
+        if not path.is_file(): raise ValueError('Unknown offer.')
+        return path
+
+    def create_offer(self, body):
+        with self.lock:
+            if self.worker is not None and self.worker.is_alive() or driver_busy():
+                raise ValueError('A chain operation is active.')
+            for old in self.records():
+                recorded = self.one(old); old_run = old.parent / 'run'
+                if recorded['state'] != 'complete' and any((old_run / name).exists() for name in
+                        ('source-setup.json', 'swap/terms.json', '02-funded.json', 'owner-flow.json')):
+                    raise ValueError('Recover the existing run before creating another offer.')
+            # Canonical parser rejects floats, exponents and excess precision.
+            demo_otc.otc_offer.units(body.get('zec_amount'), 8, 100_000_000)
+            demo_otc.otc_offer.units(body.get('eth_amount'), 18, 10*10**18)
+            identifier = f'{int(time.time()*1000):013d}-{secrets.token_hex(4)}'
+            folder = DEMO / identifier; folder.mkdir(mode=0o700)
+            summary = demo_otc.create(folder / 'quote', body['zec_amount'], body['eth_amount'])
+            atomic(folder / 'job.json', {'id': identifier, 'state': 'offered', 'quote': summary,
+                'driver': 'owner-consent-v3', 'scenario': 'success', 'started_at': int(time.time())})
+            return identifier
+
+    def accept_offer(self, identifier):
+        with self.lock:
+            path = self.quote_path(identifier); job = self.one(path)
+            if job['state'] not in ('offered', 'accepted'):
+                raise ValueError('Only an unfunded offer can be accepted.')
+            job['quote'] = demo_otc.accept(path.parent / 'quote')
+            job['state'] = 'accepted'; job.pop('events', None)
+            atomic(path, job)
+            return identifier
+
+    def start(self, scenario, recovery_id=None, quote_id=None):
         with self.lock:
             if self.worker is not None and self.worker.is_alive() or driver_busy():
                 raise ValueError('Another chain operation is active. Let it finish before starting another.')
@@ -152,14 +194,19 @@ class Manager:
                         ('source-setup.json', 'swap/terms.json', '02-funded.json', 'owner-flow.json'))
                     if recorded['state'] != 'complete' and funded:
                         raise ValueError('Recover the existing funded run before advancing either chain.')
-                job_id = f'{int(time.time()*1000):013d}-{secrets.token_hex(4)}'
-                folder = DEMO / job_id
-                folder.mkdir(mode=0o700)
-                path = folder / 'job.json'
-                job = {'id': job_id, 'scenario': scenario, 'state': 'running',
-                       'driver': 'owner-consent-v3', 'started_at': int(time.time())}
+                path = self.quote_path(quote_id)
+                job = self.one(path)
+                if job['state'] != 'accepted' or not job.get('quote', {}).get('bob_accepted'):
+                    raise ValueError('Bob must review and accept the signed offer before funding.')
+                folder = path.parent
+                summary = demo_otc.describe(folder / 'quote')
+                if summary != job['quote'] or not summary['bob_accepted']:
+                    raise ValueError('Accepted offer changed; no funding authorized.')
+                job.update(scenario=scenario, state='running', started_at=int(time.time()))
+                job.pop('events', None)
                 mode, fault = SCENARIOS[scenario]
-                args = ['python3', str(ROOT / 'scripts/prefunding_swap.py'), mode, str(folder / 'run')]
+                args = ['python3', str(ROOT / 'scripts/prefunding_swap.py'), mode, str(folder / 'run'),
+                        '--accepted-quote', str(folder / 'quote')]
                 # Reuse only completed demo banks with an unspent small auxiliary
                 # coin. The runner rechecks/reserves it under the chain lock.
                 # Refund scenarios receive a fresh coin and do not consume a
@@ -253,12 +300,18 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 raise ValueError('JSON object required.')
             if self.path == '/api/start':
-                job = self.server.manager.start(body.get('scenario'))
+                job = self.server.manager.start(body.get('scenario'), quote_id=body.get('id'))
+            elif self.path == '/api/offer':
+                job = self.server.manager.create_offer(body)
+            elif self.path == '/api/accept':
+                job = self.server.manager.accept_offer(body.get('id'))
             elif self.path == '/api/recover':
                 job = self.server.manager.start(None, body.get('id'))
             else:
                 return self.send(404, {'error': 'Not found.'})
             return self.send(202, {'id': job})
+        except (RuntimeError, OSError, subprocess.SubprocessError):
+            return self.send(409, {'error': 'Owner operation refused. Private state retained; no new funding authorized.'})
         except (ValueError, TypeError) as exc:
             return self.send(409, {'error': str(exc)})
 

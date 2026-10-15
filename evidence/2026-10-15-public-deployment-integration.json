@@ -1,0 +1,13 @@
+{
+  "scope": "actual deployment on isolated Anvil with Sepolia chain ID; finality modeled, public chain not used",
+  "creation_code_hash": "0x3d5bdd90ec5db993616ce4af134cff0f8fbed34c250c5039e3fd6d949ebe1113",
+  "runtime_code_hash": "0x6267f59be4896a2d311e0eb7bdf9bfb5ada76fcecb140ac6589aaee8a85b569a",
+  "gas_estimate": 735311,
+  "gas_used": 735311,
+  "gas_limit": 1000000,
+  "exact_signature_and_runtime_verified": true,
+  "retained_bytes_and_receipt_replay": true,
+  "changed_fee_or_signer_rejected": true,
+  "public_deployment": false,
+  "public_transactions": 0
+}

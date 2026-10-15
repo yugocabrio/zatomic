@@ -1,5 +1,9 @@
 # Security review and deployment limits
 
+Latest targeted integration pass: [public and browser review](integration-review.md).
+The older review below remains a historical record. Neither review is an
+independent external audit or a proof of the custom adaptor composition.
+
 Review date: 2026-10-15. Baseline: `3543669` (owner-operated native settlement).
 This is a focused internal implementation review, with a second
 arithmetic implementation. It is **not an independent auditor's assessment**,

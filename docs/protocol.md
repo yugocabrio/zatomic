@@ -37,8 +37,11 @@ signed acceptance. Each signer pins the accepted quote locally before preparing
 C/R; the source uses the same amounts. The quote is included in the final native
 terms and both full cross-chain consents. Quotes authorize preparation only;
 contract identity, salt, deadlines and the exact funding graph still require
-final consent. See [OTC offers](otc-offers.md). The legacy browser profile retains
-its fixed amounts, and all current execution profiles remain isolated chains.
+final consent. See [OTC offers](otc-offers.md). New browser runs use the same
+canonical quote and acceptance, exact decimal amounts and full funding consent.
+Actual browser settlement and refund remain isolated-chain demonstrations.
+The public command integration and funding checklist are in
+[public execution](public-execution.md); no funded public swap is claimed.
 
 The public preparation path now has a separate [owner setup](public-owner-setup.md)
 CLI. Independently pinned identity keys sign an exact public-profile quote,

@@ -5,6 +5,8 @@ let pending = false;
 let selected = 'success';
 let currentId = null;
 let receiptKey = '';
+let drafting = false;
+let displayedQuote = null;
 
 function text(selector, value) { $(selector).textContent = value; }
 function displayError(message) {
@@ -26,7 +28,23 @@ function render(data) {
   const running = job && ['running', 'recovering'].includes(job.state);
   const interrupted = job && ['interrupted', 'error'].includes(job.state);
   const complete = job?.state === 'complete';
-  if (job && !complete) {
+  const offered = job?.state === 'offered';
+  const accepted = job?.state === 'accepted';
+  if (job?.quote && displayedQuote !== job.id) {
+    displayedQuote = job.id; drafting = false;
+    $('#zec-amount').value = job.quote.zec_amount; $('#eth-amount').value = job.quote.eth_amount;
+  }
+  const editable = (!offered && !accepted && !running && !interrupted) || drafting;
+  for (const id of ['#zec-amount', '#eth-amount']) $(id).disabled = pending || running || data.busy || !editable;
+  $('#create-offer').disabled = pending || running || data.busy || interrupted || !data.ready || !editable;
+  $('#accept-offer').disabled = pending || data.busy || !offered || drafting;
+  $('#new-offer').hidden = !(offered || accepted) || drafting;
+  $('#new-offer').disabled = pending || data.busy;
+  text('#quote-status', drafting ? 'Drafting a new offer' : accepted ? 'Bob accepted · ready to prepare' : offered ? 'Alice signed · Bob must review' : job?.quote && running ? 'Accepted quote · settlement in progress' : 'Choose your exact amounts');
+  text('#quote-copy', (offered || accepted) && !drafting ? `Alice sends ${job.quote.zec_amount} ZEC. Bob sends ${job.quote.eth_amount} ETH. ${accepted ? 'Both quote signatures verified. Funding is still a separate action.' : 'Bob: check both amounts before accepting. No funds are locked.'}` : 'Exact decimal amounts. Up to 1 ZEC and 10 ETH with local test funds; no market price feed.');
+  $('#quote-digest').hidden = !job?.quote || drafting;
+  text('#quote-digest', job?.quote ? `Quote ${job.quote.quote_digest}` : '');
+  if (job && (running || interrupted)) {
     selected = job.scenario;
     document.querySelectorAll('input[name="scenario"]').forEach(input => { input.checked = input.value === selected; });
     document.querySelectorAll('.scenario').forEach(label => label.classList.toggle('selected', label.querySelector('input').checked));
@@ -37,13 +55,13 @@ function render(data) {
   const cancellable = job?.cancellable_setup === true;
   const closing = running && cancellable && job.state === 'recovering';
   const fundingOnly = (events.get('09-recovered') || events.get('08-complete'))?.eth_not_locked === true;
-  $('#start').disabled = pending || running || data.busy || !data.ready || (interrupted && (job.recoverable || events.has('01-prepared')));
-  text('#start span:first-child', running ? (closing ? 'Closing this offer…' : job.state === 'recovering' ? 'Recovering on local chains…' : 'Swap in progress…') : (complete ? 'Run another swap' : 'Start local swap'));
+  $('#start').disabled = pending || running || data.busy || !data.ready || !accepted || drafting;
+  text('#start span:first-child', running ? (closing ? 'Closing this offer…' : job.state === 'recovering' ? 'Recovering on local chains…' : 'Swap in progress…') : 'Prepare exits & fund this swap');
   document.querySelectorAll('input[name="scenario"]').forEach(input => { input.disabled = !!running || pending; });
   const badge = $('#run-status');
   badge.className = `status-pill ${job?.state || ''}`;
-  badge.textContent = !job ? 'Ready when you are' : running ? (closing ? 'Closing setup' : job.state === 'recovering' ? 'Recovery running' : 'Live on local chains') : complete ? (cancelled ? 'Setup cancelled' : fundingOnly ? 'ZEC refund verified' : 'Verified on both chains') : job.state === 'error' ? 'Needs recovery' : 'Stopped at checkpoint';
-  text('#live-title', complete ? (cancelled ? 'No swap funds were locked.' : fundingOnly ? 'ZEC returned before ETH lock.' : refund ? 'Both assets returned.' : 'The exchange is complete.') : interrupted ? (cancellable ? 'Stopped before funding.' : job.recoverable ? 'Stopped. Still recoverable.' : 'Stopped. State preserved.') : running ? (closing ? 'Closing before funding.' : job.state === 'recovering' ? 'Resuming from the chain.' : 'The agreement is in motion.') : 'Two chains. One agreement.');
+  badge.textContent = !job ? 'Ready when you are' : running ? (closing ? 'Closing setup' : job.state === 'recovering' ? 'Recovery running' : 'Live on local chains') : complete ? (cancelled ? 'Setup cancelled' : fundingOnly ? 'ZEC refund verified' : 'Verified on both chains') : job.state === 'error' ? 'Needs recovery' : offered ? 'Offer signed' : accepted ? 'Offer accepted' : 'Stopped at checkpoint';
+  text('#live-title', complete ? (cancelled ? 'No swap funds were locked.' : fundingOnly ? 'ZEC returned before ETH lock.' : refund ? 'Both assets returned.' : 'The exchange is complete.') : interrupted ? (cancellable ? 'Stopped before funding.' : job.recoverable ? 'Stopped. Still recoverable.' : 'Stopped. State preserved.') : running ? (closing ? 'Closing before funding.' : job.state === 'recovering' ? 'Resuming from the chain.' : 'The agreement is in motion.') : offered ? 'Bob, review the exact exchange.' : accepted ? 'Agreed. Funding has not started.' : 'Two chains. One agreement.');
   text('#timeline li[data-step="lock"] strong', fundingOnly ? 'ETH remains with Bob' : 'Lock the ETH');
   text('#timeline li[data-step="verify"] small', cancelled ? 'Confirm the offer is closed before funding.' : 'Confirm payment, decrypt the note, check recovery.');
   text('#resolution-title', refund || fundingOnly ? 'Wait for expiry & refund' : 'Reveal & settle');
@@ -68,7 +86,7 @@ function render(data) {
   $('#outcome').hidden = !complete;
   if (complete) {
     text('#outcome-title', cancelled ? 'Both owners kept their swap funds.' : fundingOnly ? 'Alice recovered ZEC. Bob never locked ETH.' : refund ? 'Alice recovered ZEC. Bob recovered ETH.' : 'Bob received ZEC. Alice received ETH.');
-    text('#outcome-copy', cancelled ? 'Source authorization is permanently disabled for this offer. No cancellation transaction; local wallet or escrow setup may already exist.' : fundingOnly ? 'The existing native funding was reconciled and refunded. No new ETH transaction.' : `${recovered ? 'Recovered from a durable checkpoint. ' : ''}0.010000 ZEC note decrypted · 0.0100 ETH withdrawn.`);
+    text('#outcome-copy', cancelled ? 'Source authorization is permanently disabled for this offer. No cancellation transaction; local wallet or escrow setup may already exist.' : fundingOnly ? 'The existing native funding was reconciled and refunded. No new ETH transaction.' : `${recovered ? 'Recovered from a durable checkpoint. ' : ''}${job.settled_amounts?.zec || '—'} ZEC note decrypted · ${job.settled_amounts?.eth || '—'} ETH withdrawn.`);
   }
   text('#live-caption', running ? (closing ? 'Recording cancellation. No funding will be signed or sent.' : 'Owner clients are signing and confirming on local chains.') : interrupted ? (cancellable ? 'Setup can be closed without signing or sending funding.' : job.eth_setup_started ? 'Runner and local EVM stopped. Recovery uses saved state.' : 'Runner stopped before ETH setup. Native recovery remains prepared.') : complete ? (cancelled ? 'Cancellation recorded before source authorization.' : 'Node confirmation + recipient decryption verified.') : 'Actual transactions on disposable local chains.');
   const elapsed = job ? Math.max(0, (running ? Math.floor(Date.now() / 1000) : (job.updated_at || Math.floor(Date.now() / 1000))) - job.started_at) : 0;
@@ -131,6 +149,9 @@ document.querySelectorAll('input[name="scenario"]').forEach(input => input.addEv
   selected = input.value;
   document.querySelectorAll('.scenario').forEach(label => label.classList.toggle('selected', label.querySelector('input').checked));
 }));
-$('#start').addEventListener('click', () => action('/api/start', {scenario: selected}));
+$('#create-offer').addEventListener('click', () => action('/api/offer', {zec_amount: $('#zec-amount').value, eth_amount: $('#eth-amount').value}));
+$('#accept-offer').addEventListener('click', () => action('/api/accept', {id: currentId}));
+$('#new-offer').addEventListener('click', () => { drafting = true; render(snapshot); $('#zec-amount').focus(); });
+$('#start').addEventListener('click', () => action('/api/start', {scenario: selected, id: currentId}));
 $('#recover').addEventListener('click', () => action('/api/recover', {id: currentId}));
 poll(); setInterval(poll, 1500);

@@ -88,6 +88,9 @@ def validate_agreement(directory, agreement, initial=False, prefunding=False, mi
     if acknowledged['durably_saved'] is not True or acknowledged['bundle_digest'] != digest or agreement['native'] != bundle['terms']:
         raise RuntimeError('ETH agreement differs from owner native recovery bundle')
     terms = bundle['terms']
+    accepted_quote = directory / 'accepted-trade.json'
+    if terms.get('trade') != (read(accepted_quote) if accepted_quote.exists() else None):
+        raise RuntimeError('full agreement differs from locally accepted OTC quote')
     native_funding.controlled_refund_height(terms)
     fee_policy.policy(agreement)
     own_field = 'recipient' if identity['role'] == 'alice' else 'maker'

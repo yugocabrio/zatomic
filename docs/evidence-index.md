@@ -9,6 +9,13 @@ not an auditor's attestation or a self-contained blockchain proof. Local txids
 will not resolve in a public block explorer. Reproduction requires fresh private
 test wallets; the original keys, notes and journals are deliberately excluded.
 
+Latest additions after the original local release:
+[actual browser OTC success/refund](../evidence/2026-10-15-browser-otc.json),
+[isolated pinned deployment](../evidence/2026-10-15-public-deployment-integration.json),
+[read-only public readiness and revised funding](../evidence/2026-10-15-public-integration-readiness.json).
+The [execution checklist](public-execution.md) supersedes the earlier 0.431 ETH
+budget. **No funded public swap is demonstrated by these additions.**
+
 | Evidence level | What actually ran | Primary record | What it does not establish |
 |---|---|---|---|
 | Arithmetic / property checks | Separate Python affine arithmetic reconstructs the custom adaptor equations and checks Solidity vectors; a bounded timing model rejects unsafe configurations. | [Arithmetic review](../evidence/2026-10-15-security-review.json), [model / primitive checks](../evidence/2026-10-15-crypto-evm-gate.json) | External audit, cryptographic security proof, public timing bounds. |

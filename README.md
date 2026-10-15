@@ -16,12 +16,16 @@ reveal. Recovery resumes from durable state; replay checks produce no second
 payment. This is a working isolated-chain prototype, not a public-testnet release
 or an audited protocol.
 
-[Watch the two-minute walkthrough](docs/demo/latch-2min.mp4) — actual local-chain
-screen checkpoints with captions; waits omitted. [Execution record](evidence/2026-10-15-release-demo.json).
+[Previous local-release walkthrough](docs/demo/latch-2min.mp4) — recorded before
+the browser OTC update; waits omitted. The user will produce the final video.
 
 [Fresh-checkout verification](evidence/2026-10-15-clean-reproduction.json) rebuilt
 `9b978e3` and completed exchange/refund/replay with new wallets and node state.
 The local release is complete; public funded execution is still pending.
+The [new execution checklist](docs/public-execution.md) connects deployment,
+owner preparation, both senders, monitoring and final verification. It proposes
+0.0022 test ZEC + 0.0043 Sepolia ETH in initial balances, with unchanged swap
+gas limits and timing checks. No public deployment or transfer has occurred.
 
 ## Run
 
@@ -33,15 +37,16 @@ make doctor
 make demo
 ```
 
-Open **http://127.0.0.1:8787**. The demo creates disposable test funds. Fixed
-0.01 ZEC / 0.01 ETH amounts are fixtures, not a market quote. Choose a scenario,
-start it, and use **Restart & recover** after an intentional stop. Setup uses
+Open **http://127.0.0.1:8787**. Enter exact ZEC/ETH amounts, have Alice sign and
+Bob accept the offer, then separately prepare exits and fund. The demo creates
+disposable local test funds (up to 1 ZEC / 10 ETH per quote). Choose a scenario
+and use **Restart & recover** after an intentional stop. Setup uses
 pinned dependencies and an isolated, ownership-labeled node. It never touches
 another project's wallet or chain.
 
 For peer-selected amounts, use the [OTC offer/accept CLI](docs/otc-offers.md).
 It supports exact decimal amounts and signed quotes between separately pinned
-operators. The browser keeps its fixed demonstration amounts. No market-price
+operators. The browser uses that same canonical implementation. No market-price
 feed or counterparty matching is implemented.
 
 A separate [read-only public-testnet wallet](docs/public-testnet.md) downloads
