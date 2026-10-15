@@ -8,7 +8,7 @@ import http2 from 'node:http2';
 export const ENDPOINT = 'https://testnet.zec.rocks:443';
 export const GENESIS = '05a60a92d99d85997cce3b87616c089f6124d7342af37106edc76126334a2c38';
 export const NU7_HEIGHT = 4465026;
-const ALLOWED = new Set(['GetLightdInfo', 'GetBlock', 'GetLatestBlock', 'GetTreeState', 'GetBlockRange']);
+const ALLOWED = new Set(['GetLightdInfo', 'GetBlock', 'GetLatestBlock', 'GetTreeState', 'GetBlockRange', 'GetTransaction', 'GetAddressUtxos']);
 export function messages(raw, streaming = false) {
   const result = []; let offset = 0;
   if (raw.length > (streaming ? 8_000_000 : 2_000_000)) throw new Error('gRPC response size bound');

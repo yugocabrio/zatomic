@@ -3,6 +3,7 @@ mod auxiliary;
 mod compact_wallet;
 mod evm_key;
 mod funding_consent;
+mod observed_transaction;
 mod participants;
 mod recovery_bundle;
 mod refund_lock;
@@ -431,6 +432,9 @@ fn main() -> Result<()> {
         Some("evm-sign-digest") if a.len() == 3 => evm_key::sign_stdin(Path::new(&a[2]))?,
         Some("regtest-init") if a.len() == 3 => wallet::init(Path::new(&a[2]))?,
         Some("testnet-wallet-init") if a.len() == 3 => wallet::init_testnet(Path::new(&a[2]))?,
+        Some("testnet-wallet-receivers") if a.len() == 3 => {
+            wallet::testnet_receivers(Path::new(&a[2]))?
+        }
         Some("compact-scan") if a.len() == 4 || a.len() == 5 => {
             compact_wallet::scan(Path::new(&a[2]), Path::new(&a[3]), a.get(4).map(Path::new))?
         }
@@ -491,6 +495,9 @@ fn main() -> Result<()> {
             return Ok(());
         }
         Some("regtest-inspect") if a.len() == 3 => regtest_swap::inspect(Path::new(&a[2]))?,
+        Some("inspect-transaction") if a.len() == 3 => {
+            observed_transaction::inspect(Path::new(&a[2]))?
+        }
         Some("regtest-export-recovery") if a.len() == 4 => {
             recovery_bundle::export(Path::new(&a[2]), Path::new(&a[3]))?
         }

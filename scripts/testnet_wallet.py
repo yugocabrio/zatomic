@@ -106,7 +106,7 @@ def sync(directory, batches):
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['init', 'sync', 'status'])
+    parser.add_argument('operation', choices=['init', 'sync', 'status', 'receivers', 'auxiliary'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--birthday', type=int, help='exclusive trusted starting height, before any incoming payment')
     parser.add_argument('--batches', type=int, default=4, help='up to 32 batches of 256 blocks per invocation')
@@ -133,6 +133,13 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.operation == 'sync':
             return sync(directory, args.batches)
+        if args.operation == 'receivers':
+            return invoke(NATIVE, 'testnet-wallet-receivers', directory)
+        if args.operation == 'auxiliary':
+            # Unlike shielded sync, this sends the dedicated testnet transparent
+            # address to the provider. No spending/viewing key or shielded address.
+            return invoke('node', ROOT / 'scripts/observe_testnet_auxiliary.mjs', directory,
+                directory / ('auxiliary-observation-' + uuid.uuid4().hex))
         info, previous = checkpoint(directory)
         return {'birthday': info['birthday'], 'height': previous['height'] if previous else None,
             'tip': previous['tip'] if previous else None,

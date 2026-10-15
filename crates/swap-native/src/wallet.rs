@@ -12,6 +12,7 @@ use std::{collections::BTreeMap, io::Cursor, path::Path};
 use zcash_address::unified::{Address, Encoding, Receiver, Revision, Uitem};
 use zcash_primitives::{merkle_tree::read_commitment_tree, transaction::Transaction};
 use zcash_protocol::consensus::{BlockHeight, BranchId, NetworkType, NetworkUpgrade, Parameters};
+use zcash_script::script::Evaluable;
 
 pub const GENESIS: &str = "029f11d80ef9765602235e1bc9727e3eb6ba20839319f761fee920d63401e327";
 // Full captures remain capped at 50 MB by storage::json as well. This local
@@ -45,6 +46,35 @@ pub fn init(dir: &Path) -> Result<Value> {
 
 pub fn init_testnet(dir: &Path) -> Result<Value> {
     init_network(dir, NetworkType::Test)
+}
+
+/// Local receiving metadata only, derived from this wallet's own keys.
+pub fn testnet_receivers(dir: &Path) -> Result<Value> {
+    if storage::json(&dir.join("network.json"))?["genesis"]
+        != crate::compact_wallet::TESTNET_GENESIS
+    {
+        return Err("public testnet wallet required".into());
+    }
+    let fvk = FullViewingKey::from(&key(dir)?);
+    let aux = secp256k1::SecretKey::from_secret_bytes(
+        storage::read(&dir.join("aux-key.bin"), 32)?
+            .try_into()
+            .map_err(|_| "auxiliary key length")?,
+    )?;
+    let address = zcash_transparent::address::TransparentAddress::from_pubkey(
+        &secp256k1::PublicKey::from_secret_key(&aux),
+    );
+    let shielded = Address::try_from_items(
+        Revision::R0,
+        vec![Uitem::Data(Receiver::Orchard(
+            fvk.address_at(0u32, Scope::External).to_raw_address_bytes(),
+        ))],
+    )?
+    .encode(&NetworkType::Test);
+    Ok(json!({"genesis":crate::compact_wallet::TESTNET_GENESIS,
+        "address":shielded,"aux_address":address.to_zcash_address(NetworkType::Test).to_string(),
+        "aux_script":hex::encode(address.script().to_bytes()),
+        "scope":"local public-testnet receiving metadata; no funding authorization"}))
 }
 
 fn init_network(dir: &Path, network: NetworkType) -> Result<Value> {
