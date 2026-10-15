@@ -9,12 +9,13 @@ import json
 import re
 import time
 import urllib.request
+from urllib.parse import urlsplit
 
 ENDPOINT = 'https://ethereum-sepolia-rpc.publicnode.com'
 CHAIN_ID = 11155111
 GENESIS = '0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9'
-ALLOWED = {'eth_chainId', 'eth_getBlockByNumber', 'eth_maxPriorityFeePerGas'}
-_last_request = 0.0
+ALLOWED = {'eth_chainId', 'eth_getBlockByNumber', 'eth_maxPriorityFeePerGas',
+    'eth_getCode', 'eth_call', 'eth_getBalance', 'eth_getTransactionCount', 'eth_gasPrice'}
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -28,28 +29,51 @@ class RpcError(RuntimeError):
         super().__init__(f'{method}: RPC error code {code}')
 
 
-def rpc(method, params):
-    global _last_request
+def read_method(method, params):
     if method not in ALLOWED:
         raise ValueError('read-only Sepolia RPC method required')
-    # Pace public requests; a 429 still stops the run (no automatic retry).
-    time.sleep(max(0, 2.0 - (time.monotonic() - _last_request)))
-    _last_request = time.monotonic()
-    req = urllib.request.Request(ENDPOINT,
-        json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}).encode(),
-        {'Content-Type': 'application/json', 'User-Agent': 'Latch-readonly-testnet/1'})
-    with urllib.request.build_opener(NoRedirect).open(req, timeout=15) as response:
-        raw = response.read(2_000_001)
-        if len(raw) > 2_000_000:
-            raise RuntimeError('RPC response size bound')
-        result = json.loads(raw)
-    if not isinstance(result, dict) or result.get('jsonrpc') != '2.0' or type(result.get('id')) is not int or result['id'] != 1:
-        raise RuntimeError(f'{method}: invalid Sepolia RPC envelope')
-    if 'error' in result:
-        raise RpcError(method, result['error'].get('code') if isinstance(result['error'], dict) else None)
-    if 'result' not in result:
-        raise RuntimeError(f'{method}: missing Sepolia RPC result')
-    return result['result']
+    # An eth_call must never accidentally disclose a claim witness. The only
+    # supported call is the public orders(bytes32) getter; no arbitrary calldata.
+    if method == 'eth_call':
+        if (len(params) != 2 or not isinstance(params[0], dict)
+                or set(params[0]) != {'to', 'data'}
+                or not re.fullmatch(r'0x[0-9a-f]{40}', params[0]['to'])
+                or not re.fullmatch(r'0x9c3f1e90[0-9a-f]{64}', params[0]['data'])):
+            raise ValueError('only the public order getter is permitted')
+
+
+class ReadOnlyRpc:
+    def __init__(self, endpoint=ENDPOINT):
+        url = urlsplit(endpoint)
+        if (url.scheme != 'https' or not url.hostname or url.username or url.password
+                or url.query or url.fragment):
+            raise ValueError('explicit HTTPS RPC without URL credentials/query required')
+        self.endpoint, self.last_request = endpoint, 0.0
+
+    def __call__(self, method, params=None):
+        params = [] if params is None else params
+        read_method(method, params)
+        # A 429 stops the run; there is no provider rotation or automatic retry.
+        time.sleep(max(0, 2.0 - (time.monotonic() - self.last_request)))
+        self.last_request = time.monotonic()
+        req = urllib.request.Request(self.endpoint,
+            json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}).encode(),
+            {'Content-Type': 'application/json', 'User-Agent': 'Latch-readonly-testnet/1'})
+        with urllib.request.build_opener(NoRedirect).open(req, timeout=15) as response:
+            raw = response.read(2_000_001)
+            if len(raw) > 2_000_000:
+                raise RuntimeError('RPC response size bound')
+            result = json.loads(raw)
+        if not isinstance(result, dict) or result.get('jsonrpc') != '2.0' or type(result.get('id')) is not int or result['id'] != 1:
+            raise RuntimeError(f'{method}: invalid Sepolia RPC envelope')
+        if 'error' in result:
+            raise RpcError(method, result['error'].get('code') if isinstance(result['error'], dict) else None)
+        if 'result' not in result:
+            raise RuntimeError(f'{method}: missing Sepolia RPC result')
+        return result['result']
+
+
+rpc = ReadOnlyRpc()
 
 
 def quantity(value):
@@ -58,21 +82,21 @@ def quantity(value):
     return int(value, 16)
 
 
-def block(tag):
-    b = rpc('eth_getBlockByNumber', [tag, False])
+def block(tag, call=rpc):
+    b = call('eth_getBlockByNumber', [tag, False])
     if not isinstance(b, dict) or not re.fullmatch(r'0x[0-9a-f]{64}', b.get('hash', '')):
         raise RuntimeError('requested Sepolia block is unavailable')
     return {'height': quantity(b['number']), 'hash': b['hash'], 'timestamp': quantity(b['timestamp']),
         'base_fee_wei': quantity(b['baseFeePerGas']) if b.get('baseFeePerGas') is not None else None}
 
 
-def observe():
+def observe(call=rpc, endpoint=ENDPOINT):
     started = time.monotonic()
-    if quantity(rpc('eth_chainId', [])) != CHAIN_ID:
+    if quantity(call('eth_chainId', [])) != CHAIN_ID:
         raise RuntimeError('Sepolia chain ID mismatch')
     genesis_verified = False
     try:
-        genesis = block('0x0')
+        genesis = block('0x0', call)
         if genesis['height'] != 0 or genesis['hash'] != GENESIS:
             raise RuntimeError('Sepolia genesis mismatch')
         genesis_verified = True
@@ -81,20 +105,20 @@ def observe():
             raise
         # A pruned-history observation can still help diagnose clocks/fees.
         # It MUST be labeled incomplete, and the CLI exits non-success below.
-    finalized, safe, latest = [block(tag) for tag in ('finalized', 'safe', 'latest')]
+    finalized, safe, latest = [block(tag, call) for tag in ('finalized', 'safe', 'latest')]
     if not (finalized['height'] <= safe['height'] <= latest['height']
             and finalized['timestamp'] <= safe['timestamp'] <= latest['timestamp']):
         raise RuntimeError('provider finality labels inconsistent')
     for observed in (finalized, safe, latest):
-        if block(hex(observed['height'])) != observed:
+        if block(hex(observed['height']), call) != observed:
             raise RuntimeError('provider canonical block changed during observation')
-    priority = quantity(rpc('eth_maxPriorityFeePerGas', []))
+    priority = quantity(call('eth_maxPriorityFeePerGas', []))
     elapsed = time.monotonic() - started
     if elapsed > 60 or latest['base_fee_wei'] is None:
         raise RuntimeError('stale/incomplete fee observation')
     now = int(time.time())
     return {'scope': 'read-only TLS Sepolia RPC; provider trusted, no consensus/finality proof',
-        'endpoint': ENDPOINT, 'chain_id': CHAIN_ID, 'expected_genesis': GENESIS,
+        'endpoint': endpoint, 'chain_id': CHAIN_ID, 'expected_genesis': GENESIS,
         'rpc_genesis_verified': genesis_verified,
         'status': 'observed' if genesis_verified else 'incomplete-genesis-history-pruned',
         'observed_at': datetime.fromtimestamp(now, timezone.utc).isoformat(), 'elapsed_seconds': round(elapsed, 3),

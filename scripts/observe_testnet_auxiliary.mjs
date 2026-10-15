@@ -6,13 +6,27 @@ import {execFileSync} from 'node:child_process';
 import {observeAuxiliary} from './testnet_auxiliary.mjs';
 
 async function main() {
-  const [wallet,folder,...extra]=process.argv.slice(2);
-  if (!wallet || !folder || extra.length) throw new Error('usage: observe_testnet_auxiliary.mjs TESTNET_WALLET NEW_PRIVATE_DIRECTORY');
+  const args=process.argv.slice(2), fromReceiver=args[0]==='--receiver';
+  const [wallet,folder,...extra]=fromReceiver?args.slice(1):args;
+  if (!wallet || !folder || extra.length) throw new Error('usage: observe_testnet_auxiliary.mjs [--receiver] TESTNET_WALLET_OR_PRIVATE_RECEIVER NEW_PRIVATE_DIRECTORY');
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
   const native=(...args)=>JSON.parse(execFileSync(path.join(root,'target/release/shielded-swap-native'),args,
     {encoding:'utf8',timeout:30000,maxBuffer:4_000_000}));
-  // This local operation derives only receiving metadata. No key enters RPC.
-  const receiver=native('testnet-wallet-receivers',path.resolve(wallet));
+  let receiver;
+  if (fromReceiver) {
+    // The owner preflight obtains this from the fully verified signed refund.
+    // No source wallet/key access is needed. Direct observer callers must bind
+    // it to their own agreement; this observer never authorizes a transaction.
+    const fd=fs.openSync(wallet,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+    try {
+      const stat=fs.fstatSync(fd);
+      if (!stat.isFile() || stat.mode&0o077 || stat.size>4096) throw new Error('private bounded receiver file required');
+      receiver=JSON.parse(fs.readFileSync(fd,'utf8'));
+    } finally {fs.closeSync(fd);}
+  } else {
+    // Legacy source-wallet receiving metadata; no key enters RPC.
+    receiver=native('testnet-wallet-receivers',path.resolve(wallet));
+  }
   const directory=path.resolve(folder);
   fs.mkdirSync(directory,{mode:0o700});
   const result=await observeAuxiliary(receiver,async(txid,raw)=>{

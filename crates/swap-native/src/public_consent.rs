@@ -253,10 +253,33 @@ pub fn verify(bundle: &Path, proposal: &Path, consents: &Path) -> Result<Value> 
     for role in ["alice", "bob"] {
         verify_consent(&consents[role], &agreement, role)?;
     }
+    // derive the observer's exact public target from the already-verified R,
+    // never from caller-selected receiving metadata or the source wallet key.
+    let refund = pczt::Pczt::parse(&hex::decode(
+        bundle["refund"].as_str().ok_or("signed refund PCZT")?,
+    )?)
+    .map_err(crate::err)?;
+    let input = refund
+        .transparent()
+        .inputs()
+        .first()
+        .ok_or("refund auxiliary")?;
+    let script = input.script_pubkey();
+    if script.len() != 25 || script[..3] != [0x76, 0xa9, 0x14] || script[23..] != [0x88, 0xac] {
+        return Err("refund auxiliary must use canonical P2PKH".into());
+    }
+    let address =
+        zcash_transparent::address::TransparentAddress::PublicKeyHash(script[3..23].try_into()?);
+    let auxiliary = json!({"genesis":agreement["native_genesis"],
+        "aux_address":address.to_zcash_address(zcash_protocol::consensus::NetworkType::Test).to_string(),
+        "aux_script":hex::encode(script),
+        "txid":zcash_protocol::TxId::from_bytes(*input.prevout_txid()).to_string(),
+        "index":input.prevout_index(),"value_zatoshi":input.value()});
     // Deliberately not a token usable by the existing source authorizer.
     Ok(
         json!({"format":"latch-public-conditional-consents-check-v1","agreement_digest":hash(&agreement)?,
         "bundle_digest":agreement["bundle_digest"],"both_owner_signatures_verified":true,
+        "native_auxiliary":auxiliary,
         "synthetic_inputs":agreement["synthetic_inputs"],"live_observations_checked":false,
         "release_requires_live_checks":true,"funding_authorized":false,"broadcast":false}),
     )

@@ -54,7 +54,15 @@ These public-profile checks have used synthetic nonexistent inputs with real
 signatures/proofs, not public funded coins. A separate conditional agreement now
 binds the native graph/receipts, clock/gas/confirmation policy and intended ETH
 escrow target/code. Both owners sign it with a distinct public consent domain.
-Live public source/ETH release gates remain unfinished. No public sender is enabled.
+A separate read-only preflight now verifies those exact consents, rejects
+synthetic inputs before network access, checks hash-pinned finalized/latest ETH
+code/order state and gas reserves, and requires twelve fresh native F
+confirmations for lock/reveal. This is preparation, never a release token.
+It also derives the exact R auxiliary outpoint from the verified bundle and
+checks its current index/origin/confirmations without source-wallet key access.
+Source note/reservation revalidation, public recovery and durable outgoing
+intents remain unfinished. No public sender is enabled. See
+[public preflight and its tested scope](public-testnet.md#agreement-bound-read-only-preflight).
 
 ## Transaction order
 
