@@ -19,6 +19,12 @@ whole spending key. Both obtain shared viewing data and can prove spends.
 The FROST adaptor extension is custom and unaudited; upstream FROST security
 does NOT automatically establish security of this modified protocol.
 
+The transaction sequence below is the target protocol. The current isolated
+runner prepares/funds native ZEC before deploying and agreeing the ETH escrow;
+Alice's pre-authorized refund handles failed ETH negotiation. Authenticated
+offer/accept before funding remains to be implemented. The separate owner CLI
+now keeps ETH keys and first secret exposure out of the coordinator process.
+
 ## Transaction order
 
 1. Agree canonical terms: both networks/genesis/branches, deployed ETH code
@@ -28,15 +34,23 @@ does NOT automatically establish security of this modified protocol.
    a fully signed refund R to her shielded destination; Bob receives and verifies
    an adaptor pre-signature for claim C to his shielded destination. Both C and
    R spend precisely F's joint note and bind all output/fee/expiry fields.
+   Until both participants acknowledge their verified, durably saved exit
+   bundle, peers see only a preview of F with zeroed spend/binding signatures.
+   V6 gives that preview the same txid without making it broadcastable. Earlier
+   milestones exposed authorized F in the policy; that setup-order gap is now
+   fixed and tested with node rejection and a withheld receipt.
 3. R includes an Alice-owned, dedicated transparent auxiliary UTXO with
    non-final sequence; nLockTime=tZ. Without it the native locktime is disabled.
    This auxiliary coin is separate from the shielded principal and cannot be
    a third party's coin. Claim C has no transparent component.
 4. Before exposing F to the broadcaster, the local implementation generates
    and verifies both exit circuits against a temporary tree containing the exact
-   pending note. It additionally verifies R's shielded spend/binding signatures.
+   pending note. Each signer additionally verifies R's shielded spend/binding
+   signatures and the auxiliary P2PKH signature, C's dummy authorizations, and
+   the presence and consistency of the private data needed to re-prove later.
    C's adaptor pre-signature is verified separately, without revealing t.
-   These temporary proofs are never broadcast; C/R are re-proved after mining.
+   These temporary proofs remain private bundle data and are never broadcast;
+   C/R are re-proved after mining.
    Newly funded fixtures split a dedicated 20,000-zatoshi auxiliary coin from
    a matured coinbase first; R returns 15,000 after its incremental fee.
    Alice broadcasts F only after checking the prepared paths.
@@ -135,5 +149,20 @@ The optional coordinator-to-signer TLS transport now integrates with a real
 chain swap and rejects credential/protocol/role mismatches and replay after
 disconnect. This authenticates the coordinator connection, not chain state or
 independent economic consent. The tested fixture still shares local artifact
-paths; independently operated wallet/bundle distribution is unfinished. See
+paths; verified native bundles are now delivered over that channel, but
+independently operated source-wallet and ETH clients remain unfinished. See
 [signer transport](signer-transport.md) for exact scope and reproduction.
+
+Each participant can export its own accepted bundle into a fresh native recovery
+workspace with viewing/proving data and the correct prepared exit, without
+exporting spending keys. See [recovery bundles](recovery-bundles.md). The fixture
+recovery still restores the owned EVM checkpoint and uses its shared journal;
+native bundle portability does not establish public-network independence.
+
+The newer [owner CLI path](owner-clients.md) validates each owner's ETH address
+and native bundle before accepting the same ETH agreement. It signs fixed
+actions locally and stores each owner's signed intent before sending. Actual
+mempool/interruption tests pass, including a competing relay that succeeds while
+Alice's original transaction reverts. Reconciliation uses the validated order's
+canonical event, preserving the fixed recipient. This remains a same-host
+fixture with trusted local validating nodes and controlled confirmation policy.

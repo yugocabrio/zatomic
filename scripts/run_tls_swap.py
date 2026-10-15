@@ -70,15 +70,23 @@ def services(directory):
                 process.wait()
 
 
-def run(mode, directory, existing_bank=None):
+def run(mode, directory, existing_bank=None, fault_after=None):
     transport = directory.with_name(directory.name + '-transport')
     commands = configure(transport, directory)
     with services(transport):
         args = [sys.executable, str(ROOT / 'scripts/run_regtest_swap.py'), mode, str(directory)]
         if existing_bank:
             args.extend(['--existing-bank', str(existing_bank)])
-        subprocess.run(args, check=True, cwd=ROOT,
+        if fault_after:
+            args.extend(['--fault-after', fault_after])
+        process = subprocess.run(args, cwd=ROOT,
             env=dict(os.environ, LATCH_SIGNER_COMMANDS=str(commands), RAYON_NUM_THREADS='2'))
+        if fault_after and process.returncode == 75:
+            return {'scope': 'actual TLS setup and owned chains, intentionally interrupted',
+                'fault_after': fault_after, 'interrupted': True}
+        process.check_returncode()
+        if fault_after:
+            raise RuntimeError('requested interruption was not exercised')
     result = json.loads((directory / '08-complete.json').read_text())
     return {'scope': 'actual chain swap via TLS 1.3 signer services on one host',
         'mutual_certificate_pins': True, 'role_and_protocol_checked': True,
@@ -90,6 +98,7 @@ if __name__ == '__main__':
     parser.add_argument('mode', choices=['success', 'refund'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--existing-bank', type=Path)
+    parser.add_argument('--fault-after', choices=['zec-broadcast', 'zec-funded', 'eth-locked', 'eth-claimed', 'eth-lock-broadcast', 'eth-claim-broadcast'])
     args = parser.parse_args()
     os.umask(0o077)
-    print(json.dumps(run(args.mode, args.directory.resolve(), args.existing_bank.resolve() if args.existing_bank else None), indent=2))
+    print(json.dumps(run(args.mode, args.directory.resolve(), args.existing_bank.resolve() if args.existing_bank else None, args.fault_after), indent=2))

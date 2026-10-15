@@ -69,22 +69,43 @@ def reserve_aux(bank, directory, terms):
 
 
 
-def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=None):
+def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=None, resume_prepared=False):
     os.umask(0o077)
-    if resume_setup:
+    if resume_prepared:
+        if resume_setup or not (directory / 'swap/participant-receipts.json').is_file() or any((directory / name).exists() for name in ('02-funded.json','agreement.json','evm-checkpoint.json','anvil.log')):
+            raise RuntimeError('prepared resume requires both receipts before any recorded funding/ETH setup')
+    elif resume_setup:
         if not directory.is_dir() or not (directory / '02-funded.json').exists() or (directory / '04-eth-locked.json').exists():
             raise RuntimeError('setup recovery only supports confirmed ZEC before ETH funding')
     else:
         directory.mkdir(mode=0o700)
     bank = existing_bank or directory / 'bank'
     swap = directory / 'swap'
-    if resume_setup:
+    if resume_setup or resume_prepared:
         terms = json.loads((swap / 'terms.json').read_text())
     else:
         funded = capture(bank) if existing_bank else fund(bank)
         terms = native('regtest-prepare', bank, funded['file'], swap)
     event(directory, '01-prepared', {'both_exits_before_funding': True,
         'funding_txid': terms['funding_txid'], 'refund_height': terms['refund_height']})
+    if not resume_setup:
+        # A peer sees this exact effect-identical preview during negotiation.
+        # It must not be able to fund before the other exit is safely received.
+        preview = json.loads((swap / 'claim-policy.json').read_text())['funding']
+        preview_file = swap / 'funding-preview.hex'
+        if preview_file.exists():
+            if preview_file.read_text() != preview:
+                raise RuntimeError('funding preview changed on restart')
+        else:
+            with preview_file.open('x') as handle:
+                handle.write(preview)
+        if native('regtest-inspect', preview_file)['txid'] != terms['funding_txid']:
+            raise RuntimeError('funding preview changed effect identity')
+        preview_error = reject_native(preview_file)
+        if not any(s in preview_error.lower() for s in ('signature', 'redpallas', 'halo2 proof verification failed')):
+            raise RuntimeError('unsigned funding preview rejected for unexpected reason')
+        event(directory, '00-funding-preview-rejected', {'same_funding_txid': True,
+            'broadcast_before_receipts_prevented': True, 'node_error': preview_error})
     require_aux_unspent(terms)
     reserve_aux(bank, directory, terms)
     if resume_setup:
@@ -240,6 +261,8 @@ def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=Non
                 'independent_signer_processes': terms.get('independent_signer_processes', False),
                 'native': native_result, 'eth_wei_received': 10**16,
                 'early_native_refund_rejected': True, 'exits_prepared_before_funding': True,
+                'peer_funding_preview_rejected_by_node': (directory / '00-funding-preview-rejected.json').exists(),
+                'participant_recovery_bundles_acknowledged': terms.get('participant_bundles_acknowledged_before_funding', False),
                 'zec_principal_shielded': True, 'refund_has_transparent_auxiliary': True,
                 'zec_recipient_not_in_evm_calldata': True, 'timing_scope': agreement['scope']}
             event(directory, '08-complete', result)
@@ -259,6 +282,7 @@ if __name__ == '__main__':
     parser.add_argument('directory', type=Path)
     parser.add_argument('--existing-bank', type=Path)
     parser.add_argument('--resume-setup', action='store_true')
+    parser.add_argument('--resume-prepared', action='store_true')
     parser.add_argument('--fault-after', choices=['zec-broadcast', 'zec-funded', 'eth-locked', 'eth-claimed', 'eth-lock-broadcast', 'eth-claim-broadcast'])
     args = parser.parse_args()
     os.umask(0o077)
@@ -267,7 +291,7 @@ if __name__ == '__main__':
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         try:
             run(args.directory.resolve(), args.mode,
-                args.existing_bank.resolve() if args.existing_bank else None, args.resume_setup, args.fault_after)
+                args.existing_bank.resolve() if args.existing_bank else None, args.resume_setup, args.fault_after, args.resume_prepared)
         except InjectedStop as exc:
             print(json.dumps({'intentional_checkpoint_stop': str(exc),
                               'recovery_command': 'python3 scripts/recover_regtest_swap.py DIRECTORY'}), flush=True)

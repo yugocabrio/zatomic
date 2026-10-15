@@ -19,7 +19,7 @@ DEMO = ROOT / '.local/demo'
 WEB = ROOT / 'web'
 SCENARIOS = {'success': ('success', None), 'claim-stop': ('success', 'eth-claimed'),
              'refund-stop': ('refund', 'eth-locked')}
-STAGES = ('01-prepared', '02-funded', '03-early-refund-rejected', '04-eth-locked',
+STAGES = ('00-funding-preview-rejected', '01-prepared', '02-funded', '03-early-refund-rejected', '04-eth-locked',
           '05-eth-claimed', '05-eth-refunded', '06-zec-claimed', '06-zec-refunded',
           '07-conflicting-refund-rejected', '08-complete', '09-recovered')
 PUBLIC_EVIDENCE = {p.name: p for p in (ROOT / 'evidence').glob('*.json')}

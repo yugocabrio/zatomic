@@ -1,0 +1,106 @@
+{
+  "claim_observed_pending_before_mining": true,
+  "competing_relayer_claimed_first": true,
+  "coordinator_native_files_offline": true,
+  "eth_lock_tx": "0x25d4f565f055e1164ef34df3a1e729db1baf0f774f9a6814ec1af4eb2e1b6ec8",
+  "eth_owner_addresses": {
+    "alice": "0x96d9fb20b627a6bc266007ebccedb004a0011357",
+    "bob": "0x1624fa9de6cf5908628d8517a3c81b52feaf498b"
+  },
+  "eth_wei_received": 10000000000000000,
+  "eth_withdraw_tx": "0xd8ee2e01459b30ed97b6a5b95ebf767f42cbff189f6f5d782d0968cec0cfb1c2",
+  "independent_hosts": false,
+  "mode": "success",
+  "native_amount_zatoshi": 1000000,
+  "native_and_eth_replay_create_no_transaction": true,
+  "native_txid": "c03e7f5d8b667bf144019f785461c28e6b7a042dc133d9ce6ee64cc213ea6f41",
+  "node_cannot_sign_for_owners": true,
+  "owner_send_receipt_gap_reconciled": true,
+  "peer_files_offline_during_native_exit": true,
+  "public_testnet": false,
+  "rejected": [
+    "own ETH recipient replaced",
+    "own ETH maker replaced",
+    "native amount changed",
+    "wrong ETH chain",
+    "short ETH window",
+    "wrong contract code",
+    "early ETH refund",
+    "wrong owner claim",
+    "unknown order before witness access"
+  ],
+  "scope": "actual owned local chains; separate owner ETH keys and native data",
+  "source_wallet_preparer_still_alice_local": true,
+  "standard_vector": {
+    "published_eip155_signing_payload_and_hash": true,
+    "rlp_boundaries": true
+  },
+  "witness_source": "public canonical EVM event; never Alice files",
+  "command": "python3 scripts/run_client_swap.py success .local/client-relay-001 --existing-bank .local/regtest-bank-001 --relay-pending-claim",
+  "funding": {
+    "confirmations": 2,
+    "in_active_chain": true,
+    "txid": "ce67065915ead5fceae44d5e804b9766a01a345c79c12176a1fa0c5138f0006c"
+  },
+  "eth_settlement": {
+    "action": "claim",
+    "locally_signed": true,
+    "new_transaction": false,
+    "order": "0x6fd17fdadd9e426b19d48a99f1e8a6f48ca7bd2120e57150382fb35d683bcd6b",
+    "role": "alice",
+    "settlement_via_other_relayer": true,
+    "txid": "0x1a91f72da29c166f25b9019a7c961905e94f3bba9734de2db908f5cb5de02462"
+  },
+  "validation_scope": "owned Zebra 7.0.0-rc.0 NU7 and Anvil/Foundry 1.3.1; not public-network confirmation",
+  "signed_intent_validation": {
+    "scope": "offline signed intent decoding; no chain mutation",
+    "validated_actual_signed_transactions": 3,
+    "rejected": [
+      "claim relabeled withdrawal",
+      "claim relabeled deployment",
+      "transaction identity",
+      "network metadata",
+      "sender metadata",
+      "recipient metadata",
+      "nonce metadata",
+      "amount metadata",
+      "method metadata",
+      "invalid signature encoding"
+    ],
+    "claim_abi_matches_independent_encoder": true,
+    "unrevealed_witness_excluded_from_process_arguments": true
+  },
+  "coordinator_reads_unrevealed_witness_or_eth_keys": false,
+  "privacy_field_clarification": "The harness observes the public mempool/event witness after exposure; it never reads the private unrevealed witness file.",
+  "final_checks": [
+    "cargo fmt --all -- --check",
+    "cargo clippy --locked --all-targets -j 2 -- -D warnings",
+    "cargo test --locked -j 2",
+    "cargo build --locked --release -j 2 -p shielded-swap-native",
+    "python3 -m py_compile scripts/*.py",
+    "python3 scripts/evm_wallet.py",
+    "python3 scripts/check_evm_journal.py .local/client-relay-001 --owner-clients",
+    "python3 scripts/check_demo_boundary.py",
+    "git diff --check"
+  ],
+  "browser_boundary": {
+    "scope": "local HTTP API boundary checks; no valid action submitted",
+    "rejected": [
+      "private filesystem",
+      "path traversal",
+      "encoded traversal",
+      "host rebinding",
+      "foreign origin read",
+      "missing token",
+      "foreign origin action",
+      "invalid content type",
+      "malformed JSON",
+      "non-object JSON",
+      "arbitrary command",
+      "arbitrary recovery path",
+      "oversized request"
+    ],
+    "private_state_not_exposed": true,
+    "cache_and_framing_headers_checked": true
+  }
+}

@@ -12,8 +12,9 @@ from evm_journal import validate_intent
 from run_native_evm_gate import calldata
 
 
-def run(directory):
-    intents = [json.loads(p.read_text()) for p in sorted((directory / 'evm-outgoing').glob('*.json'))]
+def run(directory, owner_clients=False):
+    paths = (directory / 'owners').glob('*/eth-intent-*.json') if owner_clients else (directory / 'evm-outgoing').glob('*.json')
+    intents = [json.loads(p.read_text()) for p in sorted(paths)]
     assert intents, 'fixture has no signed outgoing intents'
     for intent in intents:
         validate_intent(intent)
@@ -61,4 +62,6 @@ def run(directory):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path)
-    print(json.dumps(run(parser.parse_args().directory.resolve()), indent=2))
+    parser.add_argument('--owner-clients', action='store_true')
+    args = parser.parse_args()
+    print(json.dumps(run(args.directory.resolve(), args.owner_clients), indent=2))

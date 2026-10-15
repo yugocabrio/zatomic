@@ -43,6 +43,8 @@ python3 scripts/demo_server.py
 - [Judge walkthrough](docs/demo-walkthrough.md)
 - [Public-network readiness](docs/public-testnet.md) and [dependencies](docs/dependencies.md)
 - [Authenticated signer channel and its limits](docs/signer-transport.md)
+- [Participant-owned recovery data and funding-order safeguards](docs/recovery-bundles.md)
+- [Owner-held ETH clients, restart and competing-relayer gates](docs/owner-clients.md)
 - [Current status](STATUS.md) and [remaining work](TASKS.md)
 - [Public evidence](evidence/): native/EVM compatibility, chain acceptance,
   interrupted claim/refund recovery, signer nonce replay and tampering tests
@@ -61,6 +63,9 @@ Both signers run in separate processes on one host. The default browser demo use
 private pipes; an optional mutually authenticated TLS channel also passes an
 actual swap and reconnect/adversarial checks. Independent-host wallet operation
 and an OS sandbox are not demonstrated. The custom adaptor extension is unaudited.
+An additional CLI path uses separate owner-held ETH keys and journals, with no
+RPC signing or coordinator access to Alice's unrevealed scalar. The browser has
+not yet switched to that path.
 The swap requires monitoring and bounded inclusion/reorg assumptions; it is not
 safe against an arbitrarily long outage. Local controlled heights/times are not
 public-network timing defaults. Mainnet is unsupported.

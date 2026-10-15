@@ -1,6 +1,8 @@
 //! Local native development CLI. Synthetic fixtures MUST NEVER be broadcast.
 mod auxiliary;
+mod evm_key;
 mod participants;
+mod recovery_bundle;
 mod regtest_swap;
 mod storage;
 mod wallet;
@@ -418,6 +420,8 @@ fn complete(dir: &Path, witness: &str) -> Result<serde_json::Value> {
 fn main() -> Result<()> {
     let a: Vec<_> = std::env::args().collect();
     let value = match a.get(1).map(String::as_str) {
+        Some("evm-key-init") if a.len() == 3 => evm_key::init(Path::new(&a[2]))?,
+        Some("evm-sign-digest") if a.len() == 3 => evm_key::sign_stdin(Path::new(&a[2]))?,
         Some("regtest-init") if a.len() == 3 => wallet::init(Path::new(&a[2]))?,
         Some("regtest-scan") if a.len() == 4 => wallet::scan(Path::new(&a[2]), Path::new(&a[3]))?,
         Some("regtest-compact-aux") if a.len() == 4 => {
@@ -437,6 +441,9 @@ fn main() -> Result<()> {
             return Ok(());
         }
         Some("regtest-inspect") if a.len() == 3 => regtest_swap::inspect(Path::new(&a[2]))?,
+        Some("regtest-export-recovery") if a.len() == 4 => {
+            recovery_bundle::export(Path::new(&a[2]), Path::new(&a[3]))?
+        }
         Some("prepare-synthetic") if a.len() == 3 => prepare(Path::new(&a[2]))?,
         Some("complete-synthetic") if a.len() == 4 => complete(Path::new(&a[2]), &a[3])?,
         _ => {

@@ -18,7 +18,7 @@ import run_native_evm_gate as evm
 from regtest_node import ROOT, rpc as zrpc, status
 from regtest_wallet import native, capture, save
 from run_regtest_swap import broadcast
-from evm_journal import send as send_evm, replay as replay_outgoing, verify_contract, order_state
+from evm_journal import send as send_evm, replay as replay_outgoing, verify_contract, order_state, validate_intent
 
 
 def topic(signature):
@@ -60,7 +60,26 @@ def native_exit(swap, mode, witness=None):
     return info['txid'], True
 
 
-def funding_only_refund(directory, terms):
+def require_workspace_route(directory, agreement, terms, ready):
+    # Check the role before replay can mutate the owned EVM. Even a missing
+    # claim receipt does not let an Alice refund workspace ignore exposed t.
+    exposed = False
+    for path in (directory / 'evm-outgoing').glob('*.json'):
+        intent = json.loads(path.read_text())
+        validate_intent(intent)
+        exposed |= intent['kind'] == 'claim'
+    locked = directory / '04-eth-locked.json'
+    if locked.exists():
+        exposed |= order_state(agreement, terms, json.loads(locked.read_text())['order']) == 2
+    else:
+        exposed |= bool(evm.rpc('eth_getLogs', [{'address': agreement['contract'],
+            'fromBlock': '0x0', 'toBlock': 'latest', 'topics': [topic('Claimed(bytes32,uint256)')]}]))
+    required = 'claim' if exposed else 'refund'
+    if ready['mode'] != required:
+        raise RuntimeError('recovery workspace does not own the required native exit; no calls replayed')
+
+
+def funding_only_refund(directory, terms, swap):
     # No Ethereum setup artifacts may exist. Absence of a single progress file
     # is not evidence that an external call never happened.
     if any((directory / name).exists() for name in ('agreement.json', 'evm-checkpoint.json', 'evm-receipts', '04-eth-locked.json')):
@@ -77,7 +96,6 @@ def funding_only_refund(directory, terms):
     missing = max(0, terms['refund_height'] + 1 - status()['blocks'])
     if missing:
         zrpc('generate', [missing], timeout=300)
-    swap = directory / 'swap'
     txid, sent = native_exit(swap, 'refund')
     observed = capture(swap / 'alice')
     notes = json.loads(Path(observed['file']).read_text())['notes']
@@ -94,13 +112,19 @@ def funding_only_refund(directory, terms):
     return {**result, 'new_native_transactions': int(sent), 'new_evm_transactions': 0}
 
 
-def recover(directory):
+def recover(directory, native_directory=None):
     os.umask(0o077)
     status()
-    swap = directory / 'swap'
+    swap = native_directory or directory / 'swap'
     terms = json.loads((swap / 'terms.json').read_text())
+    if native_directory:
+        ready = json.loads((swap / 'recovery-ready.json').read_text())
+        if ready['funding_txid'] != terms['funding_txid'] or ready['spending_keys_exported'] is not False:
+            raise RuntimeError('independent native recovery bundle mismatch')
     if not (directory / '04-eth-locked.json').exists() and not (directory / 'agreement.json').exists():
-        return funding_only_refund(directory, terms)
+        if native_directory and ready['mode'] != 'refund':
+            raise RuntimeError('this participant does not own the native refund')
+        return funding_only_refund(directory, terms, swap)
     agreement = json.loads((directory / 'agreement.json').read_text())
     checkpoint = json.loads((directory / 'evm-checkpoint.json').read_text())
     if agreement['native'] != terms or checkpoint['chain_id'] != evm.CHAIN or agreement['eth_chain_id'] != evm.CHAIN:
@@ -128,6 +152,8 @@ def recover(directory):
             if not evm.rpc('anvil_loadState', [checkpoint['state']]):
                 raise RuntimeError('snapshot restore failed')
             verify_contract(agreement)
+            if native_directory:
+                require_workspace_route(directory, agreement, terms, ready)
             replayed = replay_outgoing(directory, agreement, terms)
             contract = agreement['contract']
             if not (directory / '04-eth-locked.json').exists():
@@ -141,6 +167,8 @@ def recover(directory):
             state = order_state(agreement, terms, order)
             sent = 0
             if state == 2:
+                if native_directory and ready['mode'] != 'claim':
+                    raise RuntimeError('this participant does not own the native claim')
                 logs = evm.rpc('eth_getLogs', [{'address': contract, 'fromBlock': '0x0',
                     'toBlock': 'latest', 'topics': [topic('Claimed(bytes32,uint256)'), order]}])
                 if len(logs) != 1 or logs[0].get('removed', False):
@@ -154,6 +182,8 @@ def recover(directory):
                 mode, owner, receiver = 'success', agreement['recipient'], swap / 'bob'
                 observed_from_public_event = True
             elif state in (1, 3):
+                if native_directory and ready['mode'] != 'refund':
+                    raise RuntimeError('this participant does not own the native refund')
                 if state == 1:
                     current = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
                     if current < agreement['eth_expiry']:
@@ -203,6 +233,8 @@ def recover(directory):
                 'eth_wei_received': 10**16, 'witness_recovered_from_public_event': observed_from_public_event,
                 'no_peer_spend_signature_requested_during_recovery': True,
                 'zec_principal_shielded': True, 'refund_has_transparent_auxiliary': True}
+            if native_directory:
+                result['separate_native_recovery_workspace'] = True
             save(directory / '09-recovered.json', result)
             if not (directory / '08-complete.json').exists():
                 save(directory / '08-complete.json', result)
@@ -219,8 +251,9 @@ def recover(directory):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path)
+    parser.add_argument('--native-directory', type=Path)
     args = parser.parse_args()
     os.umask(0o077)
     with (ROOT / '.local/chain-driver.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        print(json.dumps(recover(args.directory.resolve()), indent=2))
+        print(json.dumps(recover(args.directory.resolve(), args.native_directory.resolve() if args.native_directory else None), indent=2))

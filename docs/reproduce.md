@@ -112,3 +112,15 @@ For the authenticated signer-channel variant, see
 [signer transport](signer-transport.md). `run_tls_swap.py` runs the same actual
 native/EVM graph with both signer conversations carried over mutual TLS. Its
 certificate fixtures and wallet paths are still on one host.
+
+For receipt withholding, bundle corruption and recovery with the entire
+original native setup directory unavailable, see
+[participant-owned recovery bundles](recovery-bundles.md). These gates exercise
+actual preparation and native chain recovery; no substitute signature or mock
+settlement is used. New signer checks require a fixture prepared by the current
+code: old authorized-F policies intentionally fail the new preview boundary.
+
+For a coordinator that never reads Alice's unrevealed scalar or either ETH key,
+and a live mempool test where a competing relayer mines first, use the separate
+[owner client gates](owner-clients.md). This CLI layout has per-owner ETH
+journals and should not be passed to the legacy browser recovery driver.

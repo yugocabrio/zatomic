@@ -1,0 +1,120 @@
+{
+  "scope": "real native transactions/proofs and persisted signer state; no new chain funding",
+  "command": "LATCH_BUNDLE_FIXTURE=$PWD/.local/bundle-success-001/swap RAYON_NUM_THREADS=2 cargo test --locked -j 2 -p shielded-swap-native reject_corrupt_native_recovery_bundles -- --ignored",
+  "test_passed": true,
+  "fixture_test_elapsed_seconds": 76.98,
+  "rejected": [
+    "wrong network",
+    "changed funding identity",
+    "changed deadline",
+    "changed own receiver",
+    "corrupt adaptor pre-signature",
+    "changed EVM point",
+    "bad action index",
+    "changed auxiliary outpoint",
+    "missing auxiliary signature",
+    "missing native authorization",
+    "missing binding key in both copies",
+    "missing viewing key in both copies",
+    "invalid claim dummy authorization in both copies",
+    "corrupt actual Halo2 proof"
+  ],
+  "accepted_bundle_and_receipt_not_overwritten": true,
+  "withheld_receipt_command": "python3 scripts/check_bundle_gate.py run .local/bundle-withheld-001 --bank .local/regtest-bank-001",
+  "withheld_receipt": {
+    "scope": "real two-party preparation and isolated node rejection; no funding",
+    "stale_receipt_rejected": true,
+    "alice_bundle_durable": true,
+    "bob_bundle_withheld": true,
+    "broadcastable_funding_file_absent": true,
+    "peer_preview_rejected_by_node": true,
+    "no_funding_in_mempool": true
+  },
+  "participant_checks": {
+    "scope": "actual persisted signer processes, no chain mutations",
+    "rejected": [
+      "signature without live nonce",
+      "own recipient replacement",
+      "pending amount replacement",
+      "Alice witness-point replacement",
+      "Bob persisted witness-point replacement",
+      "broadcastable funding during preparation",
+      "reuse after killed commitment process",
+      "companion refund deadline change",
+      "reuse of consumed signing attempt"
+    ],
+    "commitment_reserved_before_response": true,
+    "nonce_secrets_persisted": false,
+    "same_host_not_os_sandbox": true
+  },
+  "tls_checks": {
+    "scope": "actual TLS 1.3 and native signer processes on one host; no chain mutation",
+    "mutual_authentication": true,
+    "unknown_peers_receive_no_application_data": true,
+    "nonce_reserved_before_response": true,
+    "rejected": [
+      "missing client certificate",
+      "untrusted client certificate",
+      "untrusted server certificate",
+      "server hostname mismatch",
+      "application protocol mismatch",
+      "exact certificate pin mismatch",
+      "unsupported file operation",
+      "oversized frame",
+      "concurrent use of signer state",
+      "configured signer role mismatch",
+      "nonce attempt replay after TLS disconnect"
+    ],
+    "independent_host_execution": false
+  },
+  "formal_security_proof_or_audit": false,
+  "http_boundary": {
+    "scope": "local HTTP API boundary checks; no valid action submitted",
+    "rejected": [
+      "private filesystem",
+      "path traversal",
+      "encoded traversal",
+      "host rebinding",
+      "foreign origin read",
+      "missing token",
+      "foreign origin action",
+      "invalid content type",
+      "malformed JSON",
+      "non-object JSON",
+      "arbitrary command",
+      "arbitrary recovery path",
+      "oversized request"
+    ],
+    "private_state_not_exposed": true,
+    "cache_and_framing_headers_checked": true
+  },
+  "evm_intent_validation": {
+    "scope": "offline signed intent decoding; no chain mutation",
+    "validated_actual_signed_transactions": 4,
+    "rejected": [
+      "claim relabeled withdrawal",
+      "claim relabeled deployment",
+      "transaction identity",
+      "network metadata",
+      "sender metadata",
+      "recipient metadata",
+      "nonce metadata",
+      "amount metadata",
+      "method metadata",
+      "invalid signature encoding"
+    ],
+    "claim_abi_matches_independent_encoder": true,
+    "unrevealed_witness_excluded_from_process_arguments": true
+  },
+  "final_checks": [
+    "cargo fmt --all -- --check",
+    "cargo clippy --locked --all-targets -j 2 -- -D warnings",
+    "cargo test --locked -j 2",
+    "cargo build --locked --release -j 2 -p shielded-swap-native",
+    "python3 -m py_compile scripts/*.py",
+    "python3 scripts/check_demo_boundary.py",
+    "python3 scripts/check_participant_recovery.py .local/owned-claim-001/swap",
+    "python3 scripts/check_evm_journal.py .local/bundle-success-001",
+    "git diff --check"
+  ]
+}

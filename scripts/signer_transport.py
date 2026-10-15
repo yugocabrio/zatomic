@@ -25,7 +25,7 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 LIMIT = 200_000
 PROTOCOL = 'latch-signer/1'
-COMMANDS = {'dkg2', 'dkg3', 'commit', 'sign', 'quit'}
+COMMANDS = {'dkg2', 'dkg3', 'commit', 'sign', 'accept_bundle', 'quit'}
 
 
 def private_file(path, limit=65536):

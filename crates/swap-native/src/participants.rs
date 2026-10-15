@@ -40,7 +40,7 @@ fn commitment(v: &Value, k: &str) -> Result<shielded_swap_crypto::round1::Signin
 
 /// Both participants inspect the same effects; each authenticates their OWN
 /// receiving key. A coordinator cannot change a payout and obtain both shares.
-fn validate(
+pub(crate) fn validate(
     pczt: Pczt,
     policy: &Value,
     own: &FullViewingKey,
@@ -87,10 +87,20 @@ fn validate(
         || funding.version() != TxVersion::V6
         || funding.consensus_branch_id() != BranchId::Nu7
         || funding.transparent_bundle().is_some()
+        || funding.sapling_bundle().is_some()
+        || funding.orchard_bundle().is_some()
     {
         return Err("funding transaction domain/privacy".into());
     }
     let bundle = funding.ironwood_bundle().ok_or("funding Ironwood bundle")?;
+    if bundle
+        .actions()
+        .iter()
+        .any(|a| <[u8; 64]>::from(a.authorization()) != [0; 64])
+        || <[u8; 64]>::from(bundle.authorization().binding_signature()) != [0; 64]
+    {
+        return Err("funding authorization must be withheld until recovery receipts".into());
+    }
     let matched = (0..bundle.actions().len())
         .filter_map(|i| bundle.decrypt_output_with_key(i, &joint.to_ivk(Scope::External)))
         .filter(|(note, _, _)| wallet::note_json(note) == policy["pending"])
@@ -367,6 +377,16 @@ pub fn serve(dir: &Path, id: u16) -> Result<()> {
                     public.as_ref().ok_or("DKG incomplete")?,
                     target,
                 )?;
+                if request["policy"]["mode"] == "claim" {
+                    let target_path = dir.join("claim-target.bin");
+                    if target_path.exists() {
+                        if storage::read(&target_path, 32)? != target {
+                            return Err("claim adaptor point changed".into());
+                        }
+                    } else {
+                        storage::write(&target_path, &target)?;
+                    }
+                }
                 // All signatures from this swap's fresh DKG key must use one
                 // immutable agreement, including the other exit's deadline.
                 let mut agreement = request["policy"].clone();
@@ -408,6 +428,18 @@ pub fn serve(dir: &Path, id: u16) -> Result<()> {
                 )?;
                 let share = session.sign(key.as_ref().ok_or("DKG incomplete")?, n)?;
                 json!({"share":hex::encode(share)})
+            }
+            Some("accept_bundle") => {
+                if pending.is_some() {
+                    return Err("cannot accept recovery bundle during signing".into());
+                }
+                crate::recovery_bundle::accept(
+                    dir,
+                    id,
+                    &own,
+                    public.as_ref().ok_or("DKG incomplete")?,
+                    &request["bundle"],
+                )?
             }
             Some("quit") => return Ok(()),
             _ => return Err("unknown participant command".into()),
@@ -570,5 +602,20 @@ impl Pair {
             ]))?,
             a["index"].as_u64().ok_or("sign index")? as usize,
         ))
+    }
+    pub fn deliver_bundle(&mut self, bundle: Value) -> Result<Value> {
+        let digest = crate::recovery_bundle::digest(&bundle)?;
+        let request = json!({"command":"accept_bundle","bundle":bundle});
+        let a = self.alice.request(request.clone())?;
+        let b = self.bob.request(request)?;
+        for (receipt, id) in [(&a, 1), (&b, 2)] {
+            if receipt["participant"] != id
+                || receipt["bundle_digest"] != digest
+                || receipt["durably_saved"] != true
+            {
+                return Err("participant did not acknowledge exact recovery bundle".into());
+            }
+        }
+        Ok(json!({"alice":a,"bob":b,"both_acknowledged_before_funding":true}))
     }
 }

@@ -64,6 +64,10 @@ def run(swap):
     changed = copy.deepcopy(packet)
     changed['adaptor_point'] = '00' * 32
     must_reject(swap / 'alice', changed, 'Alice witness point changed', 1)
+    must_reject(bob, changed, 'claim adaptor point changed')
+    changed = copy.deepcopy(packet)
+    changed['policy']['funding'] = (swap / 'funding.hex').read_text().strip()
+    must_reject(bob, changed, 'funding authorization must be withheld')
     # Native claim verification passes first; the persisted agreement must then
     # reject a coordinator changing the companion refund's deadline.
     # Older fixtures may not yet have an agreement; establish it with a valid
@@ -92,6 +96,7 @@ def run(swap):
     return {'scope': 'actual persisted signer processes, no chain mutations',
         'rejected': ['signature without live nonce', 'own recipient replacement',
             'pending amount replacement', 'Alice witness-point replacement',
+            'Bob persisted witness-point replacement', 'broadcastable funding during preparation',
             'reuse after killed commitment process', 'companion refund deadline change',
             'reuse of consumed signing attempt'],
         'commitment_reserved_before_response': True,

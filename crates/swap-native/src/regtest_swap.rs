@@ -63,7 +63,7 @@ fn builder(height: u32, anchor: orchard::Anchor) -> Builder<Regtest, ()> {
     )
     .with_expiry_height(0u32.into())
 }
-fn message(pczt: &Pczt) -> Result<[u8; 32]> {
+pub(crate) fn message(pczt: &Pczt) -> Result<[u8; 32]> {
     let tx = pczt.clone().into_effects().map_err(err)?;
     Ok(
         v6_signature_hash(&tx, &SignableInput::Shielded, &tx.digest(TxIdDigester))
@@ -76,6 +76,44 @@ fn save_tx(path: &Path, tx: &Transaction) -> Result<()> {
     tx.write(&mut raw)?;
     storage::write(path, hex::encode(raw).as_bytes())
 }
+
+/// Show the exact funding effects/note without giving a peer a broadcastable
+/// transaction before both exit bundles have been acknowledged. V6 txid does
+/// not commit to these authorizing signatures; the funding outpoint stays fixed.
+fn funding_preview(funding: &Transaction) -> Result<Transaction> {
+    if funding.transparent_bundle().is_some()
+        || funding.sapling_bundle().is_some()
+        || funding.orchard_bundle().is_some()
+    {
+        return Err("funding preview requires Ironwood only".into());
+    }
+    let preview = funding
+        .clone()
+        .into_data()
+        .map_bundles::<zcash_primitives::transaction::Authorized>(
+            |t| t,
+            |s| s,
+            |bundle| {
+                bundle.map(|b| {
+                    b.map_authorization(
+                        &mut (),
+                        |_, _, _| orchard::primitives::redpallas::Signature::from([0u8; 64]),
+                        |_, a| {
+                            orchard::bundle::Authorized::from_parts(
+                                a.proof().clone(),
+                                orchard::primitives::redpallas::Signature::from([0u8; 64]),
+                            )
+                        },
+                    )
+                })
+            },
+        )
+        .freeze()?;
+    if preview.txid() != funding.txid() {
+        return Err("funding preview changed txid".into());
+    }
+    Ok(preview)
+}
 fn prove_pczt(pczt: Pczt) -> Result<Pczt> {
     let mut rng = rand::rng();
     let pk = ProvingKey::build(OrchardCircuitVersion::PostNu6_3);
@@ -86,6 +124,9 @@ fn prove_pczt(pczt: Pczt) -> Result<Pczt> {
 }
 fn prove(pczt: Pczt) -> Result<Transaction> {
     let pczt = prove_pczt(pczt)?;
+    extract_checked(pczt)
+}
+pub(crate) fn extract_checked(pczt: Pczt) -> Result<Transaction> {
     let mut rng = rand::rng();
     // The refund's transparent scriptSig was finalized before funding. A
     // second finalization would request the already-cleared partial signatures.
@@ -115,8 +156,7 @@ fn anchor_for_check(pczt: Pczt, path: MerklePath, anchor: orchard::Anchor) -> Re
 /// Placeholder signatures below only satisfy the proof-verifier's data type;
 /// they are NOT valid authorizations, never extracted and never serialized.
 /// The adaptor pre-signature is separately verified before reaching this check.
-fn verify_claim_circuit(pczt: Pczt) -> Result<()> {
-    let proven = prove_pczt(pczt)?;
+pub(crate) fn verify_claim_proof(proven: Pczt) -> Result<()> {
     let proof = orchard::Proof::new(
         proven
             .ironwood()
@@ -147,7 +187,7 @@ fn pre_json(pre: &PreSignature) -> Value {
     json!({"r_hat":hex::encode(pre.r_hat),"s_hat":hex::encode(pre.s_hat),"key":hex::encode(pre.key),
         "message":hex::encode(pre.message),"adaptor_point":hex::encode(pre.adaptor_point)})
 }
-fn parse_pre(v: &Value) -> Result<PreSignature> {
+pub(crate) fn parse_pre(v: &Value) -> Result<PreSignature> {
     Ok(PreSignature {
         r_hat: decode(v, "r_hat")?,
         s_hat: decode(v, "s_hat")?,
@@ -323,7 +363,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
         .map_err(err)?;
     let refund_height = height + 20;
     let mut funding_raw = Vec::new();
-    funding.write(&mut funding_raw)?;
+    funding_preview(&funding)?.write(&mut funding_raw)?;
     let policy = json!({"mode":"claim", "joint_fvk":hex::encode(joint.to_bytes()),
         "alice_fvk":hex::encode(refund_receiver.to_bytes()),"bob_fvk":hex::encode(receiver.to_bytes()),
         "pending":pending_json,"refund_height":refund_height,"funding":hex::encode(funding_raw),
@@ -390,7 +430,7 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
         .finalize_io(&mut rng)
         .map_err(err)?;
     let one = pasta_old::pallas::Scalar::ONE;
-    let mut refund_policy = policy;
+    let mut refund_policy = policy.clone();
     refund_policy["mode"] = json!("refund");
     let (refund, refund_pre, refund_index) = presign(
         refund,
@@ -420,15 +460,38 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
     }
     // Exercise both circuits before exposing funding.hex to the broadcaster.
     // The synthetic tree contains the exact pending note. It is not a chain
-    // anchor and none of these temporary transactions are saved or broadcast.
+    // anchor. The checked PCZTs remain private bundle data, never broadcasts.
     // After mining, both paths are re-proved against the observed chain anchor.
-    verify_claim_circuit(anchor_for_check(
+    let claim_check = prove_pczt(anchor_for_check(
         claim.clone(),
         dummy_path.clone(),
         dummy_anchor,
     )?)?;
-    let _checked_refund = prove(anchor_for_check(refund.clone(), dummy_path, dummy_anchor)?)?;
-    // Publish files only after both independently checkable exit paths exist.
+    verify_claim_proof(claim_check.clone())?;
+    let refund_check = prove_pczt(anchor_for_check(refund.clone(), dummy_path, dummy_anchor)?)?;
+    let _checked_refund = extract_checked(refund_check.clone())?;
+    crate::recovery_bundle::verify_auxiliary_signature(&refund)?;
+    let terms = json!({"scope":"isolated regtest; independent local signer processes", "independent_signer_processes":true, "funding_txid":funding.txid().to_string(),
+        "aux_outpoint":{"txid":aux.txid.to_string(),"index":auxindex,"value_zatoshi":u64::from(auxcoin.value())},
+        "principal_zatoshi":PRINCIPAL,"payout_zatoshi":PAYOUT,"refund_height":refund_height,
+        "point_x":pair.point_x,"point_y":pair.point_y,"claim_index":claim_index,
+        "refund_index":refund_index,"pending_cmx":pending_json["cmx"],"source_tip":snapshot["tip"],
+        "preauthorized_before_funding":true,"exit_circuits_verified_before_funding":true,
+        "refund_proof_and_shielded_signatures_verified_before_funding":true,
+        "refund_auxiliary_signature_verified_before_funding":true,
+        "participant_bundles_acknowledged_before_funding":true,
+        "funding_authorization_withheld_from_peer_until_acknowledgment":true,
+        "refund_transparent_auxiliary":true,"funding_and_claim_fully_shielded":true});
+    // Both participants verify and fsync their own complete recovery bundle.
+    // The coordinator's copy alone is insufficient authorization to fund.
+    let bundle = json!({"version":1,"native_genesis":wallet::GENESIS,"native_branch":"77190ad9",
+        "policy":policy,"terms":terms,"claim":hex::encode(claim.clone().serialize().map_err(err)?),
+        "refund":hex::encode(refund.clone().serialize().map_err(err)?),"presignature":pre_json(&pre),
+        "claim_check":hex::encode(claim_check.serialize().map_err(err)?),
+        "refund_check":hex::encode(refund_check.serialize().map_err(err)?)});
+    let receipts = pair.deliver_bundle(bundle)?;
+    storage::write_json(&dir.join("participant-receipts.json"), &receipts)?;
+    // Local convenience copies remain for the existing demo/recovery driver.
     storage::write(
         &dir.join("bob/claim.pczt"),
         &claim.serialize().map_err(err)?,
@@ -438,14 +501,6 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path) -> Result<Value> {
         &dir.join("alice/refund.pczt"),
         &refund.serialize().map_err(err)?,
     )?;
-    let terms = json!({"scope":"isolated regtest; independent local signer processes", "independent_signer_processes":true, "funding_txid":funding.txid().to_string(),
-        "aux_outpoint":{"txid":aux.txid.to_string(),"index":auxindex,"value_zatoshi":u64::from(auxcoin.value())},
-        "principal_zatoshi":PRINCIPAL,"payout_zatoshi":PAYOUT,"refund_height":refund_height,
-        "point_x":pair.point_x,"point_y":pair.point_y,"claim_index":claim_index,
-        "refund_index":refund_index,"pending_cmx":pending_json["cmx"],"source_tip":snapshot["tip"],
-        "preauthorized_before_funding":true,"exit_circuits_verified_before_funding":true,
-        "refund_proof_and_shielded_signatures_verified_before_funding":true,
-        "refund_transparent_auxiliary":true,"funding_and_claim_fully_shielded":true});
     storage::write_json(&dir.join("terms.json"), &terms)?;
     // This is the first point where the funding transaction becomes available
     // to the broadcast driver. No RPC exists in this Rust process.

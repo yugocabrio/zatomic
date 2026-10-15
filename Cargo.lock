@@ -1706,6 +1706,7 @@ dependencies = [
  "rand_core 0.6.4",
  "secp256k1",
  "serde_json",
+ "sha2 0.10.9",
  "shielded-swap-crypto",
  "zcash_address",
  "zcash_primitives",
