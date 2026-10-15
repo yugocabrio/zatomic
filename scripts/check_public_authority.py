@@ -135,7 +135,7 @@ def check(root, fixture):
         'authority_copied_to_different_source_keys_refused': True,
         'permanent_cancellation_survives_restart_and_blocks_production_preflight': True,
         'reservation_preserved_after_cancel': True, 'partial_release_marker_forbids_cancellation': True,
-        'source_signing_and_outgoing_journal_implemented': False,
+        'source_signing_exercised_in_this_check': False,
         'funded_public_preflight': False, 'new_proofs': 0, 'rpc_calls': 0, 'broadcast': False}
 
 

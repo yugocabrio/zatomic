@@ -19,7 +19,7 @@ from testnet_owner import identity
 
 AUTHORITY = 'public-source-authority.json'
 CANCELLED = 'public-source-cancelled.json'
-# Future signers must fsync this release marker before creating ANY F signature.
+# Source signers fsync this release marker before creating ANY F signature.
 RELEASE = 'public-source-release.json'
 
 
@@ -69,7 +69,7 @@ def active_locked(wallet):
         raise RuntimeError('public source permanently cancelled; preserve all recovery data')
     # A release marker means authorization may already exist, even if a raw
     # transaction is absent. Initial funding preflight must not start over.
-    for name in (RELEASE, 'public-source-outgoing.json', 'funding.hex'):
+    for name in (RELEASE, 'public-source-funding/intent.json', 'public-source-outgoing.json', 'funding.hex'):
         if (wallet/name).exists() or (wallet/name).is_symlink():
             raise RuntimeError('possible public source release; reconcile outgoing state instead')
 
@@ -77,6 +77,12 @@ def active_locked(wallet):
 def check_locked(wallet, agreement):
     """Caller holds sync.lock; bind source pins before any provider disclosure."""
     active_locked(wallet)
+    return dict(identity_locked(wallet, agreement), source_cancelled=False,
+        source_release_recorded=False, funding_authorized=False)
+
+
+def identity_locked(wallet, agreement):
+    """Revalidate immutable pins even after a durable release intent exists."""
     value = read(wallet/AUTHORITY)
     if (set(value) != {'format', 'wallet', 'owners', 'owners_digest'}
             or value['format'] != 'latch-public-source-authority-v1'
@@ -88,14 +94,13 @@ def check_locked(wallet, agreement):
     return {'authority_digest': digest(value), 'owners_digest': value['owners_digest'],
         'source_fvk_fingerprint': value['wallet']['fvk_fingerprint'],
         'source_aux_script': value['wallet']['aux_script'],
-        'source_wallet_and_owner_pins_bound': True, 'source_cancelled': False,
-        'source_release_recorded': False, 'funding_authorized': False}
+        'source_wallet_and_owner_pins_bound': True}
 
 
 def cancel_locked(wallet):
     # A malformed or partial intent still forbids cancellation: absence of raw
     # bytes is NOT evidence that no authorization escaped before a crash.
-    for name in (RELEASE, 'public-source-outgoing.json', 'funding.hex'):
+    for name in (RELEASE, 'public-source-funding/intent.json', 'public-source-outgoing.json', 'funding.hex'):
         if (wallet/name).exists() or (wallet/name).is_symlink():
             raise RuntimeError('possible public source release; cancellation requires reconciliation')
     authority = read(wallet/AUTHORITY)

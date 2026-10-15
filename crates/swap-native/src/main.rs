@@ -6,6 +6,7 @@ mod funding_consent;
 mod observed_transaction;
 mod participants;
 mod public_consent;
+mod public_funding;
 mod public_graph;
 mod public_presign;
 mod public_recovery;
@@ -526,6 +527,34 @@ fn main() -> Result<()> {
                 Path::new(&a[4]),
             )?
         }
+        Some("testnet-sign-source") if a.len() == 5 => public_funding::sign(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            a[4].parse()?,
+            false,
+            false,
+        )?,
+        Some("check-public-source-signing") if a.len() == 5 => public_funding::sign(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            a[4].parse()?,
+            true,
+            false,
+        )?,
+        Some("testnet-inspect-source") if a.len() == 5 => public_funding::sign(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            a[4].parse()?,
+            false,
+            true,
+        )?,
+        Some("check-public-source-inspect") if a.len() == 5 => public_funding::sign(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            a[4].parse()?,
+            true,
+            true,
+        )?,
         Some("check-source-spend") if a.len() == 4 => {
             public_recovery::check_source_spend(Path::new(&a[2]), Path::new(&a[3]))?
         }

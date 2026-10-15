@@ -229,7 +229,7 @@ pub fn check_source_spend(pczt_path: &Path, snapshot: &Path) -> Result<Value> {
         "live_chain_checked":false,"funding_authorized":false,"broadcast":false}))
 }
 
-fn reserved_graph(bank: &Path, folder: &Path, packet: &Value) -> Result<Value> {
+pub(crate) fn reserved_graph(bank: &Path, folder: &Path, packet: &Value) -> Result<Value> {
     let manifest = public_graph::package(bank, folder)?;
     let draft = storage::json(&folder.join("graph-draft.json"))?;
     let name = draft["directory"]

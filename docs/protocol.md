@@ -62,7 +62,11 @@ It binds the exact saved local decisions and identity/peer pins of the caller
 under their operator lock. The source wallet additionally requires immutable
 owner pins bound to its actual keys and supports permanent pre-release
 cancellation without deleting its reservation. Release/outgoing markers forbid
-cancellation. These guards do not yet implement public source signing or sending.
+cancellation. A separate private source signer now holds the same source lock
+through fresh funding preflight and commits its intent/release marker before
+signing F. Restart verifies and reuses the exact signed bytes, including the
+proof/signatures and original anchor. Even a pending intent forbids cancellation.
+This does not authorize broadcast; public senders remain disabled.
 It also derives the exact R auxiliary outpoint from the verified bundle and
 checks its current index/origin/confirmations without source-wallet key access.
 Funding preflight additionally binds the reserved note/nullifier/FVK/anchor to
@@ -95,8 +99,9 @@ catch-up, journals coverage, repeats an overlap and restarts from its configured
 height if the retained prefix changes. Offline replay accepts a saved opening
 before further RPC work. This is trusted-provider observation, not complete
 mempool coverage or a latency guarantee; failures need operator supervision.
-Cross-chain/auxiliary reconciliation, durable send attempts and source-release
-signing remain unfinished. The integrated
+Cross-chain/auxiliary reconciliation and durable send attempts remain unfinished.
+The private source signer is an offline native primitive behind the live
+preflight wrapper, not an independent verifier of live chain observations. The integrated
 positive public path has not run with funded public inputs.
 No public sender is enabled. See
 [public preflight and its tested scope](public-testnet.md#agreement-bound-read-only-preflight).
@@ -194,8 +199,10 @@ An offline public-profile builder can now produce an unsigned F/C/R draft with
 native proof checks from this package. The draft binds authenticated owner
 destinations but has no adaptor presignatures, bundle receipts or final graph
 consents, and cannot authorize F.
-The public signing/sending adapter remains disabled. See the exact preparation
-thresholds and evidence limits in [public-testnet.md](public-testnet.md).
+The separate private source-signing stage requires the completed exits and both
+conditional consents, as described above. Public sending remains disabled. See
+the exact preparation thresholds and evidence limits in
+[public-testnet.md](public-testnet.md).
 
 - Zcash observers: normal shielded funding/claim metadata, no public principal
   or shielded address. Refund exposes an auxiliary transparent outpoint/amount

@@ -348,7 +348,8 @@ pub fn synthetic(output: &Path, authenticated: Option<&Path>) -> Result<Value> {
             FullViewingKey::from(&crate::random_key(&mut rng)),
         )
     };
-    let source_fvk = FullViewingKey::from(&crate::random_key(&mut rng));
+    let source_key = crate::random_key(&mut rng);
+    let source_fvk = FullViewingKey::from(&source_key);
     let note = crate::note(&source_fvk, principal + 10_001, &mut rng);
     let path = MerklePath::from_parts(
         0,
@@ -390,6 +391,17 @@ pub fn synthetic(output: &Path, authenticated: Option<&Path>) -> Result<Value> {
         },
         output,
         binding,
+    )?;
+    // Diagnostic-only nonexistent source. Retain its random key privately so
+    // the source signing primitive can be exercised without a funded wallet.
+    // This directory is never a public reservation and cannot pass prepare().
+    let source = output.join("synthetic-source");
+    storage::create_dir(&source)?;
+    storage::write(&source.join("spending-key.bin"), source_key.to_bytes())?;
+    storage::write(&source.join("aux-key.bin"), &[1; 32])?;
+    storage::atomic_json(
+        &source.join("network.json"),
+        &json!({"genesis":TESTNET_GENESIS}),
     )?;
     report["synthetic"] = json!(true);
     Ok(report)
