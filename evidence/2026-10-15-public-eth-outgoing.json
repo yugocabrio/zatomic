@@ -1,0 +1,60 @@
+{
+  "actual_native_claim_opening_verified": true,
+  "broadcast": false,
+  "claim_reinitialization_cannot_clear_exposure": true,
+  "corrupt_signed_bytes_and_changed_nonce_refused": true,
+  "exact_signed_bytes_replayed_without_keys_or_original_roots": true,
+  "insufficient_reserve_refused_before_decision": true,
+  "interrupted_raw_before_signed_journal_resumed": true,
+  "missing_history_and_pending_claim_forbid_refund_fallback": true,
+  "new_native_proofs": 0,
+  "public_funded_execution": false,
+  "real_sigkill_after_decision_before_key_or_opening_read": true,
+  "rpc_calls": 0,
+  "scope": "actual Sepolia-domain signatures and native adaptor verification; synthetic inputs and modeled reserves",
+  "synthetic_live_entry_refused": true,
+  "transactions": {
+    "claim": {
+      "broadcast": false,
+      "bytes_sha256": "49e03b8b8b173a48ed804de8fc695b8101c2e0593955ed9209006071c5a89824",
+      "format": "latch-public-eth-bytes-v1",
+      "kind": "claim",
+      "native_opening_verified": true,
+      "send_authorized": false,
+      "signer_and_exact_calldata_verified": true,
+      "synthetic_inputs": true,
+      "txid": "0x54dce258538160340b3617cc66aa6165cc47368ded2f0d56ce1b57a55f5abb04"
+    },
+    "lock": {
+      "broadcast": false,
+      "bytes_sha256": "fd29bb89fc8342b512d5a5d6c1da300d89ad7d7d2483d0691ba15e4f2f048ce4",
+      "format": "latch-public-eth-bytes-v1",
+      "kind": "lock",
+      "native_opening_verified": false,
+      "send_authorized": false,
+      "signer_and_exact_calldata_verified": true,
+      "synthetic_inputs": true,
+      "txid": "0x3c009676d5e68ffcb47e0d1f1dbc44471969a93076f727d7c9ed501f2f9dd94b"
+    }
+  },
+  "date": "2026-10-15",
+  "implementation_base": "e4b4d98",
+  "milestone": "Private ETH lock/claim authorization and persistent exposure history",
+  "python": "3.14.6",
+  "cast": "1.3.1-stable (08d3a4ad4d78b62bcb897350803bf96fc2cf6cc9)",
+  "lock_calldata_matches_independent_foundry_abi_encoder": true,
+  "commands": [
+    "python3 scripts/check_public_eth_outgoing.py .local/public-eth-outgoing-001 .local/public-source-release-001",
+    "PYTHONPATH=scripts: check_public_eth_outgoing.check_lock_abi against .local/public-eth-outgoing-001/bob/public-consent-proposal.json (read-only)",
+    "python3 -m py_compile scripts/public_eth_outgoing.py scripts/check_public_eth_outgoing.py"
+  ],
+  "limitations": [
+    "The fixture has nonexistent synthetic native inputs. Actual owner signatures/consents, Sepolia-domain raw signatures, Foundry signer recovery and native adaptor authorization ran. Reserve observations are explicit transcripts.",
+    "A test child calls the real commit primitive and is killed after its persisted decision signal. No live preflight is simulated as a public positive result. Live prepare rejects synthetic inputs before RPC.",
+    "Completed replay ran with network, original fixture, peer roots, local identity key and original opening file OS-denied. One Mac is not independently administered hosts.",
+    "No public contract deployment, node acceptance, nonce reservation, payment or broadcast. Private signatures and claim opening stay under ignored .local.",
+    "Local history cannot exclude out-of-band disclosure, deleted/rolled-back files or another program using the identity key. A partial claim directory remains possible exposure even with no raw bytes.",
+    "Resume finishes private authorization only; it does not renew first-reveal time or fee bounds. A missing decision inside a partial action directory is not automatically reset.",
+    "Public ETH refund/withdrawal, replacements and sending/receipt reconciliation remain unfinished."
+  ]
+}

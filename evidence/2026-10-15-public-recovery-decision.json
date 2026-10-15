@@ -1,0 +1,41 @@
+{
+  "broadcast": false,
+  "new_proofs": 0,
+  "public_funded_execution": false,
+  "roles": {
+    "alice": {
+      "actual_native_bytes_verified": "6d833f1a056d90a52f02d224181626498e14d4ebf8ef60f3190a9f02c7dff5c9",
+      "claimed_history_survives_later_refund": true,
+      "refund_requires_unexposed_history_terminal_eth_mature_clock_and_exact_auxiliary": true,
+      "settlement_precedes_spent_auxiliary_refusal": true
+    },
+    "bob": {
+      "actual_native_bytes_verified": "7ce2133fa829cffdcada685ad358da354544b786d4bd4bc8057d0c992176811b",
+      "eth_unavailable_does_not_delay_known_claim": true
+    }
+  },
+  "rpc_calls": 0,
+  "scope": "actual native bytes/consents plus explicitly modeled chain/clock states",
+  "send_authorized": false,
+  "synthetic_public_entry_refused_before_observation": true,
+  "date": "2026-10-15",
+  "implementation_base": "e4b4d98",
+  "milestone": "Combined native recovery decision with counter-chain/exposure/auxiliary checks",
+  "python": "3.14.6",
+  "cast": "1.3.1-stable (08d3a4ad4d78b62bcb897350803bf96fc2cf6cc9)",
+  "changed_native_reader_regression_passed": true,
+  "commands": [
+    "python3 scripts/check_public_recovery_decision.py .local/public-recovery-decision-001 .local/public-outgoing-001",
+    "python3 scripts/check_public_native_reconcile.py .local/public-native-reconcile-regression-002 .local/public-outgoing-001 .local/public-witness-002/alice .local/public-witness-001/alice-proof/transaction.hex",
+    "python3 -m py_compile scripts/public_recovery_decision.py scripts/check_public_recovery_decision.py scripts/public_eth_reconcile.py scripts/public_native_reconcile.py",
+    "git diff --check"
+  ],
+  "limitations": [
+    "Policy states, future refund clocks, current witnesses and auxiliary availability are explicitly modeled. Actual native cryptographic validation ran on retained synthetic-profile bytes. No funded public positive integration is claimed.",
+    "The production wrapper holds one owner lock and invokes live readers. Its synthetic refusal was checked before queries; a complete positive live wrapper run remains unexecuted.",
+    "Read-only decisions always report send_authorized=false. They are not reusable authorization tokens; actual send attempts/transport need in-invocation checks and explicit public-transfer authorization.",
+    "Confirmed native exit means trusted-provider confirmation, not verified ETH withdrawal or complete swap settlement.",
+    "Bob still needs a current exact-anchor witness for an unobserved claim. Timing violations are reported urgent/outside assumptions; arbitrary outages/reorgs remain unsupported.",
+    "Alice refund requires preserved initialized local non-exposure history and stable empty/refunded ETH observations. This does not establish absence from all mempools or exclude key use by another program."
+  ]
+}

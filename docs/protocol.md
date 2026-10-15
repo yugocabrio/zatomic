@@ -99,7 +99,14 @@ catch-up, journals coverage, repeats an overlap and restarts from its configured
 height if the retained prefix changes. Offline replay accepts a saved opening
 before further RPC work. This is trusted-provider observation, not complete
 mempool coverage or a latency guarantee; failures need operator supervision.
-Cross-chain/auxiliary reconciliation and durable send attempts remain unfinished.
+Private Sepolia lock/claim signing now commits an owner decision before key or
+opening access, verifies exact signed bytes and preserves possible claim
+exposure across restart. A combined native recovery reader holds the owner lock,
+prioritizes native settlement, lets an already authorized Bob claim proceed
+without an ETH read, and checks Alice's local exposure history, terminal/empty
+ETH state, mature timestamp and exact auxiliary before a refund decision.
+These decisions never authorize sending. Durable send attempts, ETH refund/
+withdrawal and receipt/replay integration remain unfinished.
 The private source signer is an offline native primitive behind the live
 preflight wrapper, not an independent verifier of live chain observations. The integrated
 positive public path has not run with funded public inputs.

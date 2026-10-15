@@ -148,63 +148,72 @@ def recheck_after_scan(scan, observe_again, canonical):
 
 
 def observe(owner, fingerprint, wallet=None, batches=4):
+    with authority.owner_locked(owner):
+        return observe_locked(owner, fingerprint, wallet, batches)
+
+
+def observe_locked(owner, fingerprint, wallet=None, batches=4):
+    """Caller holds the owner's operator.lock for the complete observation."""
     if not re.fullmatch('[0-9a-f]{64}', fingerprint) or not 1 <= batches <= 32:
         raise RuntimeError('exact retained version fingerprint and bounded sync required')
-    with authority.owner_locked(owner):
-        journal = outgoing.verified_journal_locked(owner)
-        binding, files = journal['binding'], journal['files']
-        agreement = files['proposal']['agreement']
-        if binding['synthetic_inputs'] is not False:
-            raise RuntimeError('synthetic outgoing transactions cannot enter public reconciliation')
-        selected = [v for v in journal['versions'] if v['bytes_sha256'] == fingerprint]
-        if len(selected) != 1 or selected[0]['checked'] is None:
-            raise RuntimeError('complete retained raw version required')
-        expected = selected[0]['checked']
-        previous = history(journal['directory'], binding)
-        parent = journal['directory']/'native-observations'; outgoing.private_directory(parent)
-        directory = parent/uuid.uuid4().hex; outgoing.private_directory(directory)
-        publish(directory/'intent.json', {'format': 'latch-public-native-observation-intent-v1',
-            'binding_digest': digest(binding), 'txid': expected['txid'], 'version': fingerprint,
-            'prior': previous, 'broadcast': False, 'send_authorized': False})
-        observed, actual, state = run_observation(journal, expected, directory)
-        witness = None
-        # Settlement/pending are reconciled before unspentness. A completed exit
-        # has spent the joint note, so requiring that note here would reject success.
-        if state in ('unobserved-by-provider', 'orphaned-by-provider') and wallet is not None:
-            with locked(wallet):
-                if (read(wallet/'native-recovery.json') != files['bundle']
-                        or read(wallet/'owner-receipt.json') != files['proposal']['receipts'][binding['role']]):
-                    raise RuntimeError('watch wallet differs from this owner outgoing journal')
-                refreshed = directory/'after-sync'; outgoing.private_directory(refreshed)
-                def canonical():
-                    invoke('node', ROOT/'scripts/observe_testnet_source.mjs', directory/'witness/snapshot.json', directory/'post-proof-canonical.json')
-                    fresh(read(directory/'post-proof-canonical.json'), int(time.time()))
-                observed, actual, state, witness = recheck_after_scan(
-                    lambda: recovery.observe_locked(wallet, directory/'witness', batches, expected['anchor']),
-                    lambda: run_observation(journal, expected, refreshed), canonical)
-        # These are still native observations only; never a refund/claim send gate.
-        classify(agreement, expected, observed, actual, int(time.time()))
-        if authority.bind_owner(owner, files, {'agreement_digest': binding['agreement_digest'],
-                'bundle_digest': binding['bundle_digest']}, 'native_'+binding['mode']) != journal['caller']:
-            raise RuntimeError('caller acceptance changed during native reconciliation')
-        retained = journal['directory']/'versions'/(fingerprint+'.hex')
-        if hashlib.sha256(outgoing.raw_bytes(retained)).hexdigest() != fingerprint:
-            raise RuntimeError('retained raw version changed during reconciliation')
-        result = {'format': 'latch-public-native-reconciliation-v1', 'agreement_digest': binding['agreement_digest'],
-            'role': binding['role'], 'mode': binding['mode'], 'version': fingerprint, 'txid': expected['txid'],
-            'native_state': state, 'confirmations_by_provider': observed['confirmations_by_provider'],
-            'observed_bytes_sha256': None if actual is None else actual['bytes_sha256'],
-            'provider_version_matches_selected': None if actual is None else actual['bytes_sha256'] == fingerprint,
-            'current_unspent_witness_check': witness, 'prior': previous,
-            'lost_prior_confirmation': previous['confirmed_before'] and state != 'confirmed-by-provider',
-            'provider_trusted': True, 'send_authorized': False, 'broadcast': False,
-            'network_exposure_excluded': False, 'reservation_released': False,
-            'remaining_gates': ['counter-chain-and-secret-exposure-reconciliation', 'refund-clock-and-auxiliary-if-needed',
-                'durable-send-attempt-and-transport', 'public-transfer-authorization']}
-        if state in ('unobserved-by-provider', 'orphaned-by-provider') and witness is None:
-            result['remaining_gates'].insert(0, 'native-exact-anchor-current-unspent-check')
-        publish(directory/'report.json', result)
-        return dict(result, observation_directory=str(directory))
+    journal = outgoing.verified_journal_locked(owner)
+    binding, files = journal['binding'], journal['files']
+    agreement = files['proposal']['agreement']
+    if binding['synthetic_inputs'] is not False:
+        raise RuntimeError('synthetic outgoing transactions cannot enter public reconciliation')
+    selected = [v for v in journal['versions'] if v['bytes_sha256'] == fingerprint]
+    if len(selected) != 1 or selected[0]['checked'] is None:
+        raise RuntimeError('complete retained raw version required')
+    expected = selected[0]['checked']
+    previous = history(journal['directory'], binding)
+    parent = journal['directory']/'native-observations'; outgoing.private_directory(parent)
+    directory = parent/uuid.uuid4().hex; outgoing.private_directory(directory)
+    publish(directory/'intent.json', {'format': 'latch-public-native-observation-intent-v1',
+        'binding_digest': digest(binding), 'txid': expected['txid'], 'version': fingerprint,
+        'prior': previous, 'broadcast': False, 'send_authorized': False})
+    observed, actual, state = run_observation(journal, expected, directory)
+    witness = None
+    # Settlement/pending are reconciled before unspentness. A completed exit
+    # has spent the joint note, so requiring that note here would reject success.
+    if state in ('unobserved-by-provider', 'orphaned-by-provider') and wallet is not None:
+        with locked(wallet):
+            if (read(wallet/'native-recovery.json') != files['bundle']
+                    or read(wallet/'owner-receipt.json') != files['proposal']['receipts'][binding['role']]):
+                raise RuntimeError('watch wallet differs from this owner outgoing journal')
+            refreshed = directory/'after-sync'; outgoing.private_directory(refreshed)
+            def canonical():
+                invoke('node', ROOT/'scripts/observe_testnet_source.mjs', directory/'witness/snapshot.json', directory/'post-proof-canonical.json')
+                fresh(read(directory/'post-proof-canonical.json'), int(time.time()))
+            observed, actual, state, witness = recheck_after_scan(
+                lambda: recovery.observe_locked(wallet, directory/'witness', batches, expected['anchor']),
+                lambda: run_observation(journal, expected, refreshed), canonical)
+    # These are still native observations only; never a refund/claim send gate.
+    classify(agreement, expected, observed, actual, int(time.time()))
+    if authority.bind_owner(owner, files, {'agreement_digest': binding['agreement_digest'],
+            'bundle_digest': binding['bundle_digest']}, 'native_'+binding['mode']) != journal['caller']:
+        raise RuntimeError('caller acceptance changed during native reconciliation')
+    retained = journal['directory']/'versions'/(fingerprint+'.hex')
+    if hashlib.sha256(outgoing.raw_bytes(retained)).hexdigest() != fingerprint:
+        raise RuntimeError('retained raw version changed during reconciliation')
+    result = {'format': 'latch-public-native-reconciliation-v1', 'agreement_digest': binding['agreement_digest'],
+        'role': binding['role'], 'mode': binding['mode'], 'version': fingerprint, 'txid': expected['txid'],
+        'native_state': state, 'confirmations_by_provider': observed['confirmations_by_provider'],
+        'observed_bytes_sha256': None if actual is None else actual['bytes_sha256'],
+        'provider_version_matches_selected': None if actual is None else actual['bytes_sha256'] == fingerprint,
+        'current_unspent_witness_check': witness, 'prior': previous,
+        'native_observed_tip': observed['observed_tip'],
+        'native_clock': {'genesis': observed['genesis'], 'branch_id': observed['branch'],
+            'observed_at': observed['observed_at'], 'provider_header_timestamp': observed['observed_tip']['timestamp'],
+            'announced_upgrade': observed['announced_upgrade']},
+        'lost_prior_confirmation': previous['confirmed_before'] and state != 'confirmed-by-provider',
+        'provider_trusted': True, 'send_authorized': False, 'broadcast': False,
+        'network_exposure_excluded': False, 'reservation_released': False,
+        'remaining_gates': ['counter-chain-and-secret-exposure-reconciliation', 'refund-clock-and-auxiliary-if-needed',
+            'durable-send-attempt-and-transport', 'public-transfer-authorization']}
+    if state in ('unobserved-by-provider', 'orphaned-by-provider') and witness is None:
+        result['remaining_gates'].insert(0, 'native-exact-anchor-current-unspent-check')
+    publish(directory/'report.json', result)
+    return dict(result, observation_directory=str(directory))
 
 
 def main():
