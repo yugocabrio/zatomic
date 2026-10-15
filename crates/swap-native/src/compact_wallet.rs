@@ -46,6 +46,63 @@ fn same_tree(tree: &wallet::Tree, encoded: &Value) -> Result<bool> {
     Ok(tree.root() == other.root() && tree.size() == other.size())
 }
 
+/// Revalidate persisted private note paths before either scanning or spending.
+fn restore_notes(
+    p: &Value,
+    fvk: &orchard::keys::FullViewingKey,
+    tree: &wallet::Tree,
+) -> Result<Owned> {
+    let height = number(p, "height")?;
+    if p["anchor"] != hex::encode(tree.root().to_bytes()) {
+        return Err("checkpoint anchor differs from its tree".into());
+    }
+    let mut owned = Owned::new();
+    let notes = p["notes"].as_array().ok_or("checkpoint notes")?;
+    if notes.len() > MAX_NOTES {
+        return Err("owned note limit".into());
+    }
+    for data in notes {
+        let note = wallet::parse_note(data)?;
+        if fvk.scope_for_address(&note.recipient()).is_none() || number(data, "height")? > height {
+            return Err("checkpoint contains foreign/future note".into());
+        }
+        let encoded = data["witness"].as_str().ok_or("witness encoding")?;
+        if encoded.len() > 32_768 {
+            return Err("witness size bound".into());
+        }
+        let raw = hex::decode(encoded)?;
+        let mut cursor = Cursor::new(&raw);
+        let w: Witness = read_incremental_witness(&mut cursor)?;
+        let path = w.path().ok_or("witness path")?;
+        if cursor.position() != raw.len() as u64
+            || w.root() != tree.root()
+            || u64::from(w.tip_position()) + 1 != tree.size() as u64
+            || wallet::parse_path(data)?.root(note.commitment().into()) != tree.root().into()
+            || number(data, "position")? != u64::from(path.position())
+        {
+            return Err("invalid persisted note witness".into());
+        }
+        // Bind the serialized witness itself to this leaf, not just its root.
+        let merkle = orchard::tree::MerklePath::from_parts(
+            u32::try_from(u64::from(path.position()))?,
+            path.path_elems().try_into().map_err(|_| "witness depth")?,
+        );
+        if merkle.root(note.commitment().into()) != tree.root().into() {
+            return Err("witness does not authenticate note".into());
+        }
+        if owned
+            .insert(
+                decode(data, "cmx")?,
+                (data.clone(), w, note.nullifier(fvk).to_bytes()),
+            )
+            .is_some()
+        {
+            return Err("duplicate checkpoint note".into());
+        }
+    }
+    Ok(owned)
+}
+
 pub fn scan(dir: &Path, capture: &Path, previous: Option<&Path>) -> Result<Value> {
     let v = storage::json(capture)?;
     let genesis = v["genesis"].as_str().ok_or("genesis")?;
@@ -94,51 +151,7 @@ pub fn scan(dir: &Path, capture: &Path, previous: Option<&Path>) -> Result<Value
         if birthday_height < activation || birthday_height > height {
             return Err("invalid wallet birthday".into());
         }
-        let notes = p["notes"].as_array().ok_or("checkpoint notes")?;
-        if notes.len() > MAX_NOTES {
-            return Err("owned note limit".into());
-        }
-        for data in notes {
-            let note = wallet::parse_note(data)?;
-            if fvk.scope_for_address(&note.recipient()).is_none()
-                || number(data, "height")? > height
-            {
-                return Err("checkpoint contains foreign/future note".into());
-            }
-            let encoded = data["witness"].as_str().ok_or("witness encoding")?;
-            if encoded.len() > 32_768 {
-                return Err("witness size bound".into());
-            }
-            let raw = hex::decode(encoded)?;
-            let mut cursor = Cursor::new(&raw);
-            let w: Witness = read_incremental_witness(&mut cursor)?;
-            let path = w.path().ok_or("witness path")?;
-            if cursor.position() != raw.len() as u64
-                || w.root() != tree.root()
-                || u64::from(w.tip_position()) + 1 != tree.size() as u64
-                || wallet::parse_path(data)?.root(note.commitment().into()) != tree.root().into()
-                || number(data, "position")? != u64::from(path.position())
-            {
-                return Err("invalid persisted note witness".into());
-            }
-            // Bind the serialized witness itself to this leaf, not just its root.
-            let merkle = orchard::tree::MerklePath::from_parts(
-                u32::try_from(u64::from(path.position()))?,
-                path.path_elems().try_into().map_err(|_| "witness depth")?,
-            );
-            if merkle.root(note.commitment().into()) != tree.root().into() {
-                return Err("witness does not authenticate note".into());
-            }
-            if owned
-                .insert(
-                    decode(data, "cmx")?,
-                    (data.clone(), w, note.nullifier(&fvk).to_bytes()),
-                )
-                .is_some()
-            {
-                return Err("duplicate checkpoint note".into());
-            }
-        }
+        owned = restore_notes(&p, &fvk, &tree)?;
     }
     let blocks = v["blocks"].as_array().ok_or("compact blocks")?;
     if blocks.len() > MAX_BLOCKS {
@@ -259,6 +272,122 @@ pub fn scan(dir: &Path, capture: &Path, previous: Option<&Path>) -> Result<Value
         json!({"scope":"trusted-provider compact scan; no consensus/finality proof", "file":output,
         "height":height,"tip":tip,"blocks":blocks.len(),"actions":actions,"received_notes":received,
         "spent_notes":spent,"unspent_notes":notes.len(),"tree_size":tree.size(),"broadcast":false}),
+    )
+}
+
+/// Select a mature, still-unspent note with a historical witness. This is an
+/// offline input package, not authorization or a claim of canonical finality.
+/// The public adapter must recheck both block/tree identities and reserve inputs.
+pub fn source_snapshot(
+    dir: &Path,
+    anchor_file: &Path,
+    current_file: &Path,
+    principal: u64,
+    output: &Path,
+) -> Result<Value> {
+    const MIN_CONFIRMATIONS: u64 = 12;
+    if principal <= 10_000 || principal > 2_100_000_000_000_000 - 10_000 {
+        return Err("source principal range".into());
+    }
+    let old = storage::json(anchor_file)?;
+    let current = storage::json(current_file)?;
+    let genesis = current["genesis"].as_str().ok_or("genesis")?;
+    let activation = match genesis {
+        TESTNET_GENESIS => 4_465_026,
+        wallet::GENESIS => 2,
+        _ => return Err("source supports only pinned testnet/regtest".into()),
+    };
+    if storage::json(&dir.join("network.json"))?["genesis"] != genesis {
+        return Err("source wallet network mismatch".into());
+    }
+    let fvk = wallet::fvk(dir)?;
+    let fingerprint = hex::encode(Sha256::digest(fvk.to_bytes()));
+    let height = number(&current, "height")?;
+    let anchor_height = number(&old, "height")?;
+    let birthday = number(&current, "birthday_height")?;
+    if birthday < activation
+        || birthday > anchor_height
+        || anchor_height > height
+        || height >= u64::from(u32::MAX)
+        || height - anchor_height + 1 < MIN_CONFIRMATIONS
+    {
+        return Err("source anchor needs twelve observed confirmations".into());
+    }
+    let mut validated = Vec::new();
+    for checkpoint in [&old, &current] {
+        if checkpoint["format"] != FORMAT
+            || checkpoint["branch"] != "77190ad9"
+            || checkpoint["genesis"] != genesis
+            || checkpoint["fvk_fingerprint"] != fingerprint
+            || checkpoint["birthday_height"] != current["birthday_height"]
+            || checkpoint["birthday_hash"] != current["birthday_hash"]
+        {
+            return Err("source checkpoint identity/lineage mismatch".into());
+        }
+        hash(checkpoint, "tip")?;
+        hash(checkpoint, "birthday_hash")?;
+        let tree = wallet::tree(checkpoint["tree"].as_str().ok_or("tree")?)?;
+        validated.push(restore_notes(checkpoint, &fvk, &tree)?);
+    }
+    let mut selected = None;
+    for (cmx, (data, _, _)) in &validated[0] {
+        let Some((now, _, _)) = validated[1].get(cmx) else {
+            continue;
+        };
+        // Height/txid/action metadata must not be silently reassigned between
+        // captures; the commitment alone does not authenticate inclusion height.
+        for field in [
+            "recipient",
+            "value",
+            "rho",
+            "rseed",
+            "cmx",
+            "position",
+            "height",
+            "coinbase",
+            "txid",
+            "action",
+        ] {
+            if data[field] != now[field] {
+                return Err("source note metadata changed".into());
+            }
+        }
+        let note = wallet::parse_note(data)?;
+        let mined = number(data, "height")?;
+        let coinbase = data["coinbase"].as_bool().ok_or("source coinbase type")?;
+        hash(data, "txid")?;
+        number(data, "action")?;
+        if mined <= birthday || mined > anchor_height {
+            return Err("source note height outside lineage".into());
+        }
+        if note.recipient() == fvk.address_at(0u32, Scope::External)
+            && note.value().inner() > principal + 10_000
+            && (!coinbase || mined + 100 <= height)
+        {
+            selected = Some(data.clone());
+            break;
+        }
+    }
+    let mut source = selected.ok_or("no mature unspent note at confirmed historical anchor")?;
+    source
+        .as_object_mut()
+        .ok_or("source note")?
+        .remove("witness");
+    let snapshot = json!({"format":"latch-source-snapshot-v1", "genesis":genesis,
+        "branch":"77190ad9", "fvk_fingerprint":fingerprint,
+        "height":height,"tip":current["tip"],"tree":current["tree"],
+        "anchor_height":anchor_height,"anchor_tip":old["tip"],"anchor_tree":old["tree"],
+        "anchor":old["anchor"],"notes":[source],"principal_zatoshi":principal,
+        "confirmation_policy":{"profile":"candidate-source-confirmations-v1","minimum":MIN_CONFIRMATIONS},
+        "anchor_confirmations":height-anchor_height+1,
+        "source_confirmations":height-number(&source,"height")?+1,
+        "funding_authorized":false,"broadcast":false});
+    storage::atomic_json(output, &snapshot)?;
+    Ok(
+        json!({"file":output,"height":height,"anchor_height":anchor_height,
+        "anchor_confirmations":snapshot["anchor_confirmations"],
+        "source_confirmations":snapshot["source_confirmations"],
+        "principal_zatoshi":principal,"broadcast":false,"funding_authorized":false}),
     )
 }
 

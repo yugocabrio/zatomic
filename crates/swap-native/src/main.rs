@@ -5,12 +5,14 @@ mod evm_key;
 mod funding_consent;
 mod observed_transaction;
 mod participants;
+mod public_graph;
 mod recovery_bundle;
 mod refund_lock;
 mod regtest_swap;
 mod source_guard;
 mod storage;
 mod trade;
+mod transaction_graph;
 mod wallet;
 use ff::{Field, PrimeField};
 use ff_old::{Field as OldField, PrimeField as OldPrimeField};
@@ -437,6 +439,22 @@ fn main() -> Result<()> {
         }
         Some("compact-scan") if a.len() == 4 || a.len() == 5 => {
             compact_wallet::scan(Path::new(&a[2]), Path::new(&a[3]), a.get(4).map(Path::new))?
+        }
+        Some("compact-source-snapshot") if a.len() == 7 => compact_wallet::source_snapshot(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            Path::new(&a[4]),
+            a[5].parse()?,
+            Path::new(&a[6]),
+        )?,
+        Some("testnet-unsigned-graph") if a.len() == 6 => public_graph::prepare(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            Path::new(&a[4]),
+            Path::new(&a[5]),
+        )?,
+        Some("check-unsigned-graph-synthetic") if a.len() == 3 => {
+            public_graph::synthetic(Path::new(&a[2]))?
         }
         Some("regtest-export-compact") if a.len() == 4 => {
             compact_wallet::export_regtest(Path::new(&a[2]), Path::new(&a[3]))?

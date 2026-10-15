@@ -14,24 +14,17 @@ use orchard::{
 use pczt::{
     Pczt,
     roles::{
-        creator::Creator, io_finalizer::IoFinalizer, low_level_signer::Signer as LowSigner,
-        prover::Prover, redactor::Redactor, signer::Signer, spend_finalizer::SpendFinalizer,
-        tx_extractor::TransactionExtractor, updater::Updater,
+        low_level_signer::Signer as LowSigner, prover::Prover, redactor::Redactor, signer::Signer,
+        spend_finalizer::SpendFinalizer, tx_extractor::TransactionExtractor, updater::Updater,
     },
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, convert::Infallible, path::Path};
+use std::path::Path;
 use zcash_primitives::transaction::{
-    Transaction,
-    builder::{BuildConfig, Builder, BundlePadding},
-    fees::zip317::FeeRule,
-    sighash::SignableInput,
-    sighash_v6::v6_signature_hash,
-    txid::TxIdDigester,
+    Transaction, sighash::SignableInput, sighash_v6::v6_signature_hash, txid::TxIdDigester,
 };
-use zcash_protocol::{consensus::BranchId, memo::MemoBytes, value::Zatoshis};
-use zcash_transparent::bundle::OutPoint;
+use zcash_protocol::consensus::BranchId;
 
 pub fn inspect(path: &Path) -> Result<Value> {
     let raw = hex::decode(storage::read(path, 4_000_000)?)?;
@@ -49,20 +42,6 @@ pub fn inspect(path: &Path) -> Result<Value> {
     )
 }
 
-fn builder(height: u32, anchor: orchard::Anchor) -> Builder<Regtest, ()> {
-    Builder::new(
-        Regtest,
-        height.into(),
-        BuildConfig::Standard {
-            sapling_anchor: None,
-            orchard_anchor: None,
-            ironwood_anchor: Some(anchor),
-            orchard_padding: BundlePadding::DEFAULT,
-            ironwood_padding: BundlePadding::DEFAULT,
-        },
-    )
-    .with_expiry_height(0u32.into())
-}
 pub(crate) fn message(pczt: &Pczt) -> Result<[u8; 32]> {
     let tx = pczt.clone().into_effects().map_err(err)?;
     Ok(
@@ -117,7 +96,7 @@ fn funding_preview(funding: &Transaction) -> Result<Transaction> {
 
 /// Construct effect-identical preview bytes without ever generating a real
 /// source spend signature. Proof verification is separate from authorization.
-fn unsigned_preview(pczt: &Pczt) -> Result<Transaction> {
+pub(crate) fn unsigned_preview(pczt: &Pczt) -> Result<Transaction> {
     let proof = orchard::Proof::new(pczt.ironwood().zkproof().clone().ok_or("funding proof")?);
     let effects = pczt.clone().into_effects().map_err(err)?;
     if effects.transparent_bundle().is_some()
@@ -147,7 +126,7 @@ fn unsigned_preview(pczt: &Pczt) -> Result<Transaction> {
         )
         .freeze()?)
 }
-fn prove_pczt(pczt: Pczt) -> Result<Pczt> {
+pub(crate) fn prove_pczt(pczt: Pczt) -> Result<Pczt> {
     let mut rng = rand::rng();
     let pk = ProvingKey::build(OrchardCircuitVersion::PostNu6_3);
     Ok(Prover::new(pczt)
@@ -348,9 +327,6 @@ fn prepare_inner(
         return Err("source receiver mismatch".into());
     }
     let aux = crate::auxiliary::Auxiliary::load(bank, height)?;
-    let auxkey = aux.key;
-    let auxpk = aux.public;
-    let auxaddr = aux.address;
     let auxindex = aux.index;
     let auxcoin = &aux.coin;
     storage::create_dir(dir)?;
@@ -367,37 +343,17 @@ fn prepare_inner(
     )?;
     let receiver = pair.bob_fvk.clone();
     let refund_receiver = pair.alice_fvk.clone();
-    let mut funding = builder(height + 1, anchor);
-    funding
-        .add_ironwood_spend::<Infallible>(alice_fvk.clone(), input, path)
-        .map_err(err)?;
-    funding
-        .add_ironwood_output::<Infallible>(
-            None,
-            joint.address_at(0u32, Scope::External),
-            Zatoshis::from_u64(amounts.principal)?,
-            MemoBytes::empty(),
-        )
-        .map_err(err)?;
-    funding
-        .add_ironwood_output::<Infallible>(
-            None,
-            alice_fvk.address_at(0u32, Scope::External),
-            Zatoshis::from_u64(input.value().inner() - amounts.principal - 10_000)?,
-            MemoBytes::empty(),
-        )
-        .map_err(err)?;
-    let funding = funding
-        .build_for_pczt(&mut rng, &FeeRule::standard())
-        .map_err(err)?;
-    let output = funding
-        .ironwood_meta
-        .output_action_index(0)
-        .ok_or("funding output")?;
-    let pczt =
-        IoFinalizer::new(Creator::build_from_parts(funding.pczt_parts).ok_or("funding parts")?)
-            .finalize_io(&mut rng)
-            .map_err(err)?;
+    let (pczt, output) = crate::transaction_graph::funding(
+        Regtest,
+        height + 1,
+        crate::transaction_graph::Source {
+            fvk: alice_fvk,
+            note: input,
+            path,
+        },
+        &joint,
+        amounts.principal,
+    )?;
     // No real source signature is generated until the release gate succeeds.
     // Placeholder authorization fields are only for preview serialization.
     let pczt = prove_pczt(pczt)?;
@@ -419,24 +375,18 @@ fn prepare_inner(
         std::array::from_fn(|i| MerkleHashOrchard::empty_root((i as u8).into())),
     );
     let dummy_anchor = dummy_path.root(pending.commitment().into());
-    let mut claim = builder(height + 1, dummy_anchor);
-    claim
-        .add_ironwood_spend::<Infallible>(joint.clone(), pending, dummy_path.clone())
-        .map_err(err)?;
-    claim
-        .add_ironwood_output::<Infallible>(
-            None,
-            receiver.address_at(0u32, Scope::External),
-            Zatoshis::from_u64(amounts.payout)?,
-            MemoBytes::empty(),
-        )
-        .map_err(err)?;
-    let claim = claim
-        .build_for_pczt(&mut rng, &FeeRule::standard())
-        .map_err(err)?;
-    let claim = IoFinalizer::new(Creator::build_from_parts(claim.pczt_parts).ok_or("claim parts")?)
-        .finalize_io(&mut rng)
-        .map_err(err)?;
+    let claim = crate::transaction_graph::exit(
+        Regtest,
+        height + 1,
+        crate::transaction_graph::Exit {
+            joint: joint.clone(),
+            note: pending,
+            path: dummy_path.clone(),
+            receiver: receiver.clone(),
+            payout: amounts.payout,
+        },
+        None,
+    )?;
     let refund_lock = selected_lock.unwrap_or(crate::refund_lock::RefundLock::Height(
         height.checked_add(20).ok_or("refund height overflow")?,
     ));
@@ -455,62 +405,18 @@ fn prepare_inner(
     let (claim, pre, claim_index) = presign(claim, &mut pair, policy.clone(), target)?;
     // The native principal stays shielded; only the dedicated auxiliary coin
     // appears in the refund's transparent bundle.
-    let mut refund = builder(height + 1, dummy_anchor);
-    refund
-        .add_ironwood_spend::<Infallible>(joint.clone(), pending, dummy_path.clone())
-        .map_err(err)?;
-    refund
-        .add_ironwood_output::<Infallible>(
-            None,
-            refund_receiver.address_at(0u32, Scope::External),
-            Zatoshis::from_u64(amounts.payout)?,
-            MemoBytes::empty(),
-        )
-        .map_err(err)?;
-    refund
-        .add_transparent_p2pkh_input(
-            auxpk,
-            OutPoint::new(*aux.txid.as_ref(), auxindex as u32),
-            auxcoin.clone(),
-        )
-        .map_err(err)?;
-    refund
-        .add_transparent_output(
-            &auxaddr,
-            Zatoshis::from_u64(u64::from(auxcoin.value()) - 5_000)?,
-        )
-        .map_err(err)?;
-    let mut refund = refund
-        .build_for_pczt(&mut rng, &FeeRule::standard())
-        .map_err(err)?
-        .pczt_parts;
-    refund.lock_time = refund_lock.value();
-    let bundle = refund.transparent.as_mut().ok_or("refund transparent")?;
-    let old = &bundle.inputs()[0];
-    let new = zcash_transparent::pczt::Input::parse(
-        *old.prevout_txid().as_ref(),
-        *old.prevout_index(),
-        Some(u32::MAX - 1),
-        refund_lock.required_time(),
-        refund_lock.required_height(),
-        None,
-        u64::from(*old.value()),
-        auxcoin.script_pubkey().0.0.clone(),
-        None,
-        BTreeMap::new(),
-        1,
-        BTreeMap::new(),
-        BTreeMap::new(),
-        BTreeMap::new(),
-        BTreeMap::new(),
-        BTreeMap::new(),
-        BTreeMap::new(),
-    )
-    .map_err(err)?;
-    bundle.inputs_mut()[0] = new;
-    let refund = IoFinalizer::new(Creator::build_from_parts(refund).ok_or("refund parts")?)
-        .finalize_io(&mut rng)
-        .map_err(err)?;
+    let refund = crate::transaction_graph::exit(
+        Regtest,
+        height + 1,
+        crate::transaction_graph::Exit {
+            joint: joint.clone(),
+            note: pending,
+            path: dummy_path.clone(),
+            receiver: refund_receiver.clone(),
+            payout: amounts.payout,
+        },
+        Some((&aux, refund_lock)),
+    )?;
     let one = pasta_old::pallas::Scalar::ONE;
     let mut refund_policy = policy.clone();
     refund_policy["mode"] = json!("refund");
@@ -527,7 +433,7 @@ fn prepare_inner(
         refund_pre.message,
     )?;
     let mut signer = Signer::new(refund).map_err(err)?;
-    signer.sign_transparent(0, &auxkey).map_err(err)?;
+    signer.sign_transparent(0, &aux.key).map_err(err)?;
     let refund = SpendFinalizer::new(signer.finish())
         .finalize_spends()
         .map_err(err)?;

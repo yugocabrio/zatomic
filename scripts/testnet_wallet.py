@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only public-testnet Ironwood wallet. No transaction/deployment command.
+"""Public-testnet wallet observation and unsigned preparation. No send/deployment.
 
 The chosen birthday excludes all earlier notes. Checkpoints and viewing/spending
 material are private. The TLS provider is trusted for canonical blocks/nullifiers.
@@ -106,11 +106,19 @@ def sync(directory, batches):
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['init', 'sync', 'status', 'receivers', 'auxiliary'])
+    parser.add_argument('operation', choices=['init', 'sync', 'status', 'receivers', 'auxiliary', 'source', 'graph'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--birthday', type=int, help='exclusive trusted starting height, before any incoming payment')
     parser.add_argument('--batches', type=int, default=4, help='up to 32 batches of 256 blocks per invocation')
+    parser.add_argument('--candidate', type=Path, help='private candidate.json from plan_testnet.py; source only')
+    parser.add_argument('--principal-zatoshi', type=int, help='exact joint-note amount including native claim fee; source only')
+    parser.add_argument('--destinations', type=Path, help='private explicit testnet FVK descriptor; graph only')
     args = parser.parse_args()
+    if ((args.operation == 'source' and (args.candidate is None or args.principal_zatoshi is None))
+            or (args.operation != 'source' and (args.candidate is not None or args.principal_zatoshi is not None))):
+        raise RuntimeError('source requires --candidate and --principal-zatoshi exclusively')
+    if (args.operation == 'graph') != (args.destinations is not None):
+        raise RuntimeError('graph requires --destinations exclusively')
     if args.directory.is_symlink():
         raise RuntimeError('wallet directory must not be a symlink')
     directory = args.directory.absolute()
@@ -133,6 +141,12 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.operation == 'sync':
             return sync(directory, args.batches)
+        if args.operation == 'source':
+            from source_inputs import reserve
+            return reserve(directory, args.candidate, args.principal_zatoshi)
+        if args.operation == 'graph':
+            from source_inputs import graph
+            return graph(directory,args.destinations)
         if args.operation == 'receivers':
             return invoke(NATIVE, 'testnet-wallet-receivers', directory)
         if args.operation == 'auxiliary':
@@ -144,6 +158,7 @@ def main():
         return {'birthday': info['birthday'], 'height': previous['height'] if previous else None,
             'tip': previous['tip'] if previous else None,
             'unspent_notes': len(previous['notes']) if previous else 0,
+            'source_reserved': (directory/'source-reservation.json').exists(),
             'observation': info.get('observation'), 'broadcast': False}
     finally:
         os.close(lock)

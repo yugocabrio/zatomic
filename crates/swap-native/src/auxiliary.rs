@@ -29,13 +29,6 @@ pub struct Auxiliary {
 }
 impl Auxiliary {
     pub fn load(bank: &Path, height: u32) -> Result<Self> {
-        let key = secp256k1::SecretKey::from_secret_bytes(
-            storage::read(&bank.join("aux-key.bin"), 32)?
-                .try_into()
-                .map_err(|_| "aux key")?,
-        )?;
-        let public = secp256k1::PublicKey::from_secret_key(&key);
-        let address = TransparentAddress::from_pubkey(&public);
         let compact = bank.join("aux-source-compact.json");
         let compact_exists = compact.exists();
         let data = storage::json(&if compact_exists {
@@ -43,6 +36,22 @@ impl Auxiliary {
         } else {
             bank.join("aux-source.json")
         })?;
+        Self::from_source(bank, height, &data, compact_exists)
+    }
+
+    /// Exact already-observed non-coinbase auxiliary from a reserved package.
+    pub fn load_reserved(bank: &Path, height: u32, data: &Value) -> Result<Self> {
+        Self::from_source(bank, height, data, true)
+    }
+
+    fn from_source(bank: &Path, height: u32, data: &Value, compact_exists: bool) -> Result<Self> {
+        let key = secp256k1::SecretKey::from_secret_bytes(
+            storage::read(&bank.join("aux-key.bin"), 32)?
+                .try_into()
+                .map_err(|_| "aux key")?,
+        )?;
+        let public = secp256k1::PublicKey::from_secret_key(&key);
+        let address = TransparentAddress::from_pubkey(&public);
         let raw = hex::decode(data["tx"].as_str().ok_or("aux tx")?)?;
         let mut cursor = std::io::Cursor::new(&raw);
         let tx = Transaction::read(&mut cursor, BranchId::Nu7)?;

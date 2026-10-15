@@ -123,6 +123,18 @@ or the safety gap too short. This finite model is not a complete security proof.
 
 ## Visibility
 
+Public source preparation now joins a historical confirmed witness to the
+current compact scan's unspent-note set, checks block/tree identities against a
+trusted provider, and creates a durable wallet-local note/auxiliary reservation.
+This private package is not F authorization and does not change the transaction
+order above. A reservation's age or candidate expiry cannot establish that a
+previously signed transaction is impossible; no automatic release is permitted.
+An offline public-profile builder can now produce an unsigned F/C/R draft with
+native proof checks from this package. The draft has no owner authentication,
+adaptor presignatures, bundle receipts or final consents, and cannot authorize F.
+The public signing/sending adapter remains disabled. See the exact preparation
+thresholds and evidence limits in [public-testnet.md](public-testnet.md).
+
 - Zcash observers: normal shielded funding/claim metadata, no public principal
   or shielded address. Refund exposes an auxiliary transparent outpoint/amount
   and time; it may link that auxiliary coin to the refund.
