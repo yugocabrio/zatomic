@@ -37,6 +37,11 @@ It supports exact decimal amounts and signed quotes between separately pinned
 operators. The browser keeps its fixed demonstration amounts. No market-price
 feed or counterparty matching is implemented.
 
+A separate [read-only public-testnet wallet](docs/public-testnet.md) downloads
+Ironwood compact blocks, decrypts locally and resumes persisted note witnesses.
+Public synchronization has been exercised with an unfunded wallet; public swap
+funding, deadline policy and settlement integration remain unfinished.
+
 If already built and the node is running:
 
 ```sh

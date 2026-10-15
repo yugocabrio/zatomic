@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-15",
+  "base_commit": "d1b9600",
+  "scope": "Incremental Ironwood compact wallet: live public-testnet read-only observations and real settled regtest note comparison; no public transfers or deployment",
+  "versions": {
+    "librustzcash": "9c5705f56517c040c50f96d29f1ff15a9383f3e0",
+    "orchard": "0.16.0",
+    "zcash_note_encryption": "0.5.1",
+    "incrementalmerkletree": "0.9.0",
+    "lightwalletd_observed": "v0.5.4",
+    "lightwallet_protocol_observed": "v0.5.0"
+  },
+  "public": {
+    "genesis": "05a60a92d99d85997cce3b87616c089f6124d7342af37106edc76126334a2c38",
+    "branch": "77190ad9",
+    "endpoint": "https://testnet.zec.rocks:443",
+    "observed_at": "2026-10-15T07:08:23.359Z",
+    "birthday": 4503514,
+    "height": 4504034,
+    "tip": "0000150741a1e7562a14d5802c967ebb7be87d584e76b0ee39acc3d87bbdf4ab",
+    "blocks": 520,
+    "ironwood_actions": 365,
+    "ironwood_tree_size": 550628,
+    "process_restart_after_blocks": 256,
+    "unspent_notes": 0,
+    "wallet_funded": false,
+    "keys_or_addresses_sent": false,
+    "broadcast": false,
+    "wrong_expected_hash_rejected_before_capture": true
+  },
+  "regtest": {
+    "height": 3694,
+    "tip": "f693a9e3f5858931d44b44d186252d296c82112c484f45f974d1c2c3a12f7b78",
+    "wallets": [
+      {
+        "role": "source",
+        "received": 2,
+        "spent": 1,
+        "unspent": 1
+      },
+      {
+        "role": "recipient",
+        "received": 1,
+        "spent": 0,
+        "unspent": 1
+      }
+    ],
+    "processes_per_wallet": 15,
+    "both_resumed_with_owned_notes": true,
+    "exact_full_ciphertext_scan_notes_paths_root_match": true,
+    "identical_repeat_checkpoint_bytes": true,
+    "bad_witness_identity_and_continuity_rejected_per_wallet": 3,
+    "chain_writes": false
+  },
+  "execution": [
+    "cargo build --release --locked -j 2 -p shielded-swap-native",
+    "python3 scripts/check_compact_wallet.py .local/compact-wallet-002 .local/otc-success-001/bob/recovery/bob/capture-3694-f693a9e3f5858931d44b44d186252d296c82112c484f45f974d1c2c3a12f7b78.json .local/otc-success-001/coordinator/bank .local/otc-success-001/bob/recovery/bob",
+    "node scripts/probe_testnet.mjs",
+    "python3 scripts/testnet_wallet.py init .local/public-wallet-001 --birthday 4503514",
+    "python3 scripts/testnet_wallet.py sync .local/public-wallet-001 --batches 1",
+    "python3 scripts/testnet_wallet.py sync .local/public-wallet-001 --batches 4",
+    "python3 scripts/testnet_wallet.py status .local/public-wallet-001",
+    "node scripts/capture_testnet.mjs 4504034 1 .local/public-wallet-001/reorg-rejected.json 0000000000000000000000000000000000000000000000000000000000000000 (expected rejection)",
+    "node scripts/check_lightwallet_rpc.mjs",
+    "python3 -m py_compile scripts/testnet_wallet.py scripts/check_compact_wallet.py",
+    "cargo test --workspace --locked -j 2",
+    "cargo clippy --workspace --all-targets --locked -j 2 -- -D warnings",
+    "cargo fmt --all -- --check",
+    "git diff --check"
+  ],
+  "limits": [
+    "The public wallet was never funded; receipt/spend/witness positive cases are actual isolated-chain history only.",
+    "TLS provider and birthday tree are trusted, not consensus/SPV/finality proofs.",
+    "No automatic reorg rollback, full memo authentication or transparent auxiliary sync.",
+    "No connection to public source funding, public owner reveal or ETH settlement.",
+    "Current height-based native refund is not a public timestamp safety policy; consent/deadline/fee integration remains open."
+  ],
+  "diagnostic": "Initial local export compared frontier serialization literally; equivalent empty parent slots required root/size comparison. The scanner preserves its prior local frontier on resume. The failed -001 fixture was unfunded and retained.",
+  "validation": "Release build, four regular Rust tests, strict workspace clippy, format/whitespace checks, Python compilation and bounded gRPC/protobuf/allowlist checks passed. The existing heavy bundle fixture test was not rerun because no bundle or signer behavior changed."
+}

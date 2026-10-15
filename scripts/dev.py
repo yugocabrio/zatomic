@@ -66,3 +66,4 @@ if __name__ == '__main__':
         command('forge', 'test', '-vv')
         command('python3', 'scripts/check_swap_model.py')
         command('python3', 'scripts/evm_wallet.py')
+        command('node', 'scripts/check_lightwallet_rpc.mjs')

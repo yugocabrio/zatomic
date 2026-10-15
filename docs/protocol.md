@@ -101,9 +101,14 @@ This is a monitored atomic-swap design, not indefinite offline safety. The hones
 party needs bounded observation/inclusion latency and sufficient fee reserves.
 Confirmations reduce reorg risk; they do not make PoW finality mathematical.
 
-Let ΔE bound ETH inclusion; ΔO bound secret observation; ΔZ bound Zcash
+In a time-domain deployment design, let ΔE bound ETH inclusion; ΔO bound secret observation; ΔZ bound Zcash
 inclusion; κZ bound early Zcash block timestamps. Require conservatively
 `tZ - κZ > tE + ΔO + ΔZ`; Alice reveals only when `now + ΔE < tE`.
+This is an abstract safety condition, **not the implemented clock policy**:
+the current native refund uses block height HZ, while ETH expiry is a timestamp.
+HZ cannot be substituted for tZ, nor converted into a guaranteed time by using
+the target block interval. Public deployment requires either a tested timestamp
+refund path or an explicitly bounded/probabilistic block-rate assumption.
 Deployed-network policy must account for clock error, node lag, fees, confirmation
 depth and upgrades. Regtest parameters are not public-network defaults.
 Native timestamps use block time, not an assumed MTP rule; see pinned Zebra.

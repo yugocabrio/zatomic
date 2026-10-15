@@ -1,5 +1,6 @@
 //! Local native development CLI. Synthetic fixtures MUST NEVER be broadcast.
 mod auxiliary;
+mod compact_wallet;
 mod evm_key;
 mod funding_consent;
 mod participants;
@@ -428,6 +429,13 @@ fn main() -> Result<()> {
         Some("evm-key-init") if a.len() == 3 => evm_key::init(Path::new(&a[2]))?,
         Some("evm-sign-digest") if a.len() == 3 => evm_key::sign_stdin(Path::new(&a[2]))?,
         Some("regtest-init") if a.len() == 3 => wallet::init(Path::new(&a[2]))?,
+        Some("testnet-wallet-init") if a.len() == 3 => wallet::init_testnet(Path::new(&a[2]))?,
+        Some("compact-scan") if a.len() == 4 || a.len() == 5 => {
+            compact_wallet::scan(Path::new(&a[2]), Path::new(&a[3]), a.get(4).map(Path::new))?
+        }
+        Some("regtest-export-compact") if a.len() == 4 => {
+            compact_wallet::export_regtest(Path::new(&a[2]), Path::new(&a[3]))?
+        }
         Some("regtest-scan") if a.len() == 4 => wallet::scan(Path::new(&a[2]), Path::new(&a[3]))?,
         Some("regtest-compact-aux") if a.len() == 4 => {
             auxiliary::compact(Path::new(&a[2]), Path::new(&a[3]))?

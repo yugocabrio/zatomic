@@ -10,6 +10,8 @@ advice or a security audit.
 |---|---|---|
 | librustzcash | `9c5705f56517c040c50f96d29f1ff15a9383f3e0` | Native v6/NU7/PCZT; MIT OR Apache-2.0 |
 | orchard | `0.16.0` | Ironwood proofs, notes and keys; MIT OR Apache-2.0 |
+| zcash_note_encryption | `0.5.1` | Local Ironwood compact trial decryption; MIT OR Apache-2.0 |
+| incrementalmerkletree | `0.9.0` | Persisted incremental note witnesses; MIT OR Apache-2.0 |
 | reddsa | `0.6.1` | Current native signature verifier; MIT OR Apache-2.0 |
 | reddsa FROST git dependency | `ed49e9ca0699a6450f6d4a9fe62ff168f5ea1ead` | Threshold DKG/signing primitives; MIT OR Apache-2.0 |
 | frost-core | `2.2.0` | FROST internals; MIT OR Apache-2.0 |
@@ -29,7 +31,7 @@ The Ubuntu container is digest pinned. These downloaded artifacts are ignored
 by Git; reproduction fetches them from the official source. There is no bundled
 mainnet wallet, private key or hosted service dependency.
 
-The read-only public testnet probe follows field numbers in the pinned
+The read-only public testnet probe and bounded wallet capture follow field numbers in the pinned
 lightwallet-protocol schemas. It uses Node's built-in TLS/HTTP2, sends no wallet
 information and cannot broadcast. Primary schema source:
 [lightwallet-protocol](https://github.com/zcash/lightwallet-protocol).

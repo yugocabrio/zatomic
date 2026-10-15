@@ -40,6 +40,14 @@ impl Parameters for Regtest {
 }
 
 pub fn init(dir: &Path) -> Result<Value> {
+    init_network(dir, NetworkType::Regtest)
+}
+
+pub fn init_testnet(dir: &Path) -> Result<Value> {
+    init_network(dir, NetworkType::Test)
+}
+
+fn init_network(dir: &Path, network: NetworkType) -> Result<Value> {
     storage::create_dir(dir)?;
     let key = random_key(&mut rand::rng());
     let fvk = FullViewingKey::from(&key);
@@ -60,9 +68,20 @@ pub fn init(dir: &Path) -> Result<Value> {
             fvk.address_at(0u32, Scope::External).to_raw_address_bytes(),
         ))],
     )?
-    .encode(&NetworkType::Regtest);
-    Ok(json!({"scope":"isolated regtest", "address":address,
-        "aux_address":transparent.to_zcash_address(NetworkType::Regtest).to_string()}))
+    .encode(&network);
+    let genesis = if network == NetworkType::Test {
+        crate::compact_wallet::TESTNET_GENESIS
+    } else {
+        GENESIS
+    };
+    storage::atomic_json(&dir.join("network.json"), &json!({"genesis":genesis}))?;
+    let scope = if network == NetworkType::Test {
+        "public testnet only"
+    } else {
+        "isolated regtest"
+    };
+    Ok(json!({"scope":scope, "genesis":genesis, "address":address,
+        "aux_address":transparent.to_zcash_address(network).to_string()}))
 }
 
 pub fn key(dir: &Path) -> Result<SpendingKey> {

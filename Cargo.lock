@@ -1709,6 +1709,7 @@ dependencies = [
  "sha2 0.10.9",
  "shielded-swap-crypto",
  "zcash_address",
+ "zcash_note_encryption",
  "zcash_primitives",
  "zcash_protocol",
  "zcash_script",

@@ -28,3 +28,4 @@ zcash_address = { git = "https://github.com/zcash/librustzcash.git", rev = "9c57
 zcash_transparent = { git = "https://github.com/zcash/librustzcash.git", rev = "9c5705f56517c040c50f96d29f1ff15a9383f3e0", features = ["transparent-inputs"] }
 secp256k1 = { version = "=0.33.1", features = ["recovery"] }
 zcash_script = "=0.6.0"
+zcash_note_encryption = "=0.5.1"
