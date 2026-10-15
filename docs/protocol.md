@@ -90,8 +90,13 @@ Native adaptor/signature verification, independent of ETH finality, accepts the
 opening privately; offline restart can resume from a saved raw response. A real
 isolated pending claim has fed a synthetic-profile native C reproof. This does
 not establish complete mempool visibility, public funding or ETH settlement.
-Continuous bounded monitoring, cross-chain/auxiliary reconciliation, durable
-send attempts and source-release signing remain unfinished. The integrated
+An owner-bound foreground monitor now polls known hashes before bounded event
+catch-up, journals coverage, repeats an overlap and restarts from its configured
+height if the retained prefix changes. Offline replay accepts a saved opening
+before further RPC work. This is trusted-provider observation, not complete
+mempool coverage or a latency guarantee; failures need operator supervision.
+Cross-chain/auxiliary reconciliation, durable send attempts and source-release
+signing remain unfinished. The integrated
 positive public path has not run with funded public inputs.
 No public sender is enabled. See
 [public preflight and its tested scope](public-testnet.md#agreement-bound-read-only-preflight).

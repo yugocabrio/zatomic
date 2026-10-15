@@ -1,0 +1,36 @@
+{
+  "scope": "explicit provider transcripts; actual native consent/adaptor verification; synthetic native inputs",
+  "bounded_contiguous_catchup_and_overlap": true,
+  "deep_reorg_restarts_from_configured_height": true,
+  "head_shrink_resets_cursor": true,
+  "unstable_scan_and_transport_failure_never_advance": true,
+  "incomplete_response_replay_keeps_previous_cursor": true,
+  "history_exhaustion_stops_before_rpc": true,
+  "real_sigkill_saved_response_recovers_offline": true,
+  "real_native_opening_authorization": true,
+  "restart_denies_network_and_original_roots": true,
+  "known_pending_hash_precedes_event_catchup": true,
+  "accepted_opening_stops_further_rpc_and_survives_replay": true,
+  "public_synthetic_guard_intact": true,
+  "public_rpc_calls": 0,
+  "new_proofs": 0,
+  "public_transfers": 0,
+  "complete_mempool_monitor": false,
+  "funded_public_swap": false,
+  "date": "2026-10-15",
+  "implementation_base": "fe3be90",
+  "milestone": "Bounded resumable ETH opening observer",
+  "commands": [
+    "python3 -m py_compile scripts/public_opening_monitor.py scripts/check_public_opening_monitor.py",
+    "RAYON_NUM_THREADS=2 python3 scripts/check_public_opening_monitor.py .local/public-opening-monitor-001 .local/public-consent-001 .local/public-opening-002/pending/transaction.json",
+    "git diff --check"
+  ],
+  "limitations": [
+    "Event ranges, fork identities and the public-profile pending transaction are explicit provider transcripts. The scalar was obtained in the earlier actual isolated claim run.",
+    "Actual native consent, adaptor and claim authorization checking ran. No native proof was generated; no public endpoint was queried.",
+    "Offline restart ran after real SIGKILL with network and original fixture roots OS-denied. This is one host, not independent-host operation.",
+    "The observer only sees registered hashes and provider-returned logs. It cannot exclude secret exposure, unknown replacements or unseen orphaned branches.",
+    "No public funded latency, inclusion, finality or full recovery-policy guarantee. On RPC failure or history exhaustion it stops, retaining state. Operators must supervise it.",
+    "Public senders remain disabled."
+  ]
+}
