@@ -27,6 +27,13 @@ add actual cap-priced isolated ETH settlement, retained native F/C/R validation,
 crash/lock retention and modeled native transport/observation boundaries. The
 new entry points do not turn the earlier rows into a funded public demonstration.
 
+The [fresh browser release demonstration](../evidence/2026-10-15-release-demo.json)
+reran all three scenarios on `c6e03b0`, checked zero-new-payment replay, and
+produced a [two-minute captioned video](demo/latch-2min.mp4). It shows real screen
+checkpoints with omitted waits, not a continuous recording or public swap.
+The [public launch plan](../evidence/2026-10-15-public-launch-plan.json) records
+read-only endpoint checks and an unsigned, unfunded execution budget.
+
 ## Check the headline local result
 
 The [OTC record](../evidence/2026-10-15-otc-offers.json), committed in `d1b9600`,

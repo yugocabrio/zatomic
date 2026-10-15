@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-15",
+  "implementation_commit": "c6e03b0",
+  "scope": "actual isolated Zebra NU7 and Anvil; one host; browser-driven lifecycle",
+  "scenarios": [
+    {
+      "id": "1792080142385-9b28f597",
+      "scenario": "success",
+      "driver": "owner-consent-v3",
+      "started_at": 1792080142,
+      "replay_exit_code": 0,
+      "replay_result": {
+        "scope": "actual isolated chains; owner-held keys on one host",
+        "driver": "owner-clients-v1",
+        "mode": "success",
+        "native_txid": "820fbbc736d963254dca831d609c1184dcd6243593e13e844eb7a3c18dabf889",
+        "native_amount_zatoshi": 1000000,
+        "eth_wei_received": 10000000000000000,
+        "eth_withdraw_tx": "0xe89eacaeb2e26c17800f3dfd6800301c4cd9fd1acec79e4c72e6e2828edb6f4f",
+        "owner_signed_eth": true,
+        "node_cannot_sign_for_owners": true,
+        "peer_offline_during_native_exit": true,
+        "coordinator_native_files_offline": true,
+        "public_testnet": false,
+        "independent_hosts": false,
+        "signed_cross_chain_consent_before_funding": true,
+        "new_native_transactions": 0,
+        "new_evm_transactions": 0,
+        "native_funding_recovery": null,
+        "peer_workspace_reconciled": null
+      }
+    },
+    {
+      "id": "1792080327805-b697f89e",
+      "scenario": "claim-stop",
+      "driver": "owner-consent-v3",
+      "started_at": 1792080327,
+      "replay_exit_code": 0,
+      "replay_result": {
+        "scope": "actual isolated chains; owner-held keys on one host",
+        "driver": "owner-clients-v1",
+        "mode": "success",
+        "native_txid": "e6262f22dc96f3f5403f58cf3c06efd55c07f355fa22be6953094054229e5500",
+        "native_amount_zatoshi": 1000000,
+        "eth_wei_received": 10000000000000000,
+        "eth_withdraw_tx": "0x5c7187fa1e18155d91c4b33fbfa024e1f46915c128561f03a17f6585f49041d0",
+        "owner_signed_eth": true,
+        "node_cannot_sign_for_owners": true,
+        "peer_offline_during_native_exit": true,
+        "coordinator_native_files_offline": true,
+        "public_testnet": false,
+        "independent_hosts": false,
+        "signed_cross_chain_consent_before_funding": true,
+        "new_native_transactions": 0,
+        "new_evm_transactions": 0,
+        "native_funding_recovery": null,
+        "peer_workspace_reconciled": null
+      }
+    },
+    {
+      "id": "1792080717633-9fcf773d",
+      "scenario": "refund-stop",
+      "driver": "owner-consent-v3",
+      "started_at": 1792080717,
+      "replay_exit_code": 0,
+      "replay_result": {
+        "scope": "actual isolated chains; owner-held keys on one host",
+        "driver": "owner-clients-v1",
+        "mode": "refund",
+        "native_txid": "c4eb023359ed030e4d2824cae0f590548edbdf4478c2ddf8327b31caa2621776",
+        "native_amount_zatoshi": 1000000,
+        "eth_wei_received": 10000000000000000,
+        "eth_withdraw_tx": "0x0a654c160db13ed6d3f6459509512f1abc808a624e759789a6514c621de1148d",
+        "owner_signed_eth": true,
+        "node_cannot_sign_for_owners": true,
+        "peer_offline_during_native_exit": true,
+        "coordinator_native_files_offline": true,
+        "public_testnet": false,
+        "independent_hosts": false,
+        "signed_cross_chain_consent_before_funding": true,
+        "new_native_transactions": 0,
+        "new_evm_transactions": 0,
+        "native_funding_recovery": null,
+        "peer_workspace_reconciled": null
+      }
+    }
+  ],
+  "retake": {
+    "job_id": "1792081047519-9f2492d4",
+    "reason": "capture actual stopped panel in viewport",
+    "state": "complete",
+    "native_claim_txid": "f932c2a0047f67c492f11a8cf5ce0cacb159072bda4e1cb577d062623b2303c5",
+    "eth_withdrawal_tx": "0xc0bea080630fd9ca2e079488fe63fd03b13b15f6259f3cda53bb219bbdbd0c7a"
+  },
+  "video": {
+    "path": "docs/demo/latch-2min.mp4",
+    "sha256": "119e2b4cad3c26748ea1089e47333f3e10879721e6cd74c38701ff542a527b9d",
+    "duration_seconds": 120,
+    "width": 1920,
+    "height": 1080,
+    "codec": "h264",
+    "audio": false,
+    "continuous_recording": false,
+    "format": "reviewed actual screenshots, edited checkpoints with captions; waits omitted",
+    "manifest": "docs/demo/sequence.json"
+  },
+  "browser_warn_error_log": [],
+  "public_settlement": false,
+  "independent_hosts": false,
+  "fresh_checkout_reproduction": "pending separate run",
+  "private_fixture_paths_published": false
+}

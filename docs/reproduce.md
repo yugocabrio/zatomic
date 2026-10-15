@@ -37,10 +37,31 @@ never terminated. Use a fresh output directory each time. State is retained.
 
 The container's bind mounts must belong to this exact checkout. A second clone
 on the same host intentionally refuses to adopt, start, stop or mine the first
-clone's container, even if its project label matches. Use a separate clean host
-or Docker environment for an independent full reproduction; do not delete an
-existing container or its wallet state to make the name available. `make doctor`
-checks prerequisites only and does not establish clean-checkout settlement.
+clone's container, even if its project label matches. For a fresh second clone
+on the same host, select a separate name and unused loopback port before setup:
+
+```sh
+export LATCH_REGTEST_NAMESPACE=release-reproduction
+export LATCH_REGTEST_PORT=30343
+make setup
+make verify
+python3 scripts/prefunding_swap.py success .local/fresh-success
+python3 scripts/prefunding_swap.py recover .local/fresh-success
+python3 scripts/prefunding_swap.py refund .local/fresh-refund --fault-after eth-locked
+# Expected exit 75 at the stop; then:
+python3 scripts/prefunding_swap.py recover .local/fresh-refund
+python3 scripts/prefunding_swap.py recover .local/fresh-refund
+make stop-node
+```
+
+Keep the same environment for every command, including recovery and stopping.
+The first setup pins name/port to that checkout's private node directory. A changed
+scope or an existing unpinned state directory refuses. Bind mounts and exact
+loopback port are checked before RPC. This isolates chain/wallet/build state;
+it is **not** an independently administered machine. The Anvil port remains18545,
+so chain drivers across checkouts must be run serially. Do not delete an existing
+container or its wallet state to make a name available. `make doctor` checks
+prerequisites only and does not establish clean-checkout settlement.
 
 The two `mine` blocks activate the configured NU7 rules on a new chain. Already
 initialized chains need no activation mining. History is bounded to 10,000 blocks

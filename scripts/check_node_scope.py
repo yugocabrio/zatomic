@@ -22,13 +22,14 @@ def check():
     original = node.inspect() # Actual Docker metadata; never a fake live node.
     if original is None: raise RuntimeError('existing owned container required for this check')
     node.validate_container(original)
-    for mode in ('state-root', 'read-only', 'duplicate', 'label'):
+    for mode in ('state-root', 'read-only', 'duplicate', 'label', 'port'):
         changed = copy.deepcopy(original)
         if mode == 'state-root':
             next(m for m in changed['Mounts'] if m['Destination'] == '/state')['Source'] += '-different-checkout'
         elif mode == 'read-only': next(m for m in changed['Mounts'] if m['Destination'] == '/zebra')['RW'] = True
         elif mode == 'duplicate': changed['Mounts'][-1] = copy.deepcopy(changed['Mounts'][0])
-        else: changed['Config']['Labels'][node.LABEL] = 'another-project'
+        elif mode == 'label': changed['Config']['Labels'][node.LABEL] = 'another-project'
+        else: changed['HostConfig']['PortBindings']['19332/tcp'][0]['HostIp'] = '0.0.0.0'
         refuses(lambda: node.validate_container(changed))
     current = node.NODE_DIR
     with tempfile.TemporaryDirectory(prefix='latch-scope-') as temporary:
@@ -47,6 +48,7 @@ def check():
     return {'scope': 'actual read-only Docker ownership metadata plus explicit mutations',
         'existing_checkout_accepted': True, 'different_checkout_inspect_status_start_refused': True,
         'wrong_mount_write_mode_duplicate_and_label_refused': True,
+        'non_loopback_or_changed_port_refused': True,
         'foreign_start_creates_no_state': True, 'existing_container_state_unchanged': True,
         'chain_rpc_calls': 0, 'starts': 0, 'stops': 0, 'broadcast': False}
 

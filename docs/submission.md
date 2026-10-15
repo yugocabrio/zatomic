@@ -38,6 +38,7 @@ oracle deciding the exchange outcome or custodial exchange account.
 
 ## Demonstration and verification
 
+- [Two-minute captioned video](demo/latch-2min.mp4) — real screen checkpoints, waits omitted
 - [Two-minute walkthrough](demo-walkthrough.md#two-minute-presentation)
 - [Evidence by guarantee level](evidence-index.md)
 - [Exact reproduction commands](reproduce.md)
@@ -48,7 +49,7 @@ oracle deciding the exchange outcome or custodial exchange account.
 The browser uses fixed demonstration amounts; the CLI supports signed
 peer-selected amounts. There is no market feed, order book or counterparty
 discovery service. Full setup/proving can take minutes: a two-minute presentation
-uses a clearly labeled recording or an already prepared run.
+uses a clearly labeled edited sequence of actual screen checkpoints.
 
 ## Honest limits
 

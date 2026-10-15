@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-15",
+  "deployment": {
+    "creation_code_hash": "0x3d5bdd90ec5db993616ce4af134cff0f8fbed34c250c5039e3fd6d949ebe1113",
+    "deployment_gas_limit": 2000000,
+    "gas_price_ceiling_wei": 100000000000,
+    "local_deployment_gas_estimate": 735311,
+    "runtime_code_hash": "0x6267f59be4896a2d311e0eb7bdf9bfb5ada76fcecb140ac6589aaee8a85b569a"
+  },
+  "discovery_references": [
+    "https://github.com/eth-clients/sepolia/blob/main/README.md",
+    "https://github.com/ethereum-lists/chains/blob/master/_data/chains/eip155-11155111.json"
+  ],
+  "faucet_requests": 0,
+  "fresh_owners_and_wallet": {
+    "deployment_unsigned": true,
+    "native_birthday": 4505329,
+    "receiving_addresses_only_in_private_plan": true,
+    "separate_test_owner_keys_generated": true,
+    "source_balance_not_funded_by_this_work": true
+  },
+  "implementation_commit": "c6e03b0",
+  "limitations": [
+    "dRPC identity/finality labels are trusted RPC observations, not consensus proofs. Fresh observations are mandatory at use.",
+    "Gas estimate ran on a separate ephemeral Anvil using public constructor code; no public gas estimation or deployment was performed.",
+    "Trade deadlines/graph/consents must be generated after funding and fresh observations; no dummy reservation substitutes for real public inputs.",
+    "Both owners currently exist on one host; independent administration is not demonstrated.",
+    "Unsigned deployment assumes fresh nonce0 and must be rechecked before signing; manifest is not sending authorization."
+  ],
+  "local_estimate_process_stopped": true,
+  "milestone": "Concrete unfunded public test launch plan",
+  "native_tip_read": {
+    "hash": "000028100e0a4b7d4a77c43a11d98eadfefbc560460e0fbb11edeae1e57ae5a8",
+    "height": 4505329,
+    "keys_or_addresses_sent": false,
+    "provider": "testnet.zec.rocks"
+  },
+  "no_auto_provider_fallback_or_default_change": true,
+  "other_read_only_endpoint_results": [
+    {
+      "endpoint": "https://rpc.sepolia.org",
+      "result": "HTTP404 in this check"
+    },
+    {
+      "endpoint": "https://rpc-sepolia.rockx.com",
+      "result": "DNS resolution failed in this check"
+    }
+  ],
+  "private_plan": ".local/public-launch-001/launch-plan.json",
+  "public_actions_authorized": false,
+  "public_deployment": false,
+  "public_transactions": 0,
+  "purchases": 0,
+  "requested_test_balances": {
+    "alice_eth_wei": 120000000000000000,
+    "bob_eth_wei": 111000000000000000,
+    "deployer_max_fee_wei": 200000000000000000,
+    "native_auxiliary_zatoshi": 20000,
+    "native_source_zatoshi": 200000,
+    "total_eth_wei": 431000000000000000
+  },
+  "sepolia_observation": {
+    "broadcast": false,
+    "chain_id": 11155111,
+    "deployment": false,
+    "elapsed_seconds": 16.203,
+    "endpoint": "https://sepolia.drpc.org",
+    "expected_genesis": "0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9",
+    "funding_authorized": false,
+    "keys_or_addresses_sent": false,
+    "latest": {
+      "base_fee_wei": 17,
+      "hash": "0xc1ee911cfa0cd3a0116c262b12f0e751f77af6903755b3e3cb1af94308650073",
+      "height": 11921510,
+      "timestamp": 1792080384
+    },
+    "latest_age_seconds_by_local_clock": 11,
+    "limits": [
+      "Provider labels are not locally verified finality.",
+      "Fee observations are not gas estimation, inclusion guarantees or spending authorization.",
+      "This observer is not connected to the isolated owner transaction sender."
+    ],
+    "observed_at": "2026-10-15T16:06:35+00:00",
+    "provider_finalized": {
+      "base_fee_wei": 18,
+      "hash": "0x6e796596b89e9a626d8c413d8ed6c4430f5214d4fccec880c4e3e3cf8dc1ce05",
+      "height": 11921422,
+      "timestamp": 1792079316
+    },
+    "provider_safe": {
+      "base_fee_wei": 17,
+      "hash": "0x3df8814f6740ddbaf1b1b0f5465f1df94fd6d0bf8d1d52d55c3a878124a5991f",
+      "height": 11921453,
+      "timestamp": 1792079688
+    },
+    "rpc_genesis_verified": true,
+    "scope": "read-only TLS Sepolia RPC; provider trusted, no consensus/finality proof",
+    "status": "observed",
+    "suggested_priority_fee_wei": 1000000
+  },
+  "trade": {
+    "eth_amount_wei": 1000000000000000,
+    "native_payout_zatoshi": 100000
+  }
+}

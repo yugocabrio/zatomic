@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tarfile
@@ -13,10 +14,22 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 NODE_DIR = ROOT / '.local/zebra-nu7'
 DEPS = ROOT / '.deps/zebra-7.0.0-rc.0'
-NAME = 'shielded-swap-zebra-nu7'
+NAMESPACE = os.environ.get('LATCH_REGTEST_NAMESPACE', '')
+PORT_TEXT = os.environ.get('LATCH_REGTEST_PORT', '')
+if NAMESPACE:
+    if not re.fullmatch(r'[a-z][a-z0-9-]{0,31}', NAMESPACE):
+        raise RuntimeError('invalid isolated node namespace')
+    if not PORT_TEXT.isascii() or not PORT_TEXT.isdecimal() or not 1024 <= int(PORT_TEXT) <= 65535:
+        raise RuntimeError('namespaced node requires an explicit unprivileged loopback port')
+    if int(PORT_TEXT) == 30342:
+        raise RuntimeError('namespaced node cannot use the default node port')
+elif PORT_TEXT:
+    raise RuntimeError('custom node port requires a namespace')
+PORT = int(PORT_TEXT) if NAMESPACE else 30342
+NAME = 'shielded-swap-zebra-nu7' + (('-' + NAMESPACE) if NAMESPACE else '')
 LABEL = 'shielded-swap.scope'
 OWNER = 'isolated-regtest-v1'
-RPC = 'http://127.0.0.1:30342'
+RPC = f'http://127.0.0.1:{PORT}'
 GENESIS = '029f11d80ef9765602235e1bc9727e3eb6ba20839319f761fee920d63401e327'
 BRANCH = '77190ad9'
 IMAGE = 'ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55'
@@ -71,6 +84,7 @@ def rpc(method, params=None, timeout=30):
 
 
 def inspect():
+    validate_scope()
     p = subprocess.run(['docker', 'container', 'inspect', NAME], capture_output=True, text=True)
     if p.returncode:
         return None
@@ -79,9 +93,22 @@ def inspect():
     return item
 
 
+def validate_scope():
+    marker = NODE_DIR / 'scope.json'
+    expected = {'name': NAME, 'port': PORT}
+    if marker.exists():
+        if marker.is_symlink() or json.loads(marker.read_text()) != expected:
+            raise RuntimeError('node scope ownership changed; preserve the original environment')
+    elif NAMESPACE and NODE_DIR.exists():
+        raise RuntimeError('custom node scope requires a fresh checkout state directory')
+
+
 def validate_container(item):
     if item['Config'].get('Labels', {}).get(LABEL) != OWNER:
         raise RuntimeError('container ownership mismatch')
+    if item.get('HostConfig', {}).get('PortBindings') != {
+            '19332/tcp': [{'HostIp': '127.0.0.1', 'HostPort': str(PORT)}]}:
+        raise RuntimeError('container loopback port ownership mismatch')
     # Labels/name identify this project, but not this checkout. Reusing an old
     # container from another checkout would mine/stop its retained wallet chain.
     expected = {'/zebra': (DEPS.resolve(), False),
@@ -158,6 +185,12 @@ def start():
     NODE_DIR.mkdir(parents=True, mode=0o700, exist_ok=True)
     if NODE_DIR.is_symlink() or NODE_DIR.stat().st_mode & 0o077:
         raise RuntimeError('private owned state directory required')
+    marker = NODE_DIR / 'scope.json'
+    if not marker.exists():
+        with marker.open('x') as f:
+            json.dump({'name': NAME, 'port': PORT}, f)
+            f.flush()
+            os.fsync(f.fileno())
     config = NODE_DIR / 'zebra.toml'
     if config.exists() and config.read_text() != CONFIG:
         raise RuntimeError('preserve existing configuration; unexpected difference')
@@ -173,7 +206,7 @@ def start():
         subprocess.run(['docker', 'run', '--detach', '--name', NAME,
             '--label', f'{LABEL}={OWNER}', '--platform', 'linux/arm64',
             '--cpus', '2', '--memory', '2g', '--memory-swap', '2g', '--pids-limit', '256',
-            '--publish', '127.0.0.1:30342:19332', '--env', 'RAYON_NUM_THREADS=2',
+            '--publish', f'127.0.0.1:{PORT}:19332', '--env', 'RAYON_NUM_THREADS=2',
             '--env', 'TOKIO_WORKER_THREADS=2',
             '--mount', f'type=bind,source={DEPS},target=/zebra,readonly',
             '--mount', f'type=bind,source={config},target=/config/zebra.toml,readonly',

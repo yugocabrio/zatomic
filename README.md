@@ -16,6 +16,9 @@ reveal. Recovery resumes from durable state; replay checks produce no second
 payment. This is a working isolated-chain prototype, not a public-testnet release
 or an audited protocol.
 
+[Watch the two-minute walkthrough](docs/demo/latch-2min.mp4) — actual local-chain
+screen checkpoints with captions; waits omitted. [Execution record](evidence/2026-10-15-release-demo.json).
+
 ## Run
 
 Prerequisites: Rust 1.93, Python 3.11+, Node/npm, Foundry 1.3.1 and running Docker.
