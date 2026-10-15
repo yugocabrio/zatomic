@@ -42,3 +42,23 @@ pub fn json(path: &Path) -> Result<serde_json::Value> {
 pub fn write_json(path: &Path, value: &serde_json::Value) -> Result<()> {
     write(path, &serde_json::to_vec(value)?)
 }
+
+/// Publish a complete immutable file. The temporary name is private; a crash
+/// leaves either no destination or the complete file. Never replace an existing
+/// journal. Callers serialize their decisions with the source OS lock.
+pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
+    let parent = path.parent().ok_or("no parent")?;
+    let temp = parent.join(format!(
+        ".pending-{}",
+        hex::encode(rand::random::<[u8; 16]>())
+    ));
+    write(&temp, data)?;
+    std::fs::hard_link(&temp, path)?;
+    std::fs::File::open(parent)?.sync_all()?;
+    std::fs::remove_file(temp)?;
+    std::fs::File::open(parent)?.sync_all()?;
+    Ok(())
+}
+pub fn atomic_json(path: &Path, value: &serde_json::Value) -> Result<()> {
+    atomic_write(path, &serde_json::to_vec(value)?)
+}

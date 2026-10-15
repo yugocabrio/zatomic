@@ -47,7 +47,7 @@ def run(directory):
             save(path,value)
             result = subprocess.run([str(NATIVE),'regtest-authorize-funding',bank,str(staged),str(path)],
                 capture_output=True,text=True,env=dict(os.environ,RAYON_NUM_THREADS='2'))
-            if result.returncode == 0 or result.stdout or (staged / 'funding.hex').exists():
+            if result.returncode == 0 or result.stdout or (staged / 'funding.hex').exists() or (directory / 'source-release.json').exists():
                 raise RuntimeError('source authorization mutation did not fail before release: '+name)
         client('lock',directory / 'owners/bob',{'salt':packet['agreement']['eth_salt']},reject=True)
         evm.rpc('evm_setNextBlockTimestamp',[packet['agreement']['eth_expiry']])
@@ -59,8 +59,8 @@ def run(directory):
                 raise
         else:
             raise RuntimeError('source wallet released stale signed offer')
-        if (staged / 'funding.hex').exists():
-            raise RuntimeError('negative gates exposed funding')
+        if (staged / 'funding.hex').exists() or (directory / 'source-release.json').exists():
+            raise RuntimeError('negative gates exposed funding or committed release')
     return {'scope':'actual staged native graph and signed owner offer; no swap funding broadcast',
         'both_owner_signatures_verified':verified['both_owner_signatures_verified'],
         'source_release_rejections':[name for name,_ in cases],

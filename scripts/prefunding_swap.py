@@ -2,9 +2,9 @@
 """Two-owner consent BEFORE release of ZEC funding, on owned isolated chains.
 
 Identity pins are provisioned locally, not discovered from an untrusted offer.
-The legacy owner lifecycle still handles completed ETH setup/replay. Explicit
-setup checkpoints below are supported; arbitrary setup-instruction crashes and
-independently operated source wallets are not claimed.
+The legacy owner lifecycle still handles completed ETH setup/replay.
+Unreleased setup can be permanently cancelled after an interruption. Release
+decisions are journaled before signing; independent hosts remain unproven.
 """
 import argparse
 import json
@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
+import owned_process
 import run_native_evm_gate as evm
 import evm_wallet
 import owner_swap as owners
@@ -24,8 +26,10 @@ from run_regtest_swap import event, reject_native, require_aux_unspent, reserve_
 from run_tls_swap import configure, services
 from run_client_swap import client
 
-VERSION = 'owner-consent-v2'
-FAULTS = ('both-consented', 'funding-authorized', 'zec-broadcast', 'zec-funded') + owners.FAULTS
+VERSION = 'owner-consent-v3'
+SETUP_FAULTS = ('alice-key', 'source-ready', 'native-in-flight', 'native-staged', 'alice-migrated',
+                'eth-deployed', 'alice-consented')
+FAULTS = SETUP_FAULTS + ('source-release-intent',) + ('both-consented', 'funding-authorized', 'zec-broadcast', 'zec-funded') + owners.FAULTS + owners.RECOVERY_FAULTS
 
 
 def stop(fault, boundary):
@@ -33,9 +37,9 @@ def stop(fault, boundary):
         raise InjectedStop(boundary)
 
 
-def setup(directory, mode, bank):
+def setup(directory, mode, bank, fault=None):
     require_capacity((0 if bank else 104) + 23)
-    directory.mkdir(mode=0o700)
+    native('regtest-setup-init', directory)
     bank = bank or directory / 'bank'
     save(directory / 'setup.json', {'driver': VERSION, 'mode': mode, 'bank': str(bank)})
     (directory / 'owners').mkdir(mode=0o700)
@@ -44,20 +48,42 @@ def setup(directory, mode, bank):
         owner = directory / 'owners' / role
         owner.mkdir(mode=0o700)
         pins[role] = client('key-init', owner, role=role)
+        stop(fault, f'{role}-key')
     save(directory / 'owner-pins.json', pins)
     source = capture(bank) if bank.exists() else fund(bank)
+    stop(fault, 'source-ready')
     transport = directory.with_name(directory.name + '-transport')
     commands = configure(transport, directory)
     with services(transport):
         # One heavy prover only. Its output is public terms, never a PCZT/key.
-        result = subprocess.run([str(ROOT / 'target/release/shielded-swap-native'),
+        with owned_process.popen([str(ROOT / 'target/release/shielded-swap-native'),
             'regtest-stage', str(bank), source['file'], str(directory / 'swap'),
-            str(directory / 'owner-pins.json')], capture_output=True, text=True,
-            env=dict(os.environ, LATCH_SIGNER_COMMANDS=str(commands), RAYON_NUM_THREADS='2'))
-        if result.returncode:
-            (directory / 'native-stage-error.log').write_text(result.stderr)
-            raise RuntimeError('staged native preparation failed; private diagnostics withheld')
-        terms = json.loads(result.stdout)
+            str(directory / 'owner-pins.json')], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, env=dict(os.environ, LATCH_SIGNER_COMMANDS=str(commands), RAYON_NUM_THREADS='2')) as process:
+            try:
+                if fault == 'native-in-flight':
+                    # Kill only this child after actual DKG, while native preparation
+                    # is still live. TLS services below also own/clean their children.
+                    deadline = time.monotonic() + 120
+                    while not (directory / 'swap/joint-fvk.bin').exists():
+                        if process.poll() is not None or time.monotonic() > deadline:
+                            raise RuntimeError('native kill boundary was not reached')
+                        time.sleep(.05)
+                    if process.poll() is not None:
+                        raise RuntimeError('native preparation already ended before kill')
+                    process.kill()
+                    process.communicate(timeout=20)
+                    raise InjectedStop('native-in-flight-sigkill')
+                output, errors = process.communicate()
+                if process.returncode:
+                    (directory / 'native-stage-error.log').write_text(errors)
+                    raise RuntimeError('staged native preparation failed; private diagnostics withheld')
+                terms = json.loads(output)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.communicate(timeout=20)
+    stop(fault, 'native-staged')
     if (directory / 'swap/funding.hex').exists():
         raise RuntimeError('staging exposed a broadcastable funding transaction')
     event(directory, '01-prepared', {'funding_txid': terms['funding_txid'],
@@ -68,6 +94,7 @@ def setup(directory, mode, bank):
     for role in ('alice', 'bob'):
         owner = directory / 'owners' / role
         (directory / 'swap' / role).rename(owner / 'native')
+        stop(fault, f'{role}-migrated')
         client('init', owner, role=role)
     staged = directory / 'coordinator-native-offline'
     (directory / 'swap').rename(staged)
@@ -81,7 +108,7 @@ def setup(directory, mode, bank):
     return pins, terms
 
 
-def offer(directory, pins, terms):
+def offer(directory, pins, terms, fault=None):
     accounts = evm.rpc('eth_accounts')
     for pin in pins.values():
         if pin['address'] in [a.lower() for a in accounts]:
@@ -97,6 +124,7 @@ def offer(directory, pins, terms):
     artifact = owners.read(ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json')
     deployed = send(directory, {'from': accounts[0], 'data': artifact['bytecode']['object'],
         'gas': hex(5_000_000)}, kind='deploy')
+    stop(fault, 'eth-deployed')
     now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
     agreement = {'native': terms, 'eth_chain_id': evm.CHAIN, 'contract': deployed['contractAddress'],
         'maker': pins['bob']['address'], 'recipient': pins['alice']['address'], 'amount_wei': 10**16,
@@ -108,7 +136,10 @@ def offer(directory, pins, terms):
         'addresses': {role: pin['address'] for role, pin in pins.items()}, 'agreement_digest': agreement_digest(agreement)})
     save(directory / 'owner-lock-request.json', {'salt': agreement['eth_salt']})
     checkpoint(directory)
-    consents = {role: client('consent', directory / 'owners' / role, agreement) for role in ('alice','bob')}
+    consents = {}
+    for role in ('alice','bob'):
+        consents[role] = client('consent', directory / 'owners' / role, agreement)
+        stop(fault, f'{role}-consented')
     packet = {'agreement': agreement, 'consents': consents}
     save(directory / 'consent-packet.json', packet)
     native('regtest-check-consent', directory / 'coordinator-native-offline', directory / 'consent-packet.json')
@@ -120,7 +151,8 @@ def offer(directory, pins, terms):
 def release(directory, agreement, fault=None):
     setup = owners.read(directory / 'setup.json')
     staged = directory / 'coordinator-native-offline'
-    result = authorize(Path(setup['bank']), staged, directory / 'consent-packet.json')
+    result = authorize(Path(setup['bank']), staged, directory / 'consent-packet.json',
+        stop_before_sign=fault == 'source-release-intent')
     event(directory, '01-authorized', {'funding_txid': result['funding_txid'],
         'both_owner_signatures_verified': True, 'agreement_digest': result['agreement_digest']})
     stop(fault, 'funding-authorized')
@@ -145,9 +177,9 @@ def settle(directory, agreement, fault=None):
 
 def run(directory, mode, bank=None, fault=None):
     with owners.chain_lock():
-        pins, terms = setup(directory, mode, bank)
+        pins, terms = setup(directory, mode, bank, fault)
         with owners.node(directory):
-            agreement = offer(directory, pins, terms)
+            agreement = offer(directory, pins, terms, fault)
             stop(fault, 'both-consented')
             release(directory, agreement, fault)
             return settle(directory, agreement, fault)
@@ -156,6 +188,8 @@ def run(directory, mode, bank=None, fault=None):
 def resume(directory, fault=None):
     # Explicit continuation of a fully signed, still-unfunded offer. Recovery
     # is separate: it never starts an ETH deposit that had no prior intent.
+    if (directory / 'source-cancelled.json').exists():
+        raise RuntimeError('source setup permanently cancelled; use a fresh offer')
     if (directory / 'coordinator-native-offline/funding.hex').exists():
         raise RuntimeError('resume expects an unreleased offer; use recover after release')
     with owners.chain_lock(), owners.node(directory, restore=True):
@@ -167,25 +201,56 @@ def resume(directory, fault=None):
         return settle(directory, agreement, fault)
 
 
-def recover(directory):
+def cancel(directory):
+    with owners.chain_lock():
+        return cancel_locked(directory)
+
+
+def cancel_locked(directory):
+    result = native('regtest-cancel-setup', directory)
+    owners.record_once(directory, '08-complete', result)
+    owners.record_once(directory, '09-recovered', result)
+    return result
+
+
+def recover(directory, fault=None):
+    with owners.chain_lock():
+        return recover_locked(directory, fault)
+
+
+def recover_locked(directory, fault=None):
+    # Keep the lease across reconciliation and route selection. Otherwise a
+    # concurrent recovery could temporarily hide Bob's lock intent between them.
+    restored = owners.peer_workspace.reconcile(directory)
+    # This decision is rechecked inside the native OS lock. No node startup,
+    # signature, or broadcast is needed to abandon an unreleased v3 setup.
+    if (directory / 'source-setup.json').exists() and not (directory / 'source-release.json').exists():
+        return cancel_locked(directory)
     if (directory / 'owners/bob/eth-intent-lock.json').exists():
-        return owners.recover(directory)
-    with owners.chain_lock(), owners.node(directory, restore=True):
+        result = owners.recover_locked(directory, fault)
+        result['peer_workspace_reconciled'] = restored or result.get('peer_workspace_reconciled')
+        return result
+    with owners.node(directory, restore=True):
         status()  # Check the isolated native genesis/branch before any replay.
         staged = directory / 'coordinator-native-offline'
         packet = directory / 'consent-packet.json'
         verified = native('regtest-check-consent', staged, packet)
         agreement = owners.read(packet)['agreement']
         owners.validate_owners(directory, agreement)
+        if (directory / 'source-release.json').exists() and not (staged / 'funding.hex').exists():
+            # Finish the exact already-committed release, then refund. A durable
+            # source decision cannot be reclassified as uncommitted on restart.
+            native('regtest-authorize-funding', Path(owners.read(directory / 'setup.json')['bank']), staged, packet)
         if not (staged / 'funding.hex').exists():
-            # Retain the staged offer for explicit resume. No source signature
+            # Legacy v2 only. Retain the staged offer for explicit resume. No source signature
             # has been released and no swap principal can have been broadcast.
             return {'unfunded': True, 'source_authorization_withheld': True,
                 'new_native_transactions': 0, 'new_evm_transactions': 0}
         if owners.read(staged / 'funding-consent.json') != verified:
             raise RuntimeError('released funding consent changed')
         # Reconcile an already-authorized F even if its post-send journal was
-        # lost; never sign a new funding transaction during recovery.
+        # lost. Reuse published bytes; any unfinished signature above belongs
+        # to the exact durable release decision, never to a fresh offer.
         txid = verified['funding_txid']
         try:
             existing = zrpc('getrawtransaction', [txid, 1])
@@ -212,7 +277,9 @@ def recover(directory):
         if blocks:
             zrpc('generate', [blocks], timeout=300)
         with owners.peer_offline(directory / 'owners', 'bob'):
+            owners.crash(directory, fault, 'native-peer-offline')
             refunded, sent = owners.native_exit(directory / 'owners/alice/recovery', 'refund')
+            owners.crash(directory, fault, 'native-exit-confirmed')
         observed = capture(directory / 'owners/alice/recovery/alice')
         if not any(n['txid'] == refunded and n['value'] == 1_000_000 for n in owners.read(Path(observed['file']))['notes']):
             raise RuntimeError('source owner did not decrypt refund')
@@ -221,29 +288,29 @@ def recover(directory):
             'peer_offline_during_native_exit':True,'public_testnet':False}
         owners.record_once(directory,'08-complete',result)
         owners.record_once(directory,'09-recovered',result)
-        return dict(result,new_native_transactions=int(sent)+int(funded_now),new_evm_transactions=0)
+        return dict(result,new_native_transactions=int(sent)+int(funded_now),new_evm_transactions=0,peer_workspace_reconciled=restored)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['success','refund','resume','recover'])
+    parser.add_argument('action', choices=['success','refund','resume','recover','cancel'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--existing-bank', type=Path)
     parser.add_argument('--fault-after', choices=FAULTS)
     args = parser.parse_args()
     os.umask(0o077)
-    if args.action in ('resume','recover') and args.existing_bank:
+    if args.action in ('resume','recover','cancel') and args.existing_bank:
         parser.error('continuation does not accept a source bank override')
-    if args.action == 'recover' and args.fault_after:
+    if args.fault_after and (args.action == 'cancel' or args.action == 'recover' and args.fault_after not in owners.RECOVERY_FAULTS):
         parser.error('recovery does not accept new faults')
-    if args.action == 'resume' and args.fault_after == 'both-consented':
+    if args.action == 'resume' and args.fault_after in SETUP_FAULTS + ('both-consented',):
         parser.error('resume starts after the consent checkpoint')
     mode = (owners.read(args.directory / 'setup.json')['mode'] if args.action == 'resume' else args.action)
     if mode == 'refund' and args.fault_after in ('eth-claimed','eth-claim-broadcast'):
         parser.error('refund scenario never sends a claim')
     try:
         directory = args.directory.resolve()
-        result = (recover(directory) if args.action == 'recover' else resume(directory,args.fault_after)
+        result = (cancel(directory) if args.action == 'cancel' else recover(directory,args.fault_after) if args.action == 'recover' else resume(directory,args.fault_after)
             if args.action == 'resume' else run(directory,args.action,
                 args.existing_bank.resolve() if args.existing_bank else None,args.fault_after))
         print(json.dumps(result,indent=2))

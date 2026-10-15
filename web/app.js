@@ -33,39 +33,44 @@ function render(data) {
   }
   const refund = job?.scenario === 'refund-stop';
   const recovered = events.has('09-recovered');
+  const cancelled = events.get('08-complete')?.unfunded_cancelled === true;
+  const cancellable = job?.cancellable_setup === true;
+  const closing = running && cancellable && job.state === 'recovering';
   const fundingOnly = (events.get('09-recovered') || events.get('08-complete'))?.eth_not_locked === true;
   $('#start').disabled = pending || running || data.busy || !data.ready || (interrupted && (job.recoverable || events.has('01-prepared')));
-  text('#start span:first-child', running ? (job.state === 'recovering' ? 'Recovering on local chains…' : 'Swap in progress…') : (complete ? 'Run another swap' : 'Start local swap'));
+  text('#start span:first-child', running ? (closing ? 'Closing this offer…' : job.state === 'recovering' ? 'Recovering on local chains…' : 'Swap in progress…') : (complete ? 'Run another swap' : 'Start local swap'));
   document.querySelectorAll('input[name="scenario"]').forEach(input => { input.disabled = !!running || pending; });
   const badge = $('#run-status');
   badge.className = `status-pill ${job?.state || ''}`;
-  badge.textContent = !job ? 'Ready when you are' : running ? (job.state === 'recovering' ? 'Recovery running' : 'Live on local chains') : complete ? (fundingOnly ? 'ZEC refund verified' : 'Verified on both chains') : job.state === 'error' ? 'Needs recovery' : 'Stopped at checkpoint';
-  text('#live-title', complete ? (fundingOnly ? 'ZEC returned before ETH lock.' : refund ? 'Both assets returned.' : 'The exchange is complete.') : interrupted ? (job.recoverable ? 'Stopped. Still recoverable.' : 'Stopped. State preserved.') : running ? (job.state === 'recovering' ? 'Resuming from the chain.' : 'The agreement is in motion.') : 'Two chains. One agreement.');
+  badge.textContent = !job ? 'Ready when you are' : running ? (closing ? 'Closing setup' : job.state === 'recovering' ? 'Recovery running' : 'Live on local chains') : complete ? (cancelled ? 'Setup cancelled' : fundingOnly ? 'ZEC refund verified' : 'Verified on both chains') : job.state === 'error' ? 'Needs recovery' : 'Stopped at checkpoint';
+  text('#live-title', complete ? (cancelled ? 'No swap funds were locked.' : fundingOnly ? 'ZEC returned before ETH lock.' : refund ? 'Both assets returned.' : 'The exchange is complete.') : interrupted ? (cancellable ? 'Stopped before funding.' : job.recoverable ? 'Stopped. Still recoverable.' : 'Stopped. State preserved.') : running ? (closing ? 'Closing before funding.' : job.state === 'recovering' ? 'Resuming from the chain.' : 'The agreement is in motion.') : 'Two chains. One agreement.');
   text('#timeline li[data-step="lock"] strong', fundingOnly ? 'ETH remains with Bob' : 'Lock the ETH');
+  text('#timeline li[data-step="verify"] small', cancelled ? 'Confirm the offer is closed before funding.' : 'Confirm payment, decrypt the note, check recovery.');
   text('#resolution-title', refund || fundingOnly ? 'Wait for expiry & refund' : 'Reveal & settle');
   text('#resolution-copy', refund || fundingOnly ? 'No secret revealed. Each owner recovers their asset.' : 'Public witness completes the prepared ZEC signature.');
-  const finished = [events.has(job?.driver === 'owner-consent-v2' ? '01-consented' : '01-prepared'), events.has('02-funded'), events.has('04-eth-locked') || fundingOnly, events.has('06-zec-claimed') || events.has('06-zec-refunded') || complete, complete];
+  const finished = [events.has(job?.driver?.startsWith('owner-consent-') ? '01-consented' : '01-prepared'), events.has('02-funded'), events.has('04-eth-locked') || fundingOnly, events.has('06-zec-claimed') || events.has('06-zec-refunded') || (complete && !cancelled), complete];
   let active = finished.findIndex(value => !value);
   const items = [...document.querySelectorAll('#timeline li')];
   items.forEach((item, i) => {
     item.classList.toggle('done', !!finished[i]);
     item.classList.toggle('active', !!running && i === active);
     item.querySelector('.step-mark').textContent = finished[i] ? '✓' : String(i + 1);
-    item.querySelector('.step-state').textContent = finished[i] ? (fundingOnly && i === 2 ? 'Not locked' : 'Verified') : (running && i === active) ? 'Working' : interrupted && i === active ? 'Paused' : 'Waiting';
+    item.querySelector('.step-state').textContent = cancelled ? (i === 4 ? 'Cancelled' : finished[i] ? 'Verified' : i === 0 ? 'Incomplete' : 'Not started') : finished[i] ? (fundingOnly && i === 2 ? 'Not locked' : 'Verified') : (running && i === active) ? 'Working' : interrupted && i === active ? 'Paused' : 'Waiting';
   });
   $('#progress-fill').style.width = `${finished.filter(Boolean).length * 20}%`;
   $('#recovery-box').hidden = !interrupted;
+  text('#recover', cancellable ? 'Cancel uncommitted setup' : 'Restart & recover');
   $('#recover').disabled = pending || !job?.recoverable || data.busy;
   if (interrupted) {
-    text('#recovery-title', job.recoverable ? 'The way out is already prepared.' : 'State preserved for inspection.');
-    text('#recovery-copy', !job.recoverable ? 'The run stopped before its ETH checkpoint. State is preserved; inspect the local runner log and recovery guide before continuing.' : !events.has('04-eth-locked') && job.eth_setup_started ? 'An ETH send may have happened before its receipt was saved. Reconcile the signed transaction before deciding whether to settle or refund.' : !events.has('04-eth-locked') ? 'ETH setup never started. Recover the prepared ZEC refund after its local deadline; no new funding will be submitted.' : refund ? 'No secret was revealed. Restart the local node, advance the test clocks and recover both original assets.' : 'The ETH claim is recorded. Bob can use its public witness to finish the ZEC claim without another signature from Alice.');
+    text('#recovery-title', cancellable ? 'Funding authorization was never released.' : job.recoverable ? 'The way out is already prepared.' : 'State preserved for inspection.');
+    text('#recovery-copy', cancellable ? 'Permanently close this offer without locking swap funds. Setup files remain private; start a fresh offer when ready.' : !job.recoverable ? 'The run stopped before its ETH checkpoint. State is preserved; inspect the local runner log and recovery guide before continuing.' : !events.has('04-eth-locked') && job.eth_setup_started ? 'An ETH send may have happened before its receipt was saved. Reconcile the signed transaction before deciding whether to settle or refund.' : !events.has('04-eth-locked') ? 'ETH setup never started. Recover the prepared ZEC refund after its local deadline; no new funding will be submitted.' : refund ? 'No secret was revealed. Restart the local node, advance the test clocks and recover both original assets.' : 'The ETH claim is recorded. Bob can use its public witness to finish the ZEC claim without another signature from Alice.');
   }
   $('#outcome').hidden = !complete;
   if (complete) {
-    text('#outcome-title', fundingOnly ? 'Alice recovered ZEC. Bob never locked ETH.' : refund ? 'Alice recovered ZEC. Bob recovered ETH.' : 'Bob received ZEC. Alice received ETH.');
-    text('#outcome-copy', fundingOnly ? 'The existing native funding was reconciled and refunded. No new ETH transaction.' : `${recovered ? 'Recovered from a durable checkpoint. ' : ''}0.010000 ZEC note decrypted · 0.0100 ETH withdrawn.`);
+    text('#outcome-title', cancelled ? 'Both owners kept their swap funds.' : fundingOnly ? 'Alice recovered ZEC. Bob never locked ETH.' : refund ? 'Alice recovered ZEC. Bob recovered ETH.' : 'Bob received ZEC. Alice received ETH.');
+    text('#outcome-copy', cancelled ? 'Source authorization is permanently disabled for this offer. No cancellation transaction; local wallet or escrow setup may already exist.' : fundingOnly ? 'The existing native funding was reconciled and refunded. No new ETH transaction.' : `${recovered ? 'Recovered from a durable checkpoint. ' : ''}0.010000 ZEC note decrypted · 0.0100 ETH withdrawn.`);
   }
-  text('#live-caption', running ? 'Owner clients are signing and confirming on local chains.' : interrupted ? (job.eth_setup_started ? 'Runner and local EVM stopped. Recovery uses saved state.' : 'Runner stopped before ETH setup. Native recovery remains prepared.') : complete ? 'Node confirmation + recipient decryption verified.' : 'Actual transactions on disposable local chains.');
+  text('#live-caption', running ? (closing ? 'Recording cancellation. No funding will be signed or sent.' : 'Owner clients are signing and confirming on local chains.') : interrupted ? (cancellable ? 'Setup can be closed without signing or sending funding.' : job.eth_setup_started ? 'Runner and local EVM stopped. Recovery uses saved state.' : 'Runner stopped before ETH setup. Native recovery remains prepared.') : complete ? (cancelled ? 'Cancellation recorded before source authorization.' : 'Node confirmation + recipient decryption verified.') : 'Actual transactions on disposable local chains.');
   const elapsed = job ? Math.max(0, (running ? Math.floor(Date.now() / 1000) : (job.updated_at || Math.floor(Date.now() / 1000))) - job.started_at) : 0;
   text('#elapsed', job ? compactTime(elapsed) : '—');
   renderReceipt(job, events);
@@ -85,7 +90,7 @@ function renderReceipt(job, events) {
   add('Recovered ZEC', events.get('09-recovered')?.native_txid);
   add('ETH withdrawal', events.get('08-complete')?.eth_withdraw_tx);
   $('#receipt').hidden = !rows.length;
-  text('#receipt-detail', job ? `Run ${job.id.slice(-8)} · ${job.driver === 'owner-consent-v2' ? 'both owners signed before funding' : job.driver === 'owner-clients-v1' ? 'each owner signs locally' : 'legacy local fixture'} · private artifacts stay on this machine` : '');
+  text('#receipt-detail', job ? `Run ${job.id.slice(-8)} · ${events.has('01-consented') ? 'both owners signed before funding' : job.driver === 'owner-clients-v1' ? 'each owner signs locally' : 'legacy local fixture'} · private artifacts stay on this machine` : '');
   const container = $('#transactions');
   container.replaceChildren();
   for (const [label, value] of rows) {

@@ -12,11 +12,11 @@ import os
 import run_native_evm_gate as evm
 from regtest_node import status
 from regtest_wallet import native
-from evm_journal import verify_contract
+from evm_journal import verify_contract, InjectedStop
 from run_regtest_swap import require_aux_unspent
 
 
-def authorize(bank, staged, packet):
+def authorize(bank, staged, packet, stop_before_sign=False):
     # Signatures/immutable policy are checked first, even if funding.hex exists.
     verified = native('regtest-check-consent', staged, packet)
     agreement = json.loads(packet.read_text())['agreement']
@@ -27,6 +27,10 @@ def authorize(bank, staged, packet):
     if now + 300 >= agreement['eth_expiry'] or status()['blocks'] + 12 >= agreement['native']['refund_height']:
         raise RuntimeError('source wallet refuses an expired funding window')
     require_aux_unspent(agreement['native'])
+    if 'source_guard' in agreement['native']:
+        native('regtest-commit-funding', staged, packet)
+        if stop_before_sign:
+            raise InjectedStop('source-release-intent')
     result = native('regtest-authorize-funding', bank, staged, packet)
     if result['txid'] != verified['funding_txid']:
         raise RuntimeError('source wallet funding identity changed')

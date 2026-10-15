@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
+import owned_process
 from regtest_node import ROOT, GENESIS, BRANCH, rpc, status
 
 NATIVE = ROOT / 'target/release/shielded-swap-native'
@@ -18,8 +20,8 @@ def require_capacity(additional_blocks):
 
 
 def native(*args):
-    return json.loads(subprocess.check_output([str(NATIVE), *map(str, args)], cwd=ROOT,
-        text=True, env=dict(os.environ, RAYON_NUM_THREADS='2')))
+    return json.loads(owned_process.run([str(NATIVE), *map(str, args)], cwd=ROOT,
+        text=True, capture_output=True, check=True, env=dict(os.environ, RAYON_NUM_THREADS='2')).stdout)
 
 
 def save(path, value):
@@ -29,15 +31,29 @@ def save(path, value):
         if json.loads(path.read_text()) != value:
             raise RuntimeError('existing private snapshot differs')
         return
-    with path.open('x') as f:
-        f.write(encoded)
-        f.flush()
-        os.fsync(f.fileno())
-    fd = os.open(path.parent, os.O_RDONLY)
+    # Publish only complete bytes. Killing a writer cannot leave a truncated
+    # destination that a recovering client mistakes for a durable decision.
+    fd, temporary = tempfile.mkstemp(prefix='.pending-', dir=path.parent)
     try:
-        os.fsync(fd)
+        with os.fdopen(fd, 'w') as f:
+            f.write(encoded)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.link(temporary, path)  # create-once; never overwrite a journal
+        except FileExistsError:
+            if json.loads(path.read_text()) != value:
+                raise RuntimeError('concurrent private snapshot differs')
+        parent = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(parent)
+            os.unlink(temporary)
+            os.fsync(parent)
+        finally:
+            os.close(parent)
     finally:
-        os.close(fd)
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def capture(directory):

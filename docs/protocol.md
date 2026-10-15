@@ -22,7 +22,10 @@ does NOT automatically establish security of this modified protocol.
 New browser runs prepare the native graph without generating a source spend
 signature, then deploy the isolated escrow and obtain both owners' signatures
 on the full cross-chain agreement. The source wallet verifies these against
-pre-provisioned identity pins before signing/releasing F. See
+pre-provisioned identity pins and journals a source release decision before
+signing/releasing F. A local OS lock makes cancellation and release mutually
+exclusive; an unreleased v3 setup can be permanently cancelled. See
+[setup recovery](setup-recovery.md) and
 [funding consent](funding-consent.md). Older reproduction runners retain the
 earlier native-funding-first sequence. Owner keys and first secret exposure stay
 in the owner clients; independent-host identity provisioning is still open.
@@ -144,15 +147,16 @@ fsynced. Recovery decodes the signed bytes and recovered sender rather than
 trusting the journal's method label. A missing receipt is not proof that the
 claim secret stayed private: the same timely claim may be replayed; outside the
 bounded window, recovery stops without falling back to both refunds. These
-lock/claim interruption paths have actual chain evidence. Deployment/setup
-failures and public chain reorg handling remain separate work.
+lock/claim interruption paths have actual chain evidence. Partial setup now has
+the cancellation/committed-release paths described above; public chain reorg
+handling remains separate work.
 
 The optional coordinator-to-signer TLS transport now integrates with a real
 chain swap and rejects credential/protocol/role mismatches and replay after
 disconnect. This authenticates the coordinator connection, not chain state or
 independent economic consent. The tested fixture still shares local artifact
 paths; verified native bundles are now delivered over that channel, but
-independently operated source-wallet and ETH clients remain unfinished. See
+independently operated source wallets and remote owner clients remain unfinished. See
 [signer transport](signer-transport.md) for exact scope and reproduction.
 
 Each participant can export its own accepted bundle into a fresh native recovery
@@ -169,7 +173,8 @@ Alice's original transaction reverts. Reconciliation uses the validated order's
 canonical event, preserving the fixed recipient. This remains a same-host
 fixture with trusted local validating nodes and controlled confirmation policy.
 
-The browser now invokes those owner clients through `owner_swap.py`. The local
+The browser now invokes those owner clients through `prefunding_swap.py`, which
+delegates funded settlement to `owner_swap.py`. The local
 harness checkpoints its disposable EVM before each owner action; the owner
 persists its signed intent before broadcast, and the harness checkpoints again
 after success. A lost post-send checkpoint is therefore reconciled by the same
@@ -178,5 +183,8 @@ finality or reorg mechanism. An existing claim intent blocks no-reveal refunds,
 and missing owner acceptance/identity state rejects recovery. The browser's
 normal, post-claim stop and pre-reveal stop paths use each owner's exported
 native workspace, with the peer directory unavailable during its native exit.
-Partial setup and arbitrary instruction-boundary failures are still outside the
-implemented recovery coverage; see [owner clients](owner-clients.md).
+Partial setup uses [source decision recovery](setup-recovery.md). Peer-directory
+moves are journaled before renaming, and surviving process guardians clean the
+owned prover/node/signer workers after parent SIGKILL. Actual claim/refund and
+setup gates are recorded in [process recovery](process-recovery.md). Arbitrary
+instruction-boundary failures and public-network reorg recovery remain unproven.

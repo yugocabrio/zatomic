@@ -74,7 +74,7 @@ pub(crate) fn message(pczt: &Pczt) -> Result<[u8; 32]> {
 fn save_tx(path: &Path, tx: &Transaction) -> Result<()> {
     let mut raw = Vec::new();
     tx.write(&mut raw)?;
-    storage::write(path, hex::encode(raw).as_bytes())
+    storage::atomic_write(path, hex::encode(raw).as_bytes())
 }
 
 /// Show the exact funding effects/note without giving a peer a broadcastable
@@ -267,6 +267,13 @@ fn apply(pczt: Pczt, index: usize, sig: [u8; 64], digest: [u8; 32]) -> Result<Pc
 
 pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Result<Value> {
     let pins = pins.map(storage::json).transpose()?;
+    let source_guard = if pins.is_some() {
+        let guard = crate::source_guard::Guard::open(dir.parent().ok_or("setup parent")?)?;
+        guard.active()?;
+        Some(guard)
+    } else {
+        None
+    };
     let snapshot = storage::json(scan)?;
     if snapshot["genesis"] != wallet::GENESIS {
         return Err("wrong source network".into());
@@ -508,6 +515,11 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
         "funding_authorization_withheld_from_peer_until_acknowledgment":true,
         "refund_transparent_auxiliary":true,"funding_and_claim_fully_shielded":true});
     if let Some(pins) = &pins {
+        terms["source_guard"] = source_guard
+            .as_ref()
+            .ok_or("source guard missing")?
+            .identity
+            .clone();
         terms["owner_pins"] = pins.clone();
         terms["cross_chain_consent_required"] = json!(true);
     }
@@ -556,8 +568,12 @@ pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Res
 }
 
 pub fn authorize_funding(bank: &Path, dir: &Path, packet: &Path) -> Result<Value> {
+    let guard = crate::source_guard::for_terms(dir, &storage::json(&dir.join("terms.json"))?)?;
     let unsigned = storage::read(&dir.join("unsigned-funding.pczt"), 100_000)?;
     let consent = crate::funding_consent::verify(dir, packet, &unsigned)?;
+    if let Some(guard) = &guard {
+        guard.release(&consent)?;
+    }
     // Revalidate even on replay; an existing file never bypasses consent checks.
     if dir.join("funding.hex").exists() {
         if storage::json(&dir.join("funding-consent.json"))? != consent {
@@ -598,9 +614,11 @@ pub fn authorize_funding(bank: &Path, dir: &Path, packet: &Path) -> Result<Value
             return Err("interrupted funding consent changed".into());
         }
     } else {
-        storage::write_json(&dir.join("funding-consent.json"), &consent)?;
+        storage::atomic_json(&dir.join("funding-consent.json"), &consent)?;
     }
-    save_tx(&dir.join("funding.hex"), &funding)?;
+    let mut raw = Vec::new();
+    funding.write(&mut raw)?;
+    storage::atomic_write(&dir.join("funding.hex"), hex::encode(raw).as_bytes())?;
     inspect(&dir.join("funding.hex"))
 }
 

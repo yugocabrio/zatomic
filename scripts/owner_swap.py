@@ -4,8 +4,9 @@
 Node checkpoints belong to this fixture, never to the owner signing API. An
 owner fsyncs its exact intent before sending. We checkpoint before invoking it
 and after observing success, so a lost post-send checkpoint replays that intent.
-Only checkpointed ETH setup is resumed here; partial native setup remains an
-explicit limitation. This is not public-chain recovery or remote operation.
+This module resumes checkpointed ETH setup. The newer prefunding driver also
+handles partial native setup/cancellation. This is not public-chain recovery or
+remote operation.
 """
 import argparse
 import contextlib
@@ -17,6 +18,9 @@ import socket
 import subprocess
 import sys
 import time
+import owned_process
+import peer_workspace
+import signal
 import run_native_evm_gate as evm
 from evm_journal import checkpoint, order_state, verify_contract, InjectedStop
 from evm_participant import agreement_digest
@@ -39,7 +43,8 @@ def read(path):
 def chain_lock():
     with (ROOT / '.local/chain-driver.lock').open('a') as handle:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        yield
+        with owned_process.chain_lease(handle.fileno()):
+            yield
 
 
 @contextlib.contextmanager
@@ -48,45 +53,46 @@ def node(directory, restore=False):
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         probe.bind(('127.0.0.1', evm.PORT))
     with (directory / 'owner-anvil.log').open('a') as log:
-        process = subprocess.Popen(['anvil', '--host', '127.0.0.1', '--port', str(evm.PORT),
-            '--chain-id', str(evm.CHAIN), '--silent'], stdout=log, stderr=log, cwd=ROOT)
-        try:
-            for _ in range(100):
-                if process.poll() is not None:
-                    raise RuntimeError('owned lifecycle node exited')
-                try:
-                    if int(evm.rpc('eth_chainId'), 16) == evm.CHAIN:
-                        break
-                except OSError:
-                    pass
-                time.sleep(.1)
-            else:
-                raise RuntimeError('owned lifecycle node startup timed out')
-            if restore:
-                saved = read(directory / 'evm-checkpoint.json')
-                if saved['chain_id'] != evm.CHAIN or not evm.rpc('anvil_loadState', [saved['state']]):
-                    raise RuntimeError('owned checkpoint domain/restore mismatch')
-            yield
-        finally:
-            # Deliberately do not dump state on exit: a post-send fault must
-            # exercise recovery from the preceding durable checkpoint.
-            if process.poll() is None:
-                process.terminate()
+        with owned_process.popen(['anvil', '--host', '127.0.0.1', '--port', str(evm.PORT),
+            '--chain-id', str(evm.CHAIN), '--silent'], stdout=log, stderr=log, cwd=ROOT) as process:
             try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
+                for _ in range(100):
+                    if process.poll() is not None:
+                        raise RuntimeError('owned lifecycle node exited')
+                    try:
+                        if int(evm.rpc('eth_chainId'), 16) == evm.CHAIN:
+                            break
+                    except OSError:
+                        pass
+                    time.sleep(.1)
+                else:
+                    raise RuntimeError('owned lifecycle node startup timed out')
+                if restore:
+                    saved = read(directory / 'evm-checkpoint.json')
+                    if saved['chain_id'] != evm.CHAIN or not evm.rpc('anvil_loadState', [saved['state']]):
+                        raise RuntimeError('owned checkpoint domain/restore mismatch')
+                yield
+            finally:
+                # Deliberately do not dump state on exit: a post-send fault must
+                # exercise recovery from the preceding durable checkpoint.
+                if process.poll() is None:
+                    process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
 
 
-@contextlib.contextmanager
-def peer_offline(owners, role):
-    source, offline = owners / role, owners / f'{role}-offline'
-    source.rename(offline)
-    try:
-        yield
-    finally:
-        offline.rename(source)
+
+peer_offline = peer_workspace.unavailable
+RECOVERY_FAULTS = ('native-peer-offline', 'native-exit-confirmed')
+
+
+def crash(directory, fault, boundary):
+    if fault == boundary:
+        save(directory / f'crash-{boundary}.json', {'boundary':boundary,'pid':os.getpid()})
+        os.kill(os.getpid(), signal.SIGKILL)
 
 
 def owner_call(directory, action, role, packet, stop=False):
@@ -204,7 +210,9 @@ def finish(directory, agreement, order, recovered=False, fault=None):
         witness = int(found['data'], 16).to_bytes(32, 'little').hex()
         mode, receiver, paid, peer = 'success', 'bob', 'alice', 'alice'
         with peer_offline(owners, peer):
+            crash(directory, fault, 'native-peer-offline')
             txid, sent = native_exit(owners / receiver / 'recovery', 'claim', witness)
+            crash(directory, fault, 'native-exit-confirmed')
     elif state in (1, 3):
         # This branch is allowed only when the complete local owner journal
         # has no claim intent. It is not proof of absence on another host.
@@ -224,7 +232,9 @@ def finish(directory, agreement, order, recovered=False, fault=None):
             zrpc('generate', [blocks], timeout=300)
         mode, receiver, paid, peer = 'refund', 'alice', 'bob', 'bob'
         with peer_offline(owners, peer):
+            crash(directory, fault, 'native-peer-offline')
             txid, sent = native_exit(owners / receiver / 'recovery', 'refund')
+            crash(directory, fault, 'native-exit-confirmed')
     else:
         raise RuntimeError('owner order is not funded')
     record_once(directory, '06-zec-claimed' if mode == 'success' else '06-zec-refunded',
@@ -286,8 +296,15 @@ def run(directory, mode, bank=None, fault=None):
             return finish(directory, agreement, locked['order'], fault=fault)
 
 
-def recover(directory):
-    with chain_lock(), node(directory, restore=True):
+def recover(directory, fault=None):
+    with chain_lock():
+        return recover_locked(directory, fault)
+
+
+def recover_locked(directory, fault=None):
+    """Caller holds the chain lease through directory and settlement decisions."""
+    restored = peer_workspace.reconcile(directory)
+    with node(directory, restore=True):
         agreement = validate_recovery(directory)
         # A lock-send gap is resumed by the owner from its exact signed bytes;
         # recovery never originates a new lock without a prior owner intent.
@@ -295,8 +312,9 @@ def recover(directory):
             raise RuntimeError('no owner lock intent; pre-lock setup recovery not implemented')
         locked = owner_call(directory, 'lock', 'bob', read(directory / 'owner-lock-request.json'))
         record_once(directory, '04-eth-locked', locked)
-        result = finish(directory, agreement, locked['order'], recovered=True)
+        result = finish(directory, agreement, locked['order'], recovered=True, fault=fault)
         result['new_evm_transactions'] += int(locked['new_transaction'])
+        result['peer_workspace_reconciled'] = restored
         return result
 
 
@@ -305,16 +323,16 @@ if __name__ == '__main__':
     parser.add_argument('action', choices=['success', 'refund', 'recover'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--existing-bank', type=Path)
-    parser.add_argument('--fault-after', choices=FAULTS)
+    parser.add_argument('--fault-after', choices=FAULTS + RECOVERY_FAULTS)
     args = parser.parse_args()
     os.umask(0o077)
     try:
-        if args.action == 'recover' and (args.existing_bank or args.fault_after):
+        if args.action == 'recover' and (args.existing_bank or args.fault_after and args.fault_after not in RECOVERY_FAULTS):
             parser.error('recovery does not accept funding/fault options')
         if args.action == 'refund' and args.fault_after in ('eth-claimed', 'eth-claim-broadcast'):
             parser.error('refund scenario never sends a claim')
         directory = args.directory.resolve()
-        result = recover(directory) if args.action == 'recover' else run(directory, args.action,
+        result = recover(directory,args.fault_after) if args.action == 'recover' else run(directory, args.action,
             args.existing_bank.resolve() if args.existing_bank else None, args.fault_after)
         print(json.dumps(result, indent=2))
     except InjectedStop as exc:

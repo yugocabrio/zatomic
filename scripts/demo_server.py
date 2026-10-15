@@ -85,8 +85,10 @@ class Manager:
                     continue  # An immutable stage file may still be flushing.
                 job['events'].append({'stage': name, 'value': value})
         if job['state'] in ('running', 'recovering') and (self.worker is None or not self.worker.is_alive()) and not driver_busy():
-            job['state'] = 'complete' if (run / '08-complete.json').exists() else 'interrupted'
-        if job.get('driver') == 'owner-consent-v2':
+            job['state'] = 'complete' if any(e['stage'] == '08-complete' for e in job['events']) else 'interrupted'
+        if job['state'] == 'complete' and not any(e['stage'] == '08-complete' for e in job['events']):
+            job['state'] = 'interrupted'
+        if job.get('driver') in ('owner-consent-v2', 'owner-consent-v3'):
             checkpoint = all((run / name).exists() for name in ('owner-flow.json',
                 'consent-packet.json', 'evm-checkpoint.json', 'coordinator-native-offline/funding.hex'))
         elif job.get('driver') == 'owner-clients-v1':
@@ -96,6 +98,12 @@ class Manager:
             checkpoint = (run / '04-eth-locked.json').exists()
             checkpoint |= all((run / name).exists() for name in ('agreement.json', 'evm-checkpoint.json', 'evm-outgoing'))
             checkpoint |= (run / 'swap/terms.json').exists() and not (run / 'agreement.json').exists()
+        job['cancellable_setup'] = (job.get('driver') == 'owner-consent-v3'
+            and (run / 'source-setup.json').is_file() and not (run / 'source-release.json').exists()
+            and job['state'] != 'complete')
+        if job.get('driver') == 'owner-consent-v3':
+            checkpoint |= (run / 'source-release.json').exists()
+        checkpoint |= job['cancellable_setup']
         job['recoverable'] = checkpoint and job['state'] not in ('running', 'recovering')
         job['eth_setup_started'] = (run / 'agreement.json').exists()
         return job
@@ -122,11 +130,11 @@ class Manager:
                     raise ValueError('Unknown run.')
                 job = self.one(path)
                 if not job['recoverable']:
-                    raise ValueError('This run has no recoverable ETH checkpoint. See the local recovery guide.')
+                    raise ValueError('No supported recovery checkpoint. See the local recovery guide.')
                 job.pop('events', None)
                 job.pop('recoverable', None)
                 job['state'] = 'recovering'
-                if job.get('driver') == 'owner-consent-v2':
+                if job.get('driver') in ('owner-consent-v2','owner-consent-v3'):
                     args = ['python3', str(ROOT / 'scripts/prefunding_swap.py'), 'recover', str(path.parent / 'run')]
                 elif job.get('driver') == 'owner-clients-v1':
                     args = ['python3', str(ROOT / 'scripts/owner_swap.py'), 'recover', str(path.parent / 'run')]
@@ -141,7 +149,7 @@ class Manager:
                     recorded = self.one(old)
                     old_run = old.parent / 'run'
                     funded = any((old_run / name).exists() for name in
-                        ('swap/terms.json', '02-funded.json', 'owner-flow.json'))
+                        ('source-setup.json', 'swap/terms.json', '02-funded.json', 'owner-flow.json'))
                     if recorded['state'] != 'complete' and funded:
                         raise ValueError('Recover the existing funded run before advancing either chain.')
                 job_id = f'{int(time.time()*1000):013d}-{secrets.token_hex(4)}'
@@ -149,7 +157,7 @@ class Manager:
                 folder.mkdir(mode=0o700)
                 path = folder / 'job.json'
                 job = {'id': job_id, 'scenario': scenario, 'state': 'running',
-                       'driver': 'owner-consent-v2', 'started_at': int(time.time())}
+                       'driver': 'owner-consent-v3', 'started_at': int(time.time())}
                 mode, fault = SCENARIOS[scenario]
                 args = ['python3', str(ROOT / 'scripts/prefunding_swap.py'), mode, str(folder / 'run')]
                 # Reuse only completed demo banks with an unspent small auxiliary

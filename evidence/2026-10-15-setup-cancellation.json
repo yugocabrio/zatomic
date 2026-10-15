@@ -1,0 +1,209 @@
+{
+  "date": "2026-10-15",
+  "scope": "real native staging and owner consents on isolated chains; safe terminal setup cancellation",
+  "implementation_base_commit": "bcdb03bdfc60742e6a5fea455108c9ba4930f2d4",
+  "driver": "owner-consent-v3",
+  "native_node": {
+    "scope": "isolated NU7 regtest",
+    "blocks": 2506,
+    "tip": "648d46e68afb963e49d576321aaf91ddc310c299d1b26c1d75b59a9135c5d27f",
+    "genesis": "029f11d80ef9765602235e1bc9727e3eb6ba20839319f761fee920d63401e327",
+    "branch": "77190ad9",
+    "rpc": "http://127.0.0.1:30342",
+    "container": "shielded-swap-zebra-nu7"
+  },
+  "commands": [
+    "python3 scripts/prefunding_swap.py success .local/setup-PHASE-001 --existing-bank .local/regtest-bank-001 --fault-after PHASE (each listed boundary)",
+    "python3 scripts/check_setup_cancellation.py .local/setup-PHASE-001",
+    "python3 scripts/check_funding_consent.py .local/setup-both-consented-001 (before cancellation)",
+    "python3 scripts/prefunding_swap.py success .local/setup-native-kill-001 --existing-bank .local/regtest-bank-001 --fault-after native-in-flight",
+    "python3 scripts/check_setup_cancellation.py .local/setup-native-kill-001",
+    "python3 scripts/check_source_guard.py .local/source-guard-negative-002",
+    "check_atomic_journal.check(Path(\".local/journal-crash-002\").resolve())"
+  ],
+  "cancellation_boundaries": {
+    "alice-key": {
+      "exclusive_os_lock_checked": true,
+      "native_tip_and_mempool_unchanged": true,
+      "new_evm_transactions": 0,
+      "new_native_transactions": 0,
+      "no_source_release_or_funding_file": true,
+      "repeat_identical": true,
+      "resume_rejected": true,
+      "scope": "actual local interrupted setup, no synthetic swap settlement",
+      "unfunded_cancelled": true,
+      "valid_signed_offer_cannot_reauthorize": null,
+      "fully_signed_offer_available": false
+    },
+    "source-ready": {
+      "exclusive_os_lock_checked": true,
+      "native_tip_and_mempool_unchanged": true,
+      "new_evm_transactions": 0,
+      "new_native_transactions": 0,
+      "no_source_release_or_funding_file": true,
+      "repeat_identical": true,
+      "resume_rejected": true,
+      "scope": "actual local interrupted setup, no synthetic swap settlement",
+      "unfunded_cancelled": true,
+      "valid_signed_offer_cannot_reauthorize": null,
+      "fully_signed_offer_available": false
+    },
+    "native-staged": {
+      "exclusive_os_lock_checked": true,
+      "native_tip_and_mempool_unchanged": true,
+      "new_evm_transactions": 0,
+      "new_native_transactions": 0,
+      "no_source_release_or_funding_file": true,
+      "repeat_identical": true,
+      "resume_rejected": true,
+      "scope": "actual local interrupted setup, no synthetic swap settlement",
+      "unfunded_cancelled": true,
+      "valid_signed_offer_cannot_reauthorize": null,
+      "fully_signed_offer_available": false
+    },
+    "alice-migrated": {
+      "exclusive_os_lock_checked": true,
+      "native_tip_and_mempool_unchanged": true,
+      "new_evm_transactions": 0,
+      "new_native_transactions": 0,
+      "no_source_release_or_funding_file": true,
+      "repeat_identical": true,
+      "resume_rejected": true,
+      "scope": "actual local interrupted setup, no synthetic swap settlement",
+      "unfunded_cancelled": true,
+      "valid_signed_offer_cannot_reauthorize": null,
+      "fully_signed_offer_available": false
+    },
+    "eth-deployed": {
+      "exclusive_os_lock_checked": true,
+      "native_tip_and_mempool_unchanged": true,
+      "new_evm_transactions": 0,
+      "new_native_transactions": 0,
+      "no_source_release_or_funding_file": true,
+      "repeat_identical": true,
+      "resume_rejected": true,
+      "scope": "actual local interrupted setup, no synthetic swap settlement",
+      "unfunded_cancelled": true,
+      "valid_signed_offer_cannot_reauthorize": null,
+      "fully_signed_offer_available": false
+    },
+    "alice-consented": {
+      "exclusive_os_lock_checked": true,
+      "native_tip_and_mempool_unchanged": true,
+      "new_evm_transactions": 0,
+      "new_native_transactions": 0,
+      "no_source_release_or_funding_file": true,
+      "repeat_identical": true,
+      "resume_rejected": true,
+      "scope": "actual local interrupted setup, no synthetic swap settlement",
+      "unfunded_cancelled": true,
+      "valid_signed_offer_cannot_reauthorize": null,
+      "fully_signed_offer_available": false
+    },
+    "both-consented": {
+      "exclusive_os_lock_checked": true,
+      "native_tip_and_mempool_unchanged": true,
+      "new_evm_transactions": 0,
+      "new_native_transactions": 0,
+      "no_source_release_or_funding_file": true,
+      "repeat_identical": true,
+      "resume_rejected": true,
+      "scope": "actual local interrupted setup, no synthetic swap settlement",
+      "unfunded_cancelled": true,
+      "valid_signed_offer_cannot_reauthorize": true,
+      "fully_signed_offer_available": true
+    },
+    "native-in-flight-sigkill": {
+      "exclusive_os_lock_checked": true,
+      "native_tip_and_mempool_unchanged": true,
+      "new_evm_transactions": 0,
+      "new_native_transactions": 0,
+      "no_source_release_or_funding_file": true,
+      "repeat_identical": true,
+      "resume_rejected": true,
+      "scope": "actual local interrupted setup, no synthetic swap settlement",
+      "unfunded_cancelled": true,
+      "valid_signed_offer_cannot_reauthorize": null,
+      "fully_signed_offer_available": false
+    }
+  },
+  "signed_offer_negative_gates": {
+    "scope": "actual staged native graph and signed owner offer; no swap funding broadcast",
+    "both_owner_signatures_verified": true,
+    "source_release_rejections": [
+      "missing_bob_signature",
+      "changed_amount_wei",
+      "changed_eth_expiry",
+      "changed_eth_chain_id",
+      "changed_eth_salt",
+      "changed_recipient",
+      "changed_native_funding",
+      "changed_native_bundle",
+      "wrong_owner_signature",
+      "invalid_signature",
+      "invalid_recovery_parity",
+      "role_replay",
+      "high_s_signature"
+    ],
+    "owner_lock_before_native_funding_rejected": true,
+    "stale_source_release_rejected": true,
+    "broadcastable_funding_file_absent": true,
+    "node_checkpoint_preserved": true
+  },
+  "conflicting_journal_refusals": {
+    "rejected_before_cancellation": [
+      "truncated_release",
+      "unexpected_funding",
+      "unexpected_eth_intent"
+    ],
+    "scope": "synthetic conflicting local journals; no funding or keys"
+  },
+  "journal_sigkill": {
+    "real_sigkill_before_publication": true,
+    "real_sigkill_after_publication": true,
+    "destination_absent_or_complete": true,
+    "replay_unchanged": true,
+    "conflicting_write_rejected": true,
+    "private_permissions_checked": true,
+    "scope": "synthetic local journals; not full power-loss proof"
+  },
+  "versions": {
+    "rust": "1.93.0",
+    "zebra": "7.0.0-rc.0",
+    "librustzcash": "9c5705f56517c040c50f96d29f1ff15a9383f3e0",
+    "orchard": "0.16.0",
+    "reddsa": "0.6.1"
+  },
+  "limitations": [
+    "same host and trusted local storage",
+    "no public-network or independent-host execution",
+    "no power-loss/storage-rollback proof",
+    "setup may mine source funds or deploy an empty escrow; cancellation adds no transaction"
+  ],
+  "source_sha256": {
+    "crates/swap-native/src/main.rs": "2b071ae3a597c4c48da79cd52f978e28ea0a998dff27a96f842b1e1be4528d4b",
+    "crates/swap-native/src/regtest_swap.rs": "acf7f26e45ffb5da7750491746f99a68b6f1abec9f29c153d5b2f8ad69c0290f",
+    "crates/swap-native/src/storage.rs": "d515bd513b7e1b63a546cd8d51ae36338e201501fd4207eb07296b36a4251119",
+    "scripts/check_funding_consent.py": "390f92bff42c6e16264fbd80c9f340a80f1dbb88f3d1d79528f2b9a050a9fe03",
+    "scripts/demo_server.py": "ba59cde87200033da7c59e4d0c0c56ee9413f699bd8ab078e4b318eebee20c8b",
+    "scripts/funding_wallet.py": "dd3935ce5a3ead4c8de9add196193856627ac0c42e925d47ec158285d5c75c2d",
+    "scripts/prefunding_swap.py": "6ed5d6a864bce6b270bcec6ec67d8ae5d23cdc6ca8e5ae366bc3ab4f8d53c194",
+    "scripts/regtest_wallet.py": "f2ca57b828e01c7be5f22ca3e0bb1846094646527449f7992a19cc4459214c0c",
+    "web/app.js": "e26cadc2ce552a771c9c67ba9fae26896cebd925c467abccb385c28c592d66b6",
+    "crates/swap-native/src/source_guard.rs": "db68266fee9d8ea6f03249174992313d7441c9973ee948b6a26607f8f8a8258e",
+    "scripts/check_atomic_journal.py": "eae4c0fd122439a75cba8994333a03c371d91338abab25319374e38f52e3b360",
+    "scripts/check_setup_cancellation.py": "5d425428ee6456b3de560b545bc9acfcb2f5862c035a7379c451c4bbfd139ebc",
+    "scripts/check_source_guard.py": "44cbbf4a74e37f5a4cebf84800b18351ffa4b6eb67ae924b9674d952045bbbb3"
+  },
+  "native_binary_sha256": "fc27585e3c7627138fb3f54a7ed8772f9526ba3dc2897cb4e5996d71427df4ab",
+  "verification_commands": [
+    "cargo fmt --all --check",
+    "cargo clippy --locked -p shielded-swap-native --all-targets -j 2 -- -D warnings",
+    "cargo test --locked -p shielded-swap-native -j 2",
+    "cargo build --locked --release -p shielded-swap-native -j 2",
+    "python3 -m py_compile scripts/*.py",
+    "node --check web/app.js",
+    "python3 scripts/check_demo_boundary.py"
+  ],
+  "verification_scope": "Native tests: EIP155 vector passed, fixture-dependent bundle mutation test ignored; actual source release/cancellation exercised through integration commands."
+}

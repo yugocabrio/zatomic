@@ -135,5 +135,11 @@ code: old authorized-F policies intentionally fail the new preview boundary.
 For a coordinator that never reads Alice's unrevealed scalar or either ETH key,
 and a live mempool test where a competing relayer mines first, use the separate
 [owner client gates](owner-clients.md). The CLI gate layout has per-owner ETH journals and should not be passed to
-the legacy recovery driver. New browser runs use `owner_swap.py recover`, while
+the legacy recovery driver. New browser runs use `prefunding_swap.py recover` (which delegates after the
+owner ETH lock intent); unreleased v3 setup is permanently cancelled. See
+[setup recovery](setup-recovery.md). Meanwhile
 `run_client_swap.py` remains the standalone adversarial integration gate.
+
+For SIGKILL during actual native claim/refund or during TLS preparation, use
+the [process recovery gates](process-recovery.md). They verify cleanup, durable
+peer-directory restoration and repeated recovery without duplicate payments.

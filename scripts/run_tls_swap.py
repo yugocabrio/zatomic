@@ -11,9 +11,9 @@ import contextlib
 import json
 import os
 from pathlib import Path
-import signal
 import subprocess
 import sys
+import owned_process
 from regtest_node import ROOT
 from regtest_wallet import save
 
@@ -46,28 +46,16 @@ def configure(directory, run):
 
 @contextlib.contextmanager
 def services(directory):
-    children = []
-    try:
+    with contextlib.ExitStack() as stack:
         for name in ('alice', 'bob'):
-            process = subprocess.Popen([sys.executable, str(ROOT / 'scripts/signer_transport.py'), 'serve', str(directory / f'{name}-server.json')],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
-            children.append(process)
+            process = stack.enter_context(owned_process.popen(
+                [sys.executable, str(ROOT / 'scripts/signer_transport.py'), 'serve',
+                 str(directory / f'{name}-server.json')],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
             ready = process.stdout.readline()
             if not ready or not json.loads(ready).get('ready'):
                 raise RuntimeError('owned authenticated signer service failed to start')
         yield
-    finally:
-        for process in children:
-            # Only process groups created above; never a shared service or node.
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
 
 
 def run(mode, directory, existing_bank=None, fault_after=None):
@@ -79,7 +67,7 @@ def run(mode, directory, existing_bank=None, fault_after=None):
             args.extend(['--existing-bank', str(existing_bank)])
         if fault_after:
             args.extend(['--fault-after', fault_after])
-        process = subprocess.run(args, cwd=ROOT,
+        process = owned_process.run(args, cwd=ROOT,
             env=dict(os.environ, LATCH_SIGNER_COMMANDS=str(commands), RAYON_NUM_THREADS='2'))
         if fault_after and process.returncode == 75:
             return {'scope': 'actual TLS setup and owned chains, intentionally interrupted',

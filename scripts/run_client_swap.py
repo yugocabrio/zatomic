@@ -15,6 +15,7 @@ import socket
 import subprocess
 import sys
 import time
+import owned_process
 import run_native_evm_gate as evm
 from regtest_node import ROOT, rpc as zrpc, status
 from regtest_wallet import native, capture, save
@@ -31,7 +32,7 @@ def client(action, directory, packet=None, role=None, stop=False, reject=False):
         args.extend(['--role', role])
     if stop:
         args.append('--fault-after-send')
-    process = subprocess.run(args, input=json.dumps(packet or {}), capture_output=True,
+    process = owned_process.run(args, input=json.dumps(packet or {}), capture_output=True,
         text=True, cwd=ROOT, timeout=45)
     expected = 1 if reject else 75 if stop else 0
     if process.returncode != expected:
