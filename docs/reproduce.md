@@ -95,3 +95,20 @@ refunds it after the deadline. It does not submit new funding or start ETH setup
 It refuses this path if ETH setup artifacts indicate an uncertain external
 outcome. The demonstrated checkpoint cases are not a claim of recovery from
 every instruction boundary or from public-network reorgs.
+
+The more severe send/checkpoint gaps can be reproduced with
+`--fault-after eth-lock-broadcast` (refund mode) or
+`--fault-after eth-claim-broadcast` (success mode), followed by the same recovery
+command. The outgoing signed bytes are persisted privately before broadcast.
+Recovery validates their actual signer and method, then replays the identical
+transaction if absent from the restored owned node. A potentially exposed claim
+outside its bounded window stops without treating the secret as unrevealed.
+
+`python3 scripts/check_evm_journal.py .local/my-success` checks actual signed
+intents offline and rejects relabeling, metadata corruption and invalid encoding.
+Raw intents contain the claim secret before broadcast and must remain private.
+
+For the authenticated signer-channel variant, see
+[signer transport](signer-transport.md). `run_tls_swap.py` runs the same actual
+native/EVM graph with both signer conversations carried over mutual TLS. Its
+certificate fixtures and wallet paths are still on one host.

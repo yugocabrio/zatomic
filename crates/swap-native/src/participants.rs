@@ -1,5 +1,5 @@
-//! Isolated participant processes, communicating over private parent-owned pipes.
-//! This is local process isolation, not remote authentication or an OS sandbox.
+//! Participant protocol over private pipes or an explicitly configured transport.
+//! The optional transport command performs mutual TLS; neither is an OS sandbox.
 use crate::{
     Context, Identifier, Nonce, PreSignature, Result, SigningSession, decode, err, keys, storage,
     wallet,
@@ -434,10 +434,30 @@ impl Process {
                     .ok_or("participant parent")?
                     .join(format!("participant-{id}.log")),
             )?;
-        let mut child = Command::new(std::env::current_exe()?)
-            .arg("participant")
-            .arg(dir)
-            .arg(id.to_string())
+        let mut command = if let Some(path) = std::env::var_os("LATCH_SIGNER_COMMANDS") {
+            // This local owner-controlled file is configuration, never supplied
+            // by a network peer. Arguments are passed directly, without a shell.
+            let configured = storage::json(Path::new(&path))?;
+            let role = if id == 1 { "alice" } else { "bob" };
+            let args = configured[role]
+                .as_array()
+                .ok_or("missing signer command array")?;
+            if args.is_empty() || args.len() > 16 {
+                return Err("invalid signer command length".into());
+            }
+            let args = args
+                .iter()
+                .map(|v| v.as_str().ok_or("signer argument must be a string"))
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            let mut command = Command::new(args[0]);
+            command.args(&args[1..]);
+            command
+        } else {
+            let mut command = Command::new(std::env::current_exe()?);
+            command.arg("participant").arg(dir).arg(id.to_string());
+            command
+        };
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::from(log))

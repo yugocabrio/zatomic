@@ -24,7 +24,7 @@ def main():
     state = json.loads(body)
     token = state['token']
     public = json.dumps(state['jobs'])
-    for forbidden in ['spending-key', 'frost-share', 'witness_le', 'presignature', 'claim-policy', 'joint_fvk', 'evm-checkpoint']:
+    for forbidden in ['spending-key', 'frost-share', 'witness_le', 'presignature', 'claim-policy', 'joint_fvk', 'evm-checkpoint', 'evm-outgoing', 'witness_uint256', '"raw":', '"transaction":']:
         assert forbidden not in public, forbidden
     assert headers['Cache-Control'] == 'no-store'
     assert "frame-ancestors 'none'" in headers['Content-Security-Policy']

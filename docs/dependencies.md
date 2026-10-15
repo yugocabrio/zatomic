@@ -33,3 +33,8 @@ The read-only public testnet probe follows field numbers in the pinned
 lightwallet-protocol schemas. It uses Node's built-in TLS/HTTP2, sends no wallet
 information and cannot broadcast. Primary schema source:
 [lightwallet-protocol](https://github.com/zcash/lightwallet-protocol).
+
+The optional authenticated signer fixture uses Python's standard `ssl` module
+and the local OpenSSL executable for disposable P-256 certificates (tested
+OpenSSL 3.6.3 / TLS 1.3). It adds no runtime package download or custom TLS
+implementation. Default browser operation does not require these certificates.

@@ -87,8 +87,10 @@ class Manager:
         if job['state'] in ('running', 'recovering') and (self.worker is None or not self.worker.is_alive()) and not driver_busy():
             job['state'] = 'complete' if (run / '08-complete.json').exists() else 'interrupted'
         checkpoint = (run / '04-eth-locked.json').exists()
+        ambiguous_evm = all((run / name).exists() for name in ('agreement.json', 'evm-checkpoint.json', 'evm-outgoing'))
         native_only = (run / 'swap/terms.json').exists() and not (run / 'agreement.json').exists()
-        job['recoverable'] = (checkpoint or native_only) and job['state'] not in ('running', 'recovering')
+        job['recoverable'] = (checkpoint or ambiguous_evm or native_only) and job['state'] not in ('running', 'recovering')
+        job['eth_setup_started'] = (run / 'agreement.json').exists()
         return job
 
     def snapshot(self):

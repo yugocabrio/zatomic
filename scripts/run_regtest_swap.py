@@ -16,33 +16,12 @@ import time
 import run_native_evm_gate as evm
 from regtest_node import ROOT, rpc as zrpc, status
 from regtest_wallet import fund, capture, native, save
+from evm_journal import InjectedStop, send as send_evm, require_reveal_window
 
 
 def event(directory, stage, value):
     save(directory / f'{stage}.json', value)
     print(json.dumps({'stage': stage, **value}), flush=True)
-
-
-def send_evm(directory, transaction):
-    receipt = evm.send(transaction)
-    receipts = directory / 'evm-receipts'
-    receipts.mkdir(mode=0o700, exist_ok=True)
-    save(receipts / f'{receipt["transactionHash"]}.json', receipt)
-    # The receipt (including a revealed witness) is durable before reporting
-    # progress. Keep a local-chain checkpoint for interruption/replay tests.
-    checkpoint = {'chain_id': evm.CHAIN, 'state': evm.rpc('anvil_dumpState')}
-    temporary = directory / 'evm-checkpoint.tmp'
-    with temporary.open('w') as handle:
-        json.dump(checkpoint, handle)
-        handle.flush()
-        os.fsync(handle.fileno())
-    temporary.replace(directory / 'evm-checkpoint.json')
-    fd = os.open(directory, os.O_RDONLY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    return receipt
 
 
 def broadcast(path, expected, stop_after_send=False):
@@ -88,9 +67,6 @@ def reserve_aux(bank, directory, terms):
             reservation.unlink()  # Only this runner's reservation, after completion.
     save(reservation, {'run': str(directory), 'outpoint': terms['aux_outpoint']})
 
-
-class InjectedStop(RuntimeError):
-    pass
 
 
 def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=None):
@@ -156,7 +132,7 @@ def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=Non
                 raise RuntimeError('Anvil startup timeout')
             artifact = json.loads((ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json').read_text())
             bob, alice, relay = evm.rpc('eth_accounts')[:3]
-            deployed = send_evm(directory, {'from': bob, 'data': artifact['bytecode']['object'], 'gas': hex(5_000_000)})
+            deployed = send_evm(directory, {'from': bob, 'data': artifact['bytecode']['object'], 'gas': hex(5_000_000)}, kind='deploy')
             contract = deployed['contractAddress']
             actual_code = evm.rpc('eth_getCode', [contract, 'latest']).removeprefix('0x')
             if actual_code != artifact['deployedBytecode']['object'].removeprefix('0x'):
@@ -176,15 +152,16 @@ def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=Non
             locked = send_evm(directory, {'from': bob, 'to': contract, 'value': hex(10**16), 'gas': hex(700_000),
                 'data': evm.calldata('lock(bytes32,address,uint64,(uint256,uint256),bytes32)',
                     '0x' + os.urandom(32).hex(), alice, expiry,
-                    f'({terms["point_x"]},{terms["point_y"]})', terms_hash)})
+                    f'({terms["point_x"]},{terms["point_y"]})', terms_hash)}, kind='lock', fault_after_send=fault_after == 'eth-lock-broadcast')
             order = locked['logs'][0]['topics'][1]
             event(directory, '04-eth-locked', {'txid': locked['transactionHash'], 'order': order})
             if fault_after == 'eth-locked':
                 raise InjectedStop('eth-locked')
             if mode == 'success':
+                require_reveal_window(agreement, terms)
                 secret = json.loads((swap / 'alice/witness.json').read_text())
                 claimed = send_evm(directory, {'from': relay, 'to': contract, 'gas': hex(1_000_000),
-                    'data': evm.calldata('claim(bytes32,uint256)', order, secret['witness_uint256'])})
+                    'data': evm.calldata('claim(bytes32,uint256)', order, secret['witness_uint256'])}, kind='claim', fault_after_send=fault_after == 'eth-claim-broadcast')
                 if claimed['logs'][0]['topics'][1] != order:
                     raise RuntimeError('wrong claim event')
                 witness = int(claimed['logs'][0]['data'], 16).to_bytes(32, 'little').hex()
@@ -229,7 +206,7 @@ def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=Non
                 evm.rpc('evm_setNextBlockTimestamp', [expiry])
                 evm.rpc('evm_mine')
                 refunded = send_evm(directory, {'from': relay, 'to': contract, 'gas': hex(200_000),
-                                    'data': evm.calldata('refund(bytes32)', order)})
+                                    'data': evm.calldata('refund(bytes32)', order)}, kind='refund')
                 event(directory, '05-eth-refunded', {'txid': refunded['transactionHash']})
                 blocks = max(0, terms['refund_height'] + 1 - status()['blocks'])
                 if blocks:
@@ -253,7 +230,7 @@ def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=Non
                 raise RuntimeError('wrong ETH credit')
             before = int(evm.rpc('eth_getBalance', [credited, 'latest']), 16)
             receipt = send_evm(directory, {'from': credited, 'to': contract, 'gas': hex(200_000),
-                               'data': evm.calldata('withdraw(address)', credited)})
+                               'data': evm.calldata('withdraw(address)', credited)}, kind='withdraw')
             after = int(evm.rpc('eth_getBalance', [credited, 'latest']), 16)
             fee = int(receipt['gasUsed'], 16) * int(receipt['effectiveGasPrice'], 16)
             if after - before + fee != 10**16:
@@ -282,7 +259,7 @@ if __name__ == '__main__':
     parser.add_argument('directory', type=Path)
     parser.add_argument('--existing-bank', type=Path)
     parser.add_argument('--resume-setup', action='store_true')
-    parser.add_argument('--fault-after', choices=['zec-broadcast', 'zec-funded', 'eth-locked', 'eth-claimed'])
+    parser.add_argument('--fault-after', choices=['zec-broadcast', 'zec-funded', 'eth-locked', 'eth-claimed', 'eth-lock-broadcast', 'eth-claim-broadcast'])
     args = parser.parse_args()
     os.umask(0o077)
     (ROOT / '.local').mkdir(mode=0o700, exist_ok=True)

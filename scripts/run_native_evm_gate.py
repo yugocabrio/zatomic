@@ -33,6 +33,17 @@ def rpc(method, params=None):
 
 
 def calldata(signature, *args):
+    if signature == 'claim(bytes32,uint256)':
+        # Keep an unrevealed witness out of the OS process argument list. This
+        # fixed ABI contains exactly two static words; cast handles public
+        # method-selector hashing only.
+        order, witness = args
+        identifier = bytes.fromhex(str(order).removeprefix('0x'))
+        scalar = int(witness, 0) if isinstance(witness, str) else witness
+        if len(identifier) != 32 or not 0 <= scalar < 2**256:
+            raise RuntimeError('invalid claim arguments')
+        selector = subprocess.check_output(['cast', 'sig', signature], text=True).strip()
+        return selector + identifier.hex() + scalar.to_bytes(32, 'big').hex()
     return subprocess.check_output(['cast', 'calldata', signature, *map(str, args)],
                                    text=True, cwd=ROOT).strip()
 

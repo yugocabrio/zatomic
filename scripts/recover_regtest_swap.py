@@ -2,12 +2,12 @@
 """Resume an isolated-chain swap from durable receipts and chain state.
 
 If ETH was claimed, Bob completes the prepared native claim using the public
-witness. Otherwise both original assets are refunded. No new reveal occurs.
+witness. An outgoing signed claim may be replayed within its safe window; it is
+never treated as an unrevealed swap. Otherwise original assets are refunded.
 This restores the OWNED Anvil snapshot; it is not public-network reorg recovery.
 """
 import argparse
 import fcntl
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -17,7 +17,8 @@ import time
 import run_native_evm_gate as evm
 from regtest_node import ROOT, rpc as zrpc, status
 from regtest_wallet import native, capture, save
-from run_regtest_swap import broadcast, send_evm
+from run_regtest_swap import broadcast
+from evm_journal import send as send_evm, replay as replay_outgoing, verify_contract, order_state
 
 
 def topic(signature):
@@ -98,11 +99,10 @@ def recover(directory):
     status()
     swap = directory / 'swap'
     terms = json.loads((swap / 'terms.json').read_text())
-    if not (directory / '04-eth-locked.json').exists():
+    if not (directory / '04-eth-locked.json').exists() and not (directory / 'agreement.json').exists():
         return funding_only_refund(directory, terms)
     agreement = json.loads((directory / 'agreement.json').read_text())
     checkpoint = json.loads((directory / 'evm-checkpoint.json').read_text())
-    locked = json.loads((directory / '04-eth-locked.json').read_text())
     if agreement['native'] != terms or checkpoint['chain_id'] != evm.CHAIN or agreement['eth_chain_id'] != evm.CHAIN:
         raise RuntimeError('recovery journal domain mismatch')
     if not confirmed(terms['funding_txid']):
@@ -127,16 +127,18 @@ def recover(directory):
                 raise RuntimeError('recovery node startup timeout')
             if not evm.rpc('anvil_loadState', [checkpoint['state']]):
                 raise RuntimeError('snapshot restore failed')
-            contract, order = agreement['contract'], locked['order']
-            artifact = json.loads((ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json').read_text())
-            if evm.rpc('eth_getCode', [contract, 'latest']).removeprefix('0x') != artifact['deployedBytecode']['object'].removeprefix('0x'):
-                raise RuntimeError('restored contract code mismatch')
-            encoded = evm.rpc('eth_call', [{'to': contract, 'data': evm.calldata('orders(bytes32)', order)}, 'latest'])
-            words = [int(encoded[2+i:2+i+64], 16) for i in range(0, len(encoded)-2, 64)]
-            commitment = hashlib.sha256(json.dumps(agreement, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-            if len(words) != 8 or words[0] != int(agreement['maker'], 16) or words[1] != int(agreement['recipient'], 16) or words[2] != 10**16 or words[3] != agreement['eth_expiry'] or words[5] != int(terms['point_x'], 16) or words[6] != int(terms['point_y'], 16) or words[7] != int(commitment, 16):
-                raise RuntimeError('restored order differs from committed agreement')
-            state = words[4]
+            verify_contract(agreement)
+            replayed = replay_outgoing(directory, agreement, terms)
+            contract = agreement['contract']
+            if not (directory / '04-eth-locked.json').exists():
+                locks = evm.rpc('eth_getLogs', [{'address': contract, 'fromBlock': '0x0', 'toBlock': 'latest',
+                    'topics': [topic('Locked(bytes32,address,address,uint256,uint64,uint256,uint256,bytes32)')]}])
+                if len(locks) != 1 or locks[0].get('removed', False):
+                    raise RuntimeError('cannot reconcile a unique canonical ETH lock')
+                record_once(directory, '04-eth-locked', {'txid': locks[0]['transactionHash'], 'order': locks[0]['topics'][1]})
+            locked = json.loads((directory / '04-eth-locked.json').read_text())
+            order = locked['order']
+            state = order_state(agreement, terms, order)
             sent = 0
             if state == 2:
                 logs = evm.rpc('eth_getLogs', [{'address': contract, 'fromBlock': '0x0',
@@ -158,7 +160,7 @@ def recover(directory):
                         evm.rpc('evm_setNextBlockTimestamp', [agreement['eth_expiry']])
                         evm.rpc('evm_mine')
                     refunded = send_evm(directory, {'from': agreement['maker'], 'to': contract, 'gas': hex(200_000),
-                        'data': evm.calldata('refund(bytes32)', order)})
+                        'data': evm.calldata('refund(bytes32)', order)}, kind='refund')
                     record_once(directory, '05-eth-refunded', {'txid': refunded['transactionHash']})
                     sent += 1
                 missing = max(0, terms['refund_height'] + 1 - status()['blocks'])
@@ -179,7 +181,7 @@ def recover(directory):
             if credit == 10**16:
                 before = int(evm.rpc('eth_getBalance', [owner, 'latest']), 16)
                 withdrawn = send_evm(directory, {'from': owner, 'to': contract, 'gas': hex(200_000),
-                    'data': evm.calldata('withdraw(address)', owner)})
+                    'data': evm.calldata('withdraw(address)', owner)}, kind='withdraw')
                 sent += 1
                 after = int(evm.rpc('eth_getBalance', [owner, 'latest']), 16)
                 fee = int(withdrawn['gasUsed'], 16) * int(withdrawn['effectiveGasPrice'], 16)
@@ -204,7 +206,7 @@ def recover(directory):
             save(directory / '09-recovered.json', result)
             if not (directory / '08-complete.json').exists():
                 save(directory / '08-complete.json', result)
-            return {**result, 'new_native_transactions': int(native_sent), 'new_evm_transactions': sent}
+            return {**result, 'new_native_transactions': int(native_sent), 'new_evm_transactions': sent, 'identical_outgoing_transactions_replayed': replayed}
         finally:
             process.terminate()
             try:

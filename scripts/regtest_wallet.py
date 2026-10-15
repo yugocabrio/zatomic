@@ -26,6 +26,11 @@ def save(path, value):
         f.write(encoded)
         f.flush()
         os.fsync(f.fileno())
+    fd = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def capture(directory):

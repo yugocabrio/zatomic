@@ -121,3 +121,19 @@ after an arbitrarily long outage. Original immutable evidence is preserved.
 Auxiliary coin reservation and current unspent checks precede the local runner's
 funding broadcast and ETH lock; direct users of the low-level Rust primitives
 must provide those checks themselves.
+
+Outgoing local EVM calls use a write-ahead signed-transaction journal. Before
+broadcast, the preceding owned Anvil state and exact raw transaction/hash are
+fsynced. Recovery decodes the signed bytes and recovered sender rather than
+trusting the journal's method label. A missing receipt is not proof that the
+claim secret stayed private: the same timely claim may be replayed; outside the
+bounded window, recovery stops without falling back to both refunds. These
+lock/claim interruption paths have actual chain evidence. Deployment/setup
+failures and public chain reorg handling remain separate work.
+
+The optional coordinator-to-signer TLS transport now integrates with a real
+chain swap and rejects credential/protocol/role mismatches and replay after
+disconnect. This authenticates the coordinator connection, not chain state or
+independent economic consent. The tested fixture still shares local artifact
+paths; independently operated wallet/bundle distribution is unfinished. See
+[signer transport](signer-transport.md) for exact scope and reproduction.

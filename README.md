@@ -42,6 +42,7 @@ python3 scripts/demo_server.py
 - [Skyhook comparison and intended differentiation](docs/competitive-position.md)
 - [Judge walkthrough](docs/demo-walkthrough.md)
 - [Public-network readiness](docs/public-testnet.md) and [dependencies](docs/dependencies.md)
+- [Authenticated signer channel and its limits](docs/signer-transport.md)
 - [Current status](STATUS.md) and [remaining work](TASKS.md)
 - [Public evidence](evidence/): native/EVM compatibility, chain acceptance,
   interrupted claim/refund recovery, signer nonce replay and tampering tests
@@ -56,8 +57,10 @@ The exchanged ZEC remains shielded. Refunds additionally use an Alice-owned
 transparent auxiliary input to make the native timelock effective. Its outpoint
 and value are public on refund. ETH-side activity is public.
 
-Both signers run in separate processes on one host. Private pipes are not remote
-authentication or an OS sandbox. The custom adaptor extension is unaudited.
+Both signers run in separate processes on one host. The default browser demo uses
+private pipes; an optional mutually authenticated TLS channel also passes an
+actual swap and reconnect/adversarial checks. Independent-host wallet operation
+and an OS sandbox are not demonstrated. The custom adaptor extension is unaudited.
 The swap requires monitoring and bounded inclusion/reorg assumptions; it is not
 safe against an arbitrarily long outage. Local controlled heights/times are not
 public-network timing defaults. Mainnet is unsupported.

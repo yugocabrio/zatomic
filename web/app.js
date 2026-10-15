@@ -58,14 +58,14 @@ function render(data) {
   $('#recover').disabled = pending || !job?.recoverable || data.busy;
   if (interrupted) {
     text('#recovery-title', job.recoverable ? 'The way out is already prepared.' : 'State preserved for inspection.');
-    text('#recovery-copy', !job.recoverable ? 'The run stopped before its ETH checkpoint. State is preserved; inspect the local runner log and recovery guide before continuing.' : !events.has('04-eth-locked') ? 'ETH setup never started. Recover the prepared ZEC refund after its local deadline; no new funding will be submitted.' : refund ? 'No secret was revealed. Restart the local node, advance the test clocks and recover both original assets.' : 'The ETH claim is recorded. Bob can use its public witness to finish the ZEC claim without another signature from Alice.');
+    text('#recovery-copy', !job.recoverable ? 'The run stopped before its ETH checkpoint. State is preserved; inspect the local runner log and recovery guide before continuing.' : !events.has('04-eth-locked') && job.eth_setup_started ? 'An ETH send may have happened before its receipt was saved. Reconcile the signed transaction before deciding whether to settle or refund.' : !events.has('04-eth-locked') ? 'ETH setup never started. Recover the prepared ZEC refund after its local deadline; no new funding will be submitted.' : refund ? 'No secret was revealed. Restart the local node, advance the test clocks and recover both original assets.' : 'The ETH claim is recorded. Bob can use its public witness to finish the ZEC claim without another signature from Alice.');
   }
   $('#outcome').hidden = !complete;
   if (complete) {
     text('#outcome-title', fundingOnly ? 'Alice recovered ZEC. Bob never locked ETH.' : refund ? 'Alice recovered ZEC. Bob recovered ETH.' : 'Bob received ZEC. Alice received ETH.');
     text('#outcome-copy', fundingOnly ? 'The existing native funding was reconciled and refunded. No new ETH transaction.' : `${recovered ? 'Recovered from a durable checkpoint. ' : ''}0.010000 ZEC note decrypted · 0.0100 ETH withdrawn.`);
   }
-  text('#live-caption', running ? 'Local proof generation and chain confirmation are running.' : interrupted ? (events.has('04-eth-locked') ? 'Runner and local EVM stopped. Recovery uses saved state.' : 'Runner stopped before ETH setup. Native recovery remains prepared.') : complete ? 'Node confirmation + recipient decryption verified.' : 'Actual local-chain transactions. No simulated balances.');
+  text('#live-caption', running ? 'Local proof generation and chain confirmation are running.' : interrupted ? (job.eth_setup_started ? 'Runner and local EVM stopped. Recovery uses saved state.' : 'Runner stopped before ETH setup. Native recovery remains prepared.') : complete ? 'Node confirmation + recipient decryption verified.' : 'Actual local-chain transactions. No simulated balances.');
   const elapsed = job ? Math.max(0, (running ? Math.floor(Date.now() / 1000) : (job.updated_at || Math.floor(Date.now() / 1000))) - job.started_at) : 0;
   text('#elapsed', job ? compactTime(elapsed) : '—');
   renderReceipt(job, events);
