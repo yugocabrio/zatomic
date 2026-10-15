@@ -1,0 +1,148 @@
+{
+  "commands": [
+    "python3 scripts/check_public_eth_delivery.py .local/public-eth-execute-002 .local/public-source-release-001",
+    "python3 scripts/check_public_execution.py .local/public-execution-001 .local/public-outgoing-001",
+    "python3 scripts/check_public_source_execution.py .local/public-source-execution-001 .local/public-source-release-001",
+    "node scripts/check_native_send_boundary.mjs .local/native-send-boundary-002",
+    "node scripts/check_lightwallet_rpc.mjs",
+    "node --check scripts/send_testnet_transaction.mjs",
+    "python3 -m py_compile scripts/public_authority.py scripts/public_eth_outgoing.py scripts/public_preflight.py scripts/public_recovery_decision.py scripts/public_source.py scripts/public_eth_execute.py scripts/public_native_execute.py scripts/public_source_execute.py scripts/check_public_execution.py scripts/check_public_source_execution.py scripts/check_public_eth_delivery.py",
+    "git diff --check"
+  ],
+  "date": "2026-10-15",
+  "fee_policy": {
+    "automatic_fee_or_nonce_replacement": false,
+    "below_ceiling_legacy_journals_sendable": false,
+    "default_ceiling_wei": 100000000000,
+    "new_signed_gas_price": "exact agreed ceiling"
+  },
+  "foundry": "1.3.1-stable (08d3a4ad4d78b62bcb897350803bf96fc2cf6cc9)",
+  "implementation_base": "00c27c9",
+  "implementation_sha256": {
+    "scripts/lightwallet_rpc.mjs": "23f5791422c2e6a7ded1b1901d1a10204244692f4b25196dd01d9a350848e3af",
+    "scripts/public_eth_execute.py": "fc51bf093ef78d36a3009f5bf5389e49bb2ed9a1fd071ed0fa92992a83c32487",
+    "scripts/public_native_execute.py": "2bfe3a55d43f4430ffb665a55c5d38510add7faa76a272f75149702d00eaedd5",
+    "scripts/public_source_execute.py": "28d75dae895f89718ef4ac10c651d1ac141c6056163986bf17f5b74f8a684f23",
+    "scripts/send_testnet_transaction.mjs": "5f3ec328a1918a5b7bae21558e3fb9bae0c788eedecd1251d05cf18eed177c0b"
+  },
+  "limitations": [
+    "No public send/deployment/RPC or new native proof was performed. Complete funded public positive wrappers and native SendTransaction transport remain unexecuted.",
+    "Actual EIP-155 actions and balances ran on owned ephemeral Anvil. Synthetic native agreement, installed compiled runtime and modeled finalized labels are explicit; production wrappers refuse synthetic provenance before RPC.",
+    "Native F/C/R verification used actual retained proofs and signatures over synthetic public-profile inputs. Native observations and failed transport callbacks are explicit transcripts, not native node acceptance.",
+    "Real SIGKILL persisted native uncertainty; inherited Node lock survived parent descriptor closure. These are selected boundaries on one host, not arbitrary-crash or independent-host proofs.",
+    "F replay still needs the original source wallet, source/anchor and auxiliary. No source replacement, autonomous Bob-only F restoration, reservation release or general reorg repair.",
+    "RPC observations remain trusted. Cap-priced ETH still depends on bounded fees/inclusion; immutable native fees cannot be bumped by reproof.",
+    "First ETH check -001 completed transaction assertions then failed when cleanup tried replacing an immutable process record. Owned Anvil had stopped. Changed to separate process-stopped.json; complete rerun -002 exited0 and its Anvil exited0.",
+    "Fresh-environment reproduction is blocked by free space below the existing setup prerequisite and absence of a separate Docker namespace/host. Existing node, fixtures and builds were preserved."
+  ],
+  "milestone": "Explicit testnet execution candidate: F, native exits and ETH actions",
+  "native_transport_boundary": {
+    "network_calls": 0,
+    "passed": true,
+    "read_only_rpc_still_refuses_send": true,
+    "scope": "offline envelope/inherited-fd identity and explicit protocol/genesis/upgrade transcripts"
+  },
+  "node": "24.12.0",
+  "python": "3.14.6",
+  "reports": {
+    "isolated_eth": {
+      "actual_recipient_balance_increase_equals_credit_minus_gas_both_roles": true,
+      "actual_sigkill_after_claim_submission_before_checkpoint": true,
+      "changed_withdrawal_destination_and_missing_event_refused": true,
+      "claim_success_withdrawal": {
+        "block_hash": "0x72740adf505963911ea56f1351e9b06f93729237a5c8eec8a2ce875deeb2ab49",
+        "block_height": 4,
+        "broadcast": false,
+        "expected_event_verified": true,
+        "kind": "withdraw",
+        "possible_secret_exposure": false,
+        "provider_finalized": true,
+        "provider_trusted": true,
+        "receipt_status": 1,
+        "send_authorized": false,
+        "state": "confirmed-by-provider",
+        "txid": "0x85640bc245142e9ea3e26abbd562f3b71647ce02116c3badf776d7cf41955827",
+        "withdrawal_verified": true
+      },
+      "compiled_runtime_installed_in_owned_evm": true,
+      "exact_receipt_recovery_without_resubmission": true,
+      "known_opening_or_claim_history_refuses_refund": true,
+      "local_reorg_preserves_claim_exposure_and_previous_receipts": true,
+      "mature_refund_and_exact_dedicated_credit_checked": true,
+      "new_native_proofs": 0,
+      "public_deployment": false,
+      "public_funded_preflight": false,
+      "public_synthetic_and_wrong_genesis_guards_pass": true,
+      "public_transfers": false,
+      "recovery_policy_transcripts": {
+        "expired_window_recovery_action_checks": true,
+        "explicit_model_only": true,
+        "other_credit_pending_nonce_inconsistent_state_stale_clock_refused": true
+      },
+      "refund_withdrawal": {
+        "block_hash": "0x3f9fdd3b2fb1bb19c957b80bbfa22893fae544eca1099c9e6f406bc80ef0dd95",
+        "block_height": 5,
+        "broadcast": false,
+        "expected_event_verified": true,
+        "kind": "withdraw",
+        "possible_secret_exposure": false,
+        "provider_finalized": true,
+        "provider_trusted": true,
+        "receipt_status": 1,
+        "send_authorized": false,
+        "state": "confirmed-by-provider",
+        "txid": "0x8f5d12755acfd140a82fd9d582a2fded0241b6fae621d196d9f4c248cf1173b4",
+        "withdrawal_verified": true
+      },
+      "scope": "actual signed isolated ETH execution using synthetic native agreements; modeled finality labels",
+      "withdrawal_replay_with_network_keys_and_peer_roots_denied": true
+    },
+    "native_exit": {
+      "ceiling_fee_nonce_and_reserve_policy_checked": true,
+      "inherited_node_writer_lock_retained_after_parent_close": true,
+      "native_node_submissions": 0,
+      "new_native_proofs": 0,
+      "oldest_auxiliary_observation_bounds_native_transport": true,
+      "owners": {
+        "alice": {
+          "actual_native_bytes_verified": "6d833f1a056d90a52f02d224181626498e14d4ebf8ef60f3190a9f02c7dff5c9",
+          "mode": "refund",
+          "modeled_live_policy_refusals_pass": true,
+          "public_synthetic_send_refused": true,
+          "same_bytes_retained_after_sigkill_and_transport_error": true
+        },
+        "bob": {
+          "actual_native_bytes_verified": "7ce2133fa829cffdcada685ad358da354544b786d4bd4bc8057d0c992176811b",
+          "mode": "claim",
+          "modeled_live_policy_refusals_pass": true,
+          "public_synthetic_send_refused": true,
+          "same_bytes_retained_after_sigkill_and_transport_error": true
+        }
+      },
+      "public_rpc_calls": 0,
+      "public_transfers": false,
+      "scope": "real retained native proof/signature validation; explicit policy and failed transport models only"
+    },
+    "native_source": {
+      "actual_native_authorization_verified": true,
+      "actual_source_bytes_sha256": "8a306156298244e45ad04e60c4501d086a5c0a1b7b604fca44504d5fce209853",
+      "durable_uncertain_attempt_selects_same_F_replay": true,
+      "exact_provider_F_bytes_required": true,
+      "funded_public_positive_path": false,
+      "native_node_submissions": 0,
+      "new_native_proofs": 0,
+      "public_rpc_calls": 0,
+      "public_synthetic_send_refused": true,
+      "release_still_forbids_cancellation": true,
+      "scope": "actual retained synthetic F proof/signature verification and explicit native observation/failed-transport transcripts",
+      "source_identity_revalidated_after_release": true
+    }
+  },
+  "setup_readiness": {
+    "all_tools_available": true,
+    "clean_environment_reproduction_performed": false,
+    "free_space_gib_approx": 3.3,
+    "make_doctor_exit_code": 2,
+    "required_gib": 5
+  }
+}

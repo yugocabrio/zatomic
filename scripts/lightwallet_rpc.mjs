@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Read-only network identification, using Node's TLS-validated HTTP/2 client.
+// Read-only RPC plus a separate explicit transaction writer over validated TLS.
 // Minimal bounded protobuf decoder for the observed lightwallet-protocol fields.
 // Field numbers checked against librustzcash 9c5705f's pinned walletrpc/*.proto.
-// This is NOT consensus/SPV verification and NEVER sends a transaction or key.
+// This is NOT consensus/SPV verification. rpc() cannot submit transactions;
+// submitTransaction() is the private sender's transport. Neither sends keys.
 import http2 from 'node:http2';
 
 export const ENDPOINT = 'https://testnet.zec.rocks:443';
@@ -84,6 +85,22 @@ export function requireGrpcSuccess(method, status, contentType, grpcStatus) {
 }
 export async function rpc(method, message = Buffer.alloc(0)) {
   if (!ALLOWED.has(method)) throw new Error('read-only method required');
+  return transport(method, message);
+}
+
+// Explicit writer boundary. Kept OUT of the read-only method allowlist. The
+// parent sender must validate the exact native bytes, network, policy and durable
+// intent before invoking its dedicated CLI; this is only the bounded transport.
+export async function submitTransaction(raw) {
+  if (!Buffer.isBuffer(raw) || raw.length < 20 || raw.length > 2_000_000) throw new Error('bounded native transaction required');
+  const response = await transport('SendTransaction', Buffer.concat([Buffer.from([10]), varint(raw.length), raw]));
+  // SendResponse errorCode is int32 field1; protobuf omits the default zero.
+  // Never return/log the provider errorMessage, which may echo transaction data.
+  if (response.has(1) && integer(response, 1) !== 0) throw new Error('native submission uncertain/rejected');
+  return {submitted_to_provider: true, confirmed: false};
+}
+
+async function transport(method, message) {
   return new Promise((resolve, reject) => {
     const client = http2.connect(ENDPOINT, {rejectUnauthorized: true});
     let stream, done = false, total = 0, status, grpcStatus, contentType;

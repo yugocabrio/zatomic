@@ -22,6 +22,11 @@ test wallets; the original keys, notes and journals are deliberately excluded.
 | Public-profile ETH delivery primitives on an isolated EVM | Real signed lock/claim/refund/withdrawal, post-submit SIGKILL and exact receipt recovery; both recipients' balance changes equal credit minus gas. | [ETH delivery](../evidence/2026-10-15-public-eth-delivery.json) | Public deployment/settlement or a complete sender. Native inputs are synthetic, runtime is installed locally, finality labels are modeled. |
 | Public settlement / independent-host operation | **Not executed.** | [Remaining gates](public-testnet.md#gates-before-a-funded-public-demonstration) | Do not present any earlier row as this result. |
 
+The latest [explicit sender candidate checks](../evidence/2026-10-15-public-execution.json)
+add actual cap-priced isolated ETH settlement, retained native F/C/R validation,
+crash/lock retention and modeled native transport/observation boundaries. The
+new entry points do not turn the earlier rows into a funded public demonstration.
+
 ## Check the headline local result
 
 The [OTC record](../evidence/2026-10-15-otc-offers.json), committed in `d1b9600`,

@@ -119,7 +119,10 @@ def transaction_base(agreement, kind, reserve, role=None):
             or min(reserve['confirmed_balance_wei'], reserve['pending_balance_wei']) < reserve['required_balance_wei']):
         raise RuntimeError('ETH signing reserve differs from accepted action/policy')
     return {'from': address, 'to': agreement['escrow']['contract'], 'chainId': hex(CHAIN), 'type': '0x0',
-        'nonce': hex(reserve['nonce']), 'gasPrice': hex(reserve['gas_price_wei']),
+        # Public test-only profile deliberately pays the already signed ceiling.
+        # Exact-byte recovery cannot depend on constructing a higher-fee claim
+        # after first exposure. Actual spend is still bounded by gasUsed*cap.
+        'nonce': hex(reserve['nonce']), 'gasPrice': hex(p['max_gas_price_wei']),
         'gas': hex(p['gas_limits'][kind]), 'value': hex(agreement['amount_wei'] if kind == 'lock' else 0)}
 
 

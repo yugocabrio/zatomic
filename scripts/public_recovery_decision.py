@@ -111,44 +111,49 @@ def observe_auxiliary(agreement, checked, directory):
 
 def reconcile(owner, fingerprint, consents, wallet=None, batches=4, endpoint=probe_sepolia.ENDPOINT):
     with authority.owner_locked(owner):
-        files, checked, caller, kind = eth_outgoing.context(owner, consents)
-        if checked['synthetic_inputs'] is not False:
-            raise RuntimeError('synthetic inputs cannot enter public recovery decision')
-        mode = {'claim': 'refund', 'lock': 'claim'}[kind]
-        agreement = files['proposal']['agreement']
-        parent = owner/'public-recovery-decisions'; outgoing.private_directory(parent)
-        if len(list(parent.iterdir())) >= 128: raise RuntimeError('recovery decision history full; preserve all state')
-        directory = parent/uuid.uuid4().hex; outgoing.private_directory(directory)
-        publish(directory/'intent.json', {'agreement_digest': checked['agreement_digest'], 'mode': mode,
-            'version': fingerprint, 'broadcast': False})
+        return reconcile_locked(owner, fingerprint, consents, wallet, batches, endpoint)
+
+
+def reconcile_locked(owner, fingerprint, consents, wallet=None, batches=4, endpoint=probe_sepolia.ENDPOINT):
+    """Caller retains operator.lock through any subsequent delivery decision."""
+    files, checked, caller, kind = eth_outgoing.context(owner, consents)
+    if checked['synthetic_inputs'] is not False:
+        raise RuntimeError('synthetic inputs cannot enter public recovery decision')
+    mode = {'claim': 'refund', 'lock': 'claim'}[kind]
+    agreement = files['proposal']['agreement']
+    parent = owner/'public-recovery-decisions'; outgoing.private_directory(parent)
+    if len(list(parent.iterdir())) >= 128: raise RuntimeError('recovery decision history full; preserve all state')
+    directory = parent/uuid.uuid4().hex; outgoing.private_directory(directory)
+    publish(directory/'intent.json', {'agreement_digest': checked['agreement_digest'], 'mode': mode,
+        'version': fingerprint, 'broadcast': False})
+    native = native_reconcile.observe_locked(owner, fingerprint, wallet, batches)
+    local = eth_outgoing.exposure(owner, files, checked) if mode == 'refund' else None
+    ethereum = auxiliary = auxiliary_raw = None
+    errors = []
+    if mode == 'refund' and native['native_state'] in ('unobserved-by-provider', 'orphaned-by-provider'):
+        try:
+            ethereum = eth_reconcile.observe_locked(owner, consents, endpoint)
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+            errors.append('eth-reader-failed-private-history-retained')
+        try:
+            auxiliary_raw = observe_auxiliary(agreement, checked, directory)
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+            errors.append('auxiliary-reader-failed-private-response-retained')
+        # A just-mined refund consumed its own auxiliary. Reconcile again
+        # before treating that disappearance as loss of the recovery path.
         native = native_reconcile.observe_locked(owner, fingerprint, wallet, batches)
-        local = eth_outgoing.exposure(owner, files, checked) if mode == 'refund' else None
-        ethereum = auxiliary = auxiliary_raw = None
-        errors = []
-        if mode == 'refund' and native['native_state'] in ('unobserved-by-provider', 'orphaned-by-provider'):
+        if auxiliary_raw is not None:
             try:
-                ethereum = eth_reconcile.observe_locked(owner, consents, endpoint)
-            except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
-                errors.append('eth-reader-failed-private-history-retained')
-            try:
-                auxiliary_raw = observe_auxiliary(agreement, checked, directory)
-            except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
-                errors.append('auxiliary-reader-failed-private-response-retained')
-            # A just-mined refund consumed its own auxiliary. Reconcile again
-            # before treating that disappearance as loss of the recovery path.
-            native = native_reconcile.observe_locked(owner, fingerprint, wallet, batches)
-            if auxiliary_raw is not None:
-                try:
-                    auxiliary = preflight.native_auxiliary(agreement, checked['native_auxiliary'], auxiliary_raw, int(time.time()))
-                except (RuntimeError, ValueError, KeyError, TypeError):
-                    errors.append('auxiliary-stale-or-changed-after-native-recheck')
-        decision = decide(agreement, mode, native, local, ethereum, auxiliary)
-        if authority.bind_owner(owner, files, checked, eth_outgoing.PHASE[kind]) != caller or read(consents) != files['consents']:
-            raise RuntimeError('owner acceptance changed during recovery decision')
-        decision.update(native=native, eth_observation=ethereum, local_claim_history=local,
-            auxiliary=auxiliary, reader_errors=errors)
-        publish(directory/'report.json', decision)
-        return dict(decision, observation_directory=str(directory))
+                auxiliary = preflight.native_auxiliary(agreement, checked['native_auxiliary'], auxiliary_raw, int(time.time()))
+            except (RuntimeError, ValueError, KeyError, TypeError):
+                errors.append('auxiliary-stale-or-changed-after-native-recheck')
+    decision = decide(agreement, mode, native, local, ethereum, auxiliary)
+    if authority.bind_owner(owner, files, checked, eth_outgoing.PHASE[kind]) != caller or read(consents) != files['consents']:
+        raise RuntimeError('owner acceptance changed during recovery decision')
+    decision.update(native=native, eth_observation=ethereum, local_claim_history=local,
+        auxiliary=auxiliary, reader_errors=errors)
+    publish(directory/'report.json', decision)
+    return dict(decision, observation_directory=str(directory))
 
 
 def main():

@@ -39,8 +39,9 @@ feed or counterparty matching is implemented.
 
 A separate [read-only public-testnet wallet](docs/public-testnet.md) downloads
 Ironwood compact blocks, decrypts locally and resumes persisted note witnesses.
-Public synchronization has been exercised with an unfunded wallet; public swap
-funding, deadline policy and settlement integration remain unfinished.
+Public synchronization has been exercised with an unfunded wallet. Explicit
+testnet sender entry points now connect private signing and recovery checks;
+their complete funded public execution remains untested.
 
 If already built and the node is running:
 

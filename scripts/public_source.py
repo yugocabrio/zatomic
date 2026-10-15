@@ -45,14 +45,23 @@ def exact_note(original, fresh):
         raise RuntimeError('source wallet checkpoint moved backwards')
 
 
-def prepare(wallet, bundle_path, agreement, verified, directory):
+def source_identity(wallet, agreement, released=False):
+    if not released: return public_source_guard.check_locked(wallet, agreement)
+    if ((wallet/public_source_guard.CANCELLED).exists() or (wallet/public_source_guard.CANCELLED).is_symlink()
+            or not (wallet/public_source_guard.RELEASE).is_file()):
+        raise RuntimeError('existing uncancelled exact release required')
+    return public_source_guard.identity_locked(wallet, agreement)
+
+
+def prepare(wallet, bundle_path, agreement, verified, directory, released=False, replay=False):
     """Caller holds sync.lock. Bind offline reservation BEFORE provider requests."""
-    authority = public_source_guard.check_locked(wallet, agreement)
+    if replay and not released: raise RuntimeError('late replay requires an existing source release')
+    authority = source_identity(wallet, agreement, released)
     bundle = testnet_wallet.read(bundle_path)
     if eth.digest(bundle) != agreement['bundle_digest'] or bundle['synthetic_inputs'] is not False:
         raise RuntimeError('source bundle changed or contains synthetic inputs')
     plan = agreement['execution_plan']
-    timestamp_policy.require_window(plan, 'funding', int(time.time()))
+    if not replay: timestamp_policy.require_window(plan, 'funding', int(time.time()))
     previous = source_inputs.replay(wallet, agreement['execution_plan_digest'], agreement['native']['principal_zatoshi'])
     if previous is None:
         raise RuntimeError('existing source reservation required before live preflight')
@@ -86,13 +95,14 @@ def prepare(wallet, bundle_path, agreement, verified, directory):
     fresh = testnet_wallet.read(directory/'source.json')
     exact_note(original, fresh)
     save(directory/'reserved-graph-check.json', checked)
-    return {'directory': directory, 'snapshot': fresh, 'authority': authority, 'wallet': wallet}
+    return {'directory': directory, 'snapshot': fresh, 'authority': authority, 'wallet': wallet,
+        'released': released, 'replay': replay}
 
 
 def observe(context, agreement):
     """Recheck the exact old anchor and the freshly scanned current tip live."""
     directory, snapshot = context['directory'], context['snapshot']
-    if public_source_guard.check_locked(context['wallet'], agreement) != context['authority']:
+    if source_identity(context['wallet'], agreement, context.get('released', False)) != context['authority']:
         raise RuntimeError('source authority changed during observations')
     subprocess.run(['node', str(ROOT/'scripts/observe_testnet_source.mjs'),
         str(directory/'source.json'), str(directory/'canonical.json')],
@@ -106,7 +116,8 @@ def observe(context, agreement):
             or canonical['anchor']['height'] != snapshot['anchor_height']
             or canonical['anchor']['hash'] != snapshot['anchor_tip']):
         raise RuntimeError('source canonical observation differs from checked snapshots')
-    timestamp_policy.require_window(agreement['execution_plan'], 'funding', int(time.time()))
+    if not context.get('replay', False):
+        timestamp_policy.require_window(agreement['execution_plan'], 'funding', int(time.time()))
     clock = {'genesis': canonical['genesis'], 'branch_id': canonical['branch'],
         'observed_at': canonical['observed_at'], 'provider_header_timestamp': canonical['observed_tip']['timestamp'],
         # observeSource has just rejected any announced nonzero upgrade height.

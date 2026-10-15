@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only checks of an exact signed public agreement; all senders stay disabled.
+"""Read-only checks of an exact signed public agreement; this command never sends.
 
 Successful observations are private diagnostic snapshots, never reusable release
 tokens. This does not read owner keys or adaptor witnesses. No deploy/send RPC
@@ -86,7 +86,7 @@ def native_auxiliary(agreement, expected, observation, now):
         raise RuntimeError('refund auxiliary effects/confirmations differ from agreement')
     return {'txid': coin['txid'], 'index': coin['index'], 'value_zatoshi': coin['value_zatoshi'],
         'confirmations_by_provider': confirmations, 'observed_tip': tip, 'provider_trusted': True,
-        'mempool_conflicts_excluded': False}
+        'observed_at': observation['observed_at'], 'mempool_conflicts_excluded': False}
 
 
 def preflight(bundle, proposal, consents, phase, directory, endpoint, source_wallet=None, owner=None):
@@ -112,13 +112,13 @@ def preflight(bundle, proposal, consents, phase, directory, endpoint, source_wal
         return result
 
 
-def observe_verified(bundle, agreement, verified, phase, directory, endpoint, source_wallet):
+def observe_verified(bundle, agreement, verified, phase, directory, endpoint, source_wallet, source_released=False):
     plan = agreement['execution_plan']
     window = 'first_reveal' if phase == 'first_reveal' else 'funding'
     timestamp_policy.require_window(plan, window, int(time.time()))
     directory.mkdir(mode=0o700)
     save(directory/'verified-consents.json', verified)
-    source_context = (public_source.prepare(source_wallet, bundle, agreement, verified, directory/'source')
+    source_context = (public_source.prepare(source_wallet, bundle, agreement, verified, directory/'source', released=source_released)
         if source_wallet is not None else None)
     # No fallback endpoint and no cached success. A failed identity/finality/code
     # observation terminates this invocation before native observer queries.
@@ -156,8 +156,8 @@ def observe_verified(bundle, agreement, verified, phase, directory, endpoint, so
         'phase': phase, 'both_conditional_consents_verified': True,
         'eth_exact_code_state_reserves_checked': True, 'native_funding': funding,
         'native_auxiliary': auxiliary, 'native_source': source_check,
-        'remaining_gates': ['durable-public-source-release-and-outgoing-intents',
-            'public-sender-reconciliation', 'funded-public-recovery-and-post-proof-checks',
+        'remaining_gates': ['fresh-explicit-sender-reconciliation',
+            'funded-public-positive-execution-and-recovery-validation',
             'public-deployment-and-transfer-authorization'],
         'execution_enabled': False, 'funding_authorized': False, 'reveal_authorized': False,
         'broadcast': False, 'deployment': False, 'provider_trusted': True}

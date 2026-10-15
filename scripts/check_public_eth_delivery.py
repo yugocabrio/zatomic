@@ -20,6 +20,7 @@ import urllib.request
 import public_authority as authority
 import public_eth_delivery as delivery
 import public_eth_outgoing as out
+import public_eth_execute as execute
 import public_evm_observation as eth
 import probe_sepolia as sepolia
 from regtest_wallet import ROOT, save
@@ -138,6 +139,7 @@ def check(root, fixture):
         else: reserve = eth.action_reserve(agreement, rpc, b['latest'], role, action)
         if (int(tx['nonce'], 16) != reserve['nonce'] or int(tx['gasPrice'], 16) < b['latest']['base_fee_wei']):
             raise RuntimeError('retained nonce/fee not executable')
+        execute.require_fee_nonce(value, reserve, agreement)
     def send(prepared):
         action, value, f, c, _ = prepared
         with authority.owner_locked(action.parent.parent):
@@ -172,6 +174,8 @@ def check(root, fixture):
                 with authority.owner_locked(owner):
                     refuses(lambda: delivery.observe_locked(owner, owner/'both-consents.json',
                         'withdraw', endpoint), 'synthetic inputs')
+                refuses(lambda: execute.execute(owner, owner/'both-consents.json', 'withdraw', endpoint,
+                    broadcast=True), 'synthetic inputs')
             locked = prepare(root/'bob', 'lock'); assert send(locked)['status'] == 'submitted'
             assert observe(root/'bob', 'lock')['state'] == 'confirmed-by-provider'
             snapshot = rpc('evm_snapshot')
@@ -286,7 +290,7 @@ with authority.owner_locked(owner):
             if process.poll() is None: process.terminate()
             try: process.wait(timeout=10)
             except subprocess.TimeoutExpired: process.kill(); process.wait(timeout=10)
-            save(root/'process.json', {'pid': process.pid, 'port': port,
+            save(root/'process-stopped.json', {'pid': process.pid, 'port': port,
                 'scope': 'owned ephemeral ETH delivery check', 'stopped': True, 'exit_code': process.returncode})
 
 

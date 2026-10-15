@@ -53,8 +53,8 @@ uses a clearly labeled recording or an already prepared run.
 ## Honest limits
 
 All executed swaps use isolated chains. Public-testnet wallet/observation and
-recovery preparation are implemented in parts; a funded public exchange and its
-sender integration are unfinished. Independently administered hosts have not
+recovery preparation and explicit sender entry points are implemented, but the
+complete positive path has not run with funded public inputs. Independently administered hosts have not
 been demonstrated. The custom adaptor composition is unaudited; the arithmetic
 cross-check is not an external audit or a security proof.
 

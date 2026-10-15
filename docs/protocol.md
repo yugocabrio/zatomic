@@ -66,7 +66,7 @@ cancellation. A separate private source signer now holds the same source lock
 through fresh funding preflight and commits its intent/release marker before
 signing F. Restart verifies and reuses the exact signed bytes, including the
 proof/signatures and original anchor. Even a pending intent forbids cancellation.
-This does not authorize broadcast; public senders remain disabled.
+This does not authorize broadcast; explicit senders repeat live checks separately.
 It also derives the exact R auxiliary outpoint from the verified bundle and
 checks its current index/origin/confirmations without source-wallet key access.
 Funding preflight additionally binds the reserved note/nullifier/FVK/anchor to
@@ -79,7 +79,7 @@ exercised with synthetic public-profile blocks and a retained real isolated
 refund, not funded public recovery. Live observations are separate from offline
 proving. A private outgoing journal now rechecks actual native bytes against the
 accepted effects/proofs/signatures and persists each version before it can be
-used by a future sender; interrupted raw persistence can resume without replacing
+used by the explicit sender; interrupted raw persistence can resume without replacing
 history. It requires the owner's saved acceptance and both consents. This does
 not establish non-exposure or authorize a send. A native-only post-proof reader
 now observes the exact exit before requiring an unspent input, verifies the
@@ -111,12 +111,18 @@ owner withdrawal address. A transport primitive persists possible delivery
 before submission; receipt reconciliation checks exact signed effects, canonical
 block membership, agreed runtime and the expected event. Actual isolated ETH
 execution/withdrawal and a post-send SIGKILL pass on synthetic native agreements.
-Public integration of the transport with both-chain first-send/replay policy,
-native delivery and fee replacement remains unfinished.
+Explicit public-profile send commands now connect those journals and readers.
+First sends repeat live checks; native transport inherits the caller's locks
+and has a short validity, while possible delivery is durable before transport.
+F replay keeps the same source/anchor/bytes and requires the original wallet.
+ETH actions sign at the agreed gas ceiling; no automatic fee/nonce replacement
+is performed. Actual cap-priced isolated ETH transactions and native proof,
+crash/lock checks pass, but the complete funded public positive path is untested.
 The private source signer is an offline native primitive behind the live
 preflight wrapper, not an independent verifier of live chain observations. The integrated
 positive public path has not run with funded public inputs.
-No public sender is enabled. See
+Default invocation checks only; the explicit testnet broadcast flag has never
+been used on public funds. See
 [public preflight and its tested scope](public-testnet.md#agreement-bound-read-only-preflight).
 
 ## Transaction order
@@ -213,7 +219,8 @@ native proof checks from this package. The draft binds authenticated owner
 destinations but has no adaptor presignatures, bundle receipts or final graph
 consents, and cannot authorize F.
 The separate private source-signing stage requires the completed exits and both
-conditional consents, as described above. Public sending remains disabled. See
+conditional consents, as described above. Explicit senders enforce separate
+fresh checks, with funded public execution still untested. See
 the exact preparation thresholds and evidence limits in
 [public-testnet.md](public-testnet.md).
 
