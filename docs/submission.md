@@ -24,7 +24,12 @@ recipient address, viewing key or note opening.
 
 The working demo runs actual Zebra NU7 and Anvil transactions. It shows a complete
 exchange, recovery after stopping following the secret reveal, and a no-reveal
-refund. Owner clients retain their own keys and durable recovery data. Separate
+refund. In [two-party mode](two-party.md), Alice and Bob each run their own
+sandboxed app that holds only their own keys. The only things passing between
+them are pinned-TLS signing and a relay that sees two identity manifests and six
+sealed envelopes, never the amounts or the funding transaction. Either app can be
+killed and restarted mid-trade. Counterparties exchange one-time receive
+addresses, never viewing keys ([what each observer sees](privacy.md)). Owner clients retain their own keys and durable recovery data. Separate
 operator runs use pinned TLS and OS-enforced private-directory separation on one
 host. Custom-amount exchange and refund runs check native confirmations, receiver
 decryption, exact ETH withdrawals and repeat recovery without duplicate payment.

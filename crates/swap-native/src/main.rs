@@ -16,6 +16,7 @@ mod public_witness;
 mod recovery_bundle;
 mod refund_lock;
 mod regtest_swap;
+mod relay_envelope;
 mod source_guard;
 mod storage;
 mod trade;
@@ -560,6 +561,9 @@ fn main() -> Result<()> {
         }
         Some("evm-key-init") if a.len() == 3 => evm_key::init(Path::new(&a[2]))?,
         Some("evm-sign-digest") if a.len() == 3 => evm_key::sign_stdin(Path::new(&a[2]))?,
+        Some("relay-key-init") if a.len() == 3 => relay_envelope::init(Path::new(&a[2]))?,
+        Some("relay-seal") if a.len() == 3 => relay_envelope::seal_stdin(Path::new(&a[2]))?,
+        Some("relay-open") if a.len() == 3 => relay_envelope::open_stdin(Path::new(&a[2]))?,
         Some("regtest-init") if a.len() == 3 => wallet::init(Path::new(&a[2]))?,
         Some("testnet-wallet-init") if a.len() == 3 => wallet::init_testnet(Path::new(&a[2]))?,
         Some("testnet-wallet-receivers") if a.len() == 3 => {

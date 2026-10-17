@@ -17,7 +17,7 @@
 </header>
 <main class="wrap p-main">
   <section class="section-head"><div><p class="kicker">Two-party demo</p><h1 class="p-h1">Two owners, two apps, one relay</h1></div>
-    <p class="section-note">Alice and Bob each run their own app with only their own keys. The OS sandbox stops each app reading the other’s files. This page plays the public chains and carries public messages between them.</p></section>
+    <p class="section-note">Alice and Bob each run their own app with only their own keys. The OS sandbox stops each app reading the other’s files. This page plays the public chains and relays their messages, sealed so that it cannot read them.</p></section>
   <div class="n-grid">
     <section class="receipt"><h2 class="n-h">Owner apps</h2><div id="apps" class="n-apps"></div></section>
     <section class="receipt"><h2 class="n-h">Chains</h2><dl class="review" id="chains"></dl>
@@ -26,9 +26,9 @@
       <p id="error" class="alert" role="alert" hidden></p>
     </section>
   </div>
-  <section class="receipt"><h2 class="n-h">Relay: everything the owners exchanged</h2>
+  <section class="receipt"><h2 class="n-h">Relay: what it sees of every message</h2>
     <table class="tx-table relay-table"><thead><tr><th scope="col">#</th><th scope="col">From</th><th scope="col">Message</th><th scope="col">SHA-256</th></tr></thead><tbody id="relay"></tbody></table>
-    <p class="fineprint">Public messages only: identities, quote, acceptance, full terms, consents, order ID. No key, note, witness or viewing key is ever posted.</p>
+    <p class="fineprint">Only identities (public keys and ETH addresses) travel in the clear. Quote, acceptance, full terms, consents and order ID are sealed to the recipient’s pinned key: the relay sees sender, recipient, size and time.</p>
   </section>
   <section class="receipt"><h2 class="n-h">Network log</h2><ul class="n-log" id="events"></ul></section>
 </main>

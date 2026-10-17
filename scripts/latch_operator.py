@@ -49,7 +49,20 @@ def validate_manifest(value, role):
         x, y = int.from_bytes(public[1:33]), int.from_bytes(public[33:])
         if x >= prime or y >= prime or (y*y - x*x*x - 7) % prime:
             raise RuntimeError('operator ETH public key not on curve')
+        if 'relay_public_key' in value and not compressed_point(value['relay_public_key']):
+            raise RuntimeError('operator relay key not on curve')
     return value
+
+
+def compressed_point(text):
+    """A compressed secp256k1 point, checked without trusting the sender."""
+    raw = bytes.fromhex(text) if isinstance(text, str) and len(text) == 66 else b''
+    if len(raw) != 33 or raw[0] not in (2, 3):
+        return False
+    prime = 2**256 - 2**32 - 977
+    x = int.from_bytes(raw[1:])
+    rhs = (x*x*x + 7) % prime
+    return x < prime and pow(rhs, (prime + 1) // 4, prime)**2 % prime == rhs
 
 
 def initialize(directory, role):
@@ -71,6 +84,8 @@ def initialize(directory, role):
         'certificate_sha256': hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()}
     if role in ROLES:
         value['identity'] = read(directory / 'identity.json')
+        # Separate from the ETH key; the compared fingerprint pins it too.
+        value['relay_public_key'] = native('relay-key-init', directory)['relay_public_key']
     save(directory / 'operator-public.json', value)
     return value
 

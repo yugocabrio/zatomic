@@ -62,7 +62,8 @@ their complete funded public execution remains untested.
 
 **Two-party mode:** `make two-party` gives Alice and Bob separate apps (ports
 8791 and 8792). Each holds only its own keys, and the OS sandbox denies it the
-other's files. A third page plays the chains and relays the public messages. See
+other's files. A third page plays the chains and a relay that sees only identities
+and sealed envelopes. See
 [two-party mode](docs/two-party.md).
 
 If already built and the node is running:

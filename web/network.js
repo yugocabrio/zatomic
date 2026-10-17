@@ -1,8 +1,9 @@
 'use strict';
 const $ = (s) => document.querySelector(s);
 let state = null;
-const LABELS = {manifest: 'Identity', offer: 'Signed quote', acceptance: 'Acceptance', 'signer-ready': 'Signer online',
-  agreement: 'Full terms', consent: 'Consent signature', lock: 'ETH order ID'};
+const name = (role) => role === 'alice' ? 'Alice' : 'Bob';
+// The relay cannot open sealed messages, so this page shows what the relay sees.
+const label = (m) => m.topic === 'sealed' ? `Sealed for ${name(m.to)} · ${m.bytes.toLocaleString()} bytes` : 'Identity (public keys, in the clear)';
 
 // Rebuild a region only when its content changed, so buttons stay clickable.
 function update(node, key, build) {
@@ -41,7 +42,7 @@ function render() {
   update($('#chains'), JSON.stringify(rows), () => rows.flatMap(([k, v]) => [el('dt', '', k), el('dd', 'p-mono', v)]));
   update($('#relay'), JSON.stringify(state.relay), () => state.relay.map(m => {
     const row = el('tr');
-    row.append(el('td', '', String(m.seq)), el('td', '', m.from), el('td', '', LABELS[m.topic] || m.topic), el('td', 'p-mono', `${m.sha256.slice(0, 16)}…`));
+    row.append(el('td', '', String(m.seq)), el('td', '', name(m.from)), el('td', '', label(m)), el('td', 'p-mono', `${m.sha256.slice(0, 16)}…`));
     return row;
   }));
   update($('#events'), JSON.stringify(state.events), () => state.events.map(e => el('li', '', `${new Date(e.at * 1000).toLocaleTimeString()}  ${e.text}`)));

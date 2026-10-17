@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Two-party local demo: a stand-in network, a public relay and two owner apps.
+"""Two-party local demo: a stand-in network, an untrusted relay and two owner apps.
 
 Alice and Bob each get their own app, holding only their own private roots; an
 OS sandbox denies each app the other's roots. This process plays the parts that
 are not a participant: the public chains (one long-running Anvil with a
 pre-deployed PointEscrow; isolated Zebra regtest blocks mined whenever a
-transaction is pending), a relay that carries only public messages, and
-clearly labelled local controls that stand in for time passing. It never holds
-or reads a participant key.
+transaction is pending), a relay that sees identity manifests in the clear and
+every other message only as an envelope sealed to the recipient, and clearly
+labelled local controls that stand in for time passing. It never holds or reads
+a participant key and cannot open a sealed message.
 """
 import argparse
 import fcntl
@@ -28,8 +29,18 @@ from regtest_node import rpc as zrpc, status
 from two_party_http import ROOT, Handler, atomic
 
 PORTS = {'network': 8790, 'alice': 8791, 'bob': 8792}
-TOPICS = ('manifest', 'offer', 'acceptance', 'signer-ready', 'agreement', 'consent', 'lock')
+TOPICS = ('manifest', 'sealed')
+HEX = set('0123456789abcdef')
 PRIVATE = {'alice': ('alice', 'alice-source', 'alice-app'), 'bob': ('bob', 'bob-app')}
+
+
+def sealed(envelope, role):
+    """Shape check only: the relay can neither open nor verify an envelope."""
+    hexed = lambda key, low, high: isinstance(envelope.get(key), str) and low <= len(envelope[key]) <= high \
+        and len(envelope[key]) % 2 == 0 and set(envelope[key]) <= HEX
+    return (set(envelope) == {'v', 'from', 'to', 'epk', 'nonce', 'ct'} and envelope['v'] == 1
+        and envelope['from'] == role and envelope['to'] == ('bob' if role == 'alice' else 'alice')
+        and hexed('epk', 66, 66) and hexed('nonce', 24, 24) and hexed('ct', 34, 400_000))
 
 
 class Network:
@@ -148,7 +159,7 @@ class Network:
                 return {'token': self.page_token, 'zcash': {'height': tip['blocks'], 'mempool': len(zrpc('getrawmempool'))},
                     'ethereum': {'block': int(block['number'], 16), 'timestamp': int(block['timestamp'], 16)},
                     'escrow': self.escrow, 'isolation_proven': getattr(self, 'isolation', False), 'apps': {r: {'running': p.poll() is None, 'port': PORTS[r]} for r, p in self.apps.items()},
-                    'relay': [{k: m[k] for k in ('seq', 'from', 'topic', 'at', 'sha256')} for m in self.relay()],
+                    'relay': [{k: m.get(k) for k in ('seq', 'from', 'to', 'topic', 'at', 'bytes', 'sha256')} for m in self.relay()],
                     'events': self.events[::-1]}
         if path == '/api/relay':
             return {'messages': self.relay(), 'escrow': self.escrow}
@@ -158,16 +169,20 @@ class Network:
         role = next((r for r, t in self.app_tokens.items() if t == token), None)
         with self.lock:
             if path == '/api/relay' and role:
-                if body.get('topic') not in TOPICS or not isinstance(body.get('body'), dict):
+                topic, content = body.get('topic'), body.get('body')
+                if topic not in TOPICS or not isinstance(content, dict) or (topic == 'sealed' and not sealed(content, role)):
                     raise ValueError('Unsupported relay message.')
                 seq = len(list((self.root / 'relay').glob('*.json'))) + 1
                 if seq > 500:
                     raise ValueError('Relay is full.')
-                encoded = json.dumps(body['body'], sort_keys=True, separators=(',', ':'))
-                message = {'seq': seq, 'from': role, 'topic': body['topic'], 'at': int(time.time()),
-                    'sha256': hashlib.sha256(encoded.encode()).hexdigest(), 'body': body['body']}
-                atomic(self.root / 'relay' / f'{seq:04d}-{role}-{body["topic"]}.json', message)
-                self.note(f'Relay: {role} posted {body["topic"]}')
+                encoded = json.dumps(content, sort_keys=True, separators=(',', ':'))
+                message = {'seq': seq, 'from': role, 'topic': topic, 'at': int(time.time()), 'bytes': len(encoded),
+                    'sha256': hashlib.sha256(encoded.encode()).hexdigest(), 'body': content}
+                if topic == 'sealed':
+                    message['to'] = content['to']
+                atomic(self.root / 'relay' / f'{seq:04d}-{role}-{topic}.json', message)
+                self.note(f'Relay: {role} → {content["to"]}, sealed ({len(encoded):,} bytes)' if topic == 'sealed'
+                    else f'Relay: {role} posted its identity')
                 return {'seq': seq}
             if path == '/api/faucet' and role:
                 address = body.get('address', '')

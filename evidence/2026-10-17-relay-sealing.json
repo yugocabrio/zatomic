@@ -1,0 +1,129 @@
+{
+  "date": "2026-10-17",
+  "scope": "Two-party relay privacy: seal every relayed message except the identity manifest. Same host, isolated Zebra NU7 regtest and Anvil; internal work, not an external audit.",
+  "finding": {
+    "id": "P4",
+    "summary": "The two-party relay carried the signed quote, the full terms, the consents and the ETH order ID in the clear.",
+    "exposed_to_relay_operator": [
+      "exact ZEC principal and payout",
+      "ETH amount",
+      "funding txid",
+      "joint note commitment (pending_cmx)",
+      "refund auxiliary outpoint",
+      "refund height",
+      "ETH salt",
+      "quote ID"
+    ],
+    "consequence": "A relay operator could identify the swap's Zcash funding transaction and its exact amount, which the Zcash chain hides.",
+    "corrects": "evidence/2026-10-17-two-party.json relay.field_audit said no note data crossed the relay; the full terms included the joint note commitment."
+  },
+  "fix": {
+    "implementation": [
+      "crates/swap-native/src/relay_envelope.rs",
+      "scripts/latch_operator.py",
+      "scripts/party_app.py",
+      "scripts/two_party.py",
+      "web/network.js"
+    ],
+    "construction": "Dedicated per-owner secp256k1 relay key in the identity manifest (pinned by the compared fingerprint). Message key = SHA-256(header || ECDH(ephemeral, recipient) || ECDH(sender, recipient)); ChaCha20-Poly1305 (chacha20poly1305 0.11.0, already in the lockfile via zcash_note_encryption) with the header as associated data. The topic is inside the ciphertext.",
+    "relay_accepts": "identity manifests, and envelopes with exactly {v, from, to, epk, nonce, ct} from the authenticated sender to the other owner",
+    "still_visible_to_relay": [
+      "identity manifests (public keys, certificates, ETH addresses)",
+      "sender, recipient, size and time of each envelope",
+      "the step a message belongs to, inferable from order and size"
+    ]
+  },
+  "checks": {
+    "unit_tests": {
+      "command": "cargo test --offline -p shielded-swap-native relay_envelope",
+      "passed": 2,
+      "cases": [
+        "only the recipient opens; a third party and the sender cannot",
+        "a forged sender, a flipped ciphertext bit, a swapped direction and a replaced ephemeral key are refused; resealing uses a fresh ephemeral key"
+      ]
+    },
+    "clippy": "cargo clippy --locked --offline --all-targets -j 2 -- -D warnings: clean",
+    "relay_shape_checks": {
+      "valid envelope": true,
+      "plaintext field added": false,
+      "wrong sender": false,
+      "addressed to self": false,
+      "non-hex ciphertext": false,
+      "short ephemeral key": false,
+      "version 2": false
+    },
+    "native_binary_sha256": "a5fd96d9a47ed8d6de9ef2e9a64c4f5c24495bcf6cda2daa5d5cb33cb4c757fd"
+  },
+  "two_party_run": {
+    "workspace": ".local/two-party-003 (private, not committed)",
+    "command": "python3 scripts/two_party.py .local/two-party-003, driven through each app's own page endpoints",
+    "quote": {
+      "payout_zatoshi": 1900000,
+      "eth_amount_wei": 37100000000000000
+    },
+    "funding_txid": "9bc924b674405f565dbe3521003f956b99295bc4ab9d107e5099e9b5320838d6",
+    "eth_lock": "0xcb16259f3e925b3dfdcd03195d38569c5feeba1bdf19a15056b639108b2e5ce3",
+    "eth_claim": "0x696fe7ab89fa8e6142c9f985ab115d2160b7113e8556cddf29de6ecda00040a7",
+    "alice_withdraw": "0xbd4a67e0ad06e22caf323249f7ccd7caf2536f671dd4b7bd2610a42b38f17b31",
+    "zec_claim": "ff3610deaf7c9cb52d9bc1b1143c84b058723911f0c1adba6761548029336ad6",
+    "zec_claim_state": "confirmed",
+    "zec_received_zatoshi": 1900000,
+    "relay_records": 8,
+    "identity_manifests_in_clear": 2,
+    "sealed_envelopes": 6,
+    "restart": "Bob's app SIGKILLed and restarted after completion, then both apps restarted on the final code: each reopened its peer's envelopes from its own key and showed the finished exchange (Alice 7/7 steps, Bob 6/6)."
+  },
+  "relay_privacy_check": {
+    "command": "python3 scripts/check_relay_privacy.py WORKSPACE",
+    "new_run": {
+      "result": "pass",
+      "private_field_names_found": 0,
+      "private_values_found": 0,
+      "private_values_checked": [
+        "alice_receiver",
+        "aux_txid",
+        "bob_receiver",
+        "eth_salt",
+        "funding_txid",
+        "pending_cmx",
+        "quote_id"
+      ]
+    },
+    "earlier_run_two_party_002": {
+      "result": "fail: relay record 3 is neither an identity nor a sealed envelope",
+      "field_names_in_clear": [
+        "principal_zatoshi",
+        "payout_zatoshi",
+        "eth_amount_wei",
+        "amount_wei",
+        "funding_txid",
+        "pending_cmx",
+        "aux_outpoint",
+        "refund_height",
+        "quote_id",
+        "eth_salt",
+        "quote_digest",
+        "agreement"
+      ],
+      "private_values_in_clear": [
+        "funding_txid",
+        "pending_cmx",
+        "aux_txid",
+        "eth_salt",
+        "quote_id"
+      ]
+    }
+  },
+  "receiver_privacy_check": {
+    "command": "python3 scripts/check_receiver_privacy.py .local/two-party-003",
+    "json_records_scanned": 111,
+    "receiving_fvks_found": 0
+  },
+  "limits": [
+    "Same host and OS account; not separate machines or administration.",
+    "The relay can still drop, delay or replay envelopes and see who talks to whom and when.",
+    "Manifests are exchanged through the relay; owners must compare fingerprints over a channel they already trust."
+  ],
+  "public_testnet": "No public transaction, deployment or faucet request.",
+  "private_material_committed": false
+}

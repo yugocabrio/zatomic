@@ -21,6 +21,11 @@ settled a trade (with Bob's app killed and restarted after the reveal) and a
 no-reveal refund. [Record](../evidence/2026-10-17-two-party.json),
 [how to run it](two-party.md). Same host; not separate administration.
 
+**Sealed relay, 2026-10-17:** the two-party relay now sees only identity
+manifests and sealed envelopes. Before, it could read the ZEC amount, funding
+txid and joint note commitment. A fresh exchange ran over the sealed relay.
+[Record](../evidence/2026-10-17-relay-sealing.json).
+
 Latest additions after the original local release:
 [actual browser OTC success/refund](../evidence/2026-10-15-browser-otc.json),
 [isolated pinned deployment](../evidence/2026-10-15-public-deployment-integration.json),

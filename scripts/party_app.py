@@ -2,7 +2,8 @@
 """One owner's app in the two-party demo. It holds only this owner's private roots.
 
 Alice's app runs her participant and her own source operator; Bob's app runs
-his participant. They exchange only public messages through the relay. Every
+his participant. Only identity manifests cross the relay in the clear; every
+other message is sealed to the peer's pinned relay key. Every
 action calls the same latch_operator commands as the separate-operator gate, so
 keys, witnesses, journals and recovery data never leave the owner's roots.
 """
@@ -25,6 +26,7 @@ from two_party_http import ROOT, Handler, atomic, call
 
 SIGNER_PORT = {'alice': 18741, 'bob': 18742}
 OPERATOR = [sys.executable, str(ROOT / 'scripts/latch_operator.py')]
+NATIVE = ROOT / 'target/release/shielded-swap-native'
 
 
 def read(path):
@@ -46,6 +48,7 @@ class App:
         self.relay_token = os.environ['LATCH_RELAY_TOKEN']
         self.lock = threading.RLock()
         self.busy, self.error, self.signer = None, None, None
+        self.opened = {}  # Envelope SHA-256 -> opened message, or None if refused.
         self.state = read(self.home / 'state.json') if (self.home / 'state.json').exists() else {}
         self.initialize()
         threading.Thread(target=self.background, daemon=True).start()
@@ -74,8 +77,46 @@ class App:
     def relay(self):
         return call(self.network, '/api/relay')
 
+    def envelope(self, command, packet):
+        result = subprocess.run([str(NATIVE), command, str(self.me)], input=json.dumps(packet),
+            capture_output=True, text=True, cwd=ROOT, timeout=60)
+        if result.returncode:
+            raise RuntimeError(f'{command} refused')
+        return json.loads(result.stdout)
+
+    def peer_relay_key(self):
+        pinned = self.me / 'trusted-peer.json'
+        return read(pinned).get('relay_public_key') if pinned.exists() else None
+
     def publish(self, topic, body):
+        if topic != 'manifest':
+            key = self.peer_relay_key()
+            if not key:
+                raise RuntimeError('peer identity not trusted yet')
+            body = self.envelope('relay-seal', {'from': self.role, 'to': self.peer, 'peer': key, 'topic': topic, 'body': body})
+            topic = 'sealed'
         return call(self.network, '/api/relay', {'topic': topic, 'body': body}, self.relay_token)
+
+    def inbox(self):
+        """The relay as this owner reads it: identity manifests, plus the pinned
+        peer's sealed messages opened locally. Anything else is ignored."""
+        messages = self.relay()['messages']
+        self.relay_total = len(messages)
+        key = self.peer_relay_key()
+        pending = [m for m in messages if m['topic'] == 'sealed' and m['from'] == self.peer and m['sha256'] not in self.opened]
+        if key and pending:
+            opened = self.envelope('relay-open', {'from': self.peer, 'to': self.role, 'peer': key,
+                'envelopes': [m['body'] for m in pending]})['messages']
+            for message, inner in zip(pending, opened):
+                self.opened[message['sha256']] = inner
+        readable = []
+        for m in messages:
+            if m['topic'] == 'manifest':
+                readable.append(m)
+            elif m['topic'] == 'sealed' and m['from'] == self.peer and self.opened.get(m['sha256']):
+                inner = self.opened[m['sha256']]
+                readable.append({'seq': m['seq'], 'from': m['from'], 'topic': inner['topic'], 'body': inner['body']})
+        return readable
 
     @staticmethod
     def latest(messages, topic, sender):
@@ -155,7 +196,7 @@ class App:
 
     def advance(self):
         """Steps that need no decision: pinning received data and exporting exits."""
-        messages = self.relay()['messages']
+        messages = self.inbox()
         if self.role == 'alice':
             trade = self.latest(messages, 'acceptance', 'bob')
             if trade and self.state.get('offer') and not (self.me / 'accepted-trade.json').exists():
@@ -200,7 +241,7 @@ class App:
     # Actions -------------------------------------------------------------------------
     def act(self, body):
         action = body.get('action')
-        messages = self.relay()['messages']
+        messages = self.inbox()
         if action == 'trust':
             manifests = self.latest(messages, 'manifest', self.peer) or {}
             peer = manifests.get(self.peer)
@@ -254,7 +295,7 @@ class App:
                 cwd=ROOT, check=True, capture_output=True, timeout=600)
         if not (self.source / 'swap/terms.json').exists():
             for _ in range(60):
-                if self.latest(self.relay()['messages'], 'signer-ready', 'bob'):
+                if self.latest(self.inbox(), 'signer-ready', 'bob'):
                     break
                 time.sleep(2)
             else:
@@ -305,7 +346,7 @@ class App:
 
     # View --------------------------------------------------------------------------
     def view(self):
-        messages = self.relay()['messages']
+        messages = self.inbox()
         seen = self.chain()
         s = self.state
         manifests = self.latest(messages, 'manifest', self.peer) or {}
@@ -397,7 +438,7 @@ class App:
                 action = {'wait': 'ETH locked. Waiting for Alice to claim it.'}
         return {'role': self.role, 'token': self.page_token, 'busy': self.busy, 'error': self.error,
             'me': {'fingerprint': manifest_digest(own), 'address': own['identity']['address']},
-            'steps': steps, 'action': action, 'chain': seen, 'relay_count': len(messages),
+            'steps': steps, 'action': action, 'chain': seen, 'relay_count': self.relay_total,
             'shared': self.shared(), 'complete': self.complete(seen)}
 
     def trust_action(self, peer, manifests):
