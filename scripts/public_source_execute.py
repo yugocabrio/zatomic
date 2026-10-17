@@ -67,12 +67,14 @@ def replay_checks(owner, wallet, files, checked, directory, endpoint):
         directory/'source',released=True,replay=True)
     ethereum=eth.observe_recovery(agreement,probe_sepolia.ReadOnlyRpc(endpoint),endpoint)
     publish(directory/'eth.json',ethereum)
-    auxiliary_raw=recovery.observe_auxiliary(agreement,checked,directory)
+    deferred=checked['native_auxiliary'].get('deferred') is True
+    auxiliary_raw=None if deferred else recovery.observe_auxiliary(agreement,checked,directory)
     native_clock,source_status=source.observe(context,agreement)
     now=int(time.time())
     blockers=timestamp_policy.clock_blockers(agreement['execution_plan'],native_clock,ethereum['clock'],now)
     if blockers: raise RuntimeError('source replay observations stale or inconsistent')
-    auxiliary=preflight.native_auxiliary(agreement,checked['native_auxiliary'],auxiliary_raw,now)
+    auxiliary=(preflight.deferred_auxiliary(checked['native_auxiliary'],now) if deferred
+        else preflight.native_auxiliary(agreement,checked['native_auxiliary'],auxiliary_raw,now))
     report={'agreement_digest':checked['agreement_digest'],'phase':'same-F-replay',
         'native_source':source_status,'native_clock':native_clock,'eth_clock':ethereum['clock'],
         'native_auxiliary':auxiliary,'same_source_and_original_anchor_checked':True,

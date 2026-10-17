@@ -19,7 +19,8 @@ def check(root, original, scan):
     native('regtest-setup-init',root)
     bank=root/'bank';bank.mkdir(mode=0o700)
     for name in ('spending-key.bin','aux-key.bin','aux-source-compact.json'):
-        shutil.copyfile(original/name,bank/name);os.chmod(bank/name,0o600)
+        if (original/name).exists():  # Newer banks hold no transparent coin.
+            shutil.copyfile(original/name,bank/name);os.chmod(bank/name,0o600)
     save(bank/'network.json',{'genesis':GENESIS})
     pins={}
     for role in ('alice','bob'):

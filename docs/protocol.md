@@ -146,6 +146,18 @@ been used on public funds. See
    non-final sequence; nLockTime=tZ. Without it the native locktime is disabled.
    This auxiliary coin is separate from the shielded principal and cannot be
    a third party's coin. Claim C has no transparent component.
+   The coin does not exist before a refund (local and public profiles). Alice's
+   source wallet builds and signs a private auxiliary transaction A that spends
+   her own F change and creates the 20,000-zatoshi coin. R commits to A's txid
+   (v6 txids exclude anchors and proofs), so A can stay unbroadcast. Only Alice's
+   participant receives A, after verifying its proof, signature and output; she
+   sends A and then R only if she refunds. The source wallet reserves the change
+   note until then. A settled swap therefore puts only F and C, both fully
+   shielded, on the Zcash chain. Bob's safety does not depend on A: R stays
+   time-locked whatever its input. On the public path, A is built with the
+   unsigned graph from the reserved note's change, signed by the source signer
+   together with F (A first, so a released F always has its refund input), and
+   sent by `public_auxiliary_execute.py` only on the no-reveal refund path.
 4. Before exposing F to the broadcaster, the local implementation generates
    and verifies both exit circuits against a temporary tree containing the exact
    pending note. Each signer additionally verifies R's shielded spend/binding
@@ -154,8 +166,8 @@ been used on public funds. See
    C's adaptor pre-signature is verified separately, without revealing t.
    These temporary proofs remain private bundle data and are never broadcast;
    C/R are re-proved after mining.
-   Newly funded fixtures split a dedicated 20,000-zatoshi auxiliary coin from
-   a matured coinbase first; R returns 15,000 after its incremental fee.
+   A costs 15,000 zatoshi in fees; R returns 15,000 of the 20,000-zatoshi
+   coin after its incremental fee.
    Alice broadcasts F only after checking the prepared paths.
    Bob waits for authenticated confirmation of the exact note and obtains all
    data needed to prove C. He verifies R cannot become spendable too soon.
@@ -228,8 +240,8 @@ the exact preparation thresholds and evidence limits in
 [public-testnet.md](public-testnet.md).
 
 - Zcash observers: normal shielded funding/claim metadata, no public principal
-  or shielded address. Refund exposes an auxiliary transparent outpoint/amount
-  and time; it may link that auxiliary coin to the refund.
+  or shielded address. Only a refund exposes the auxiliary transaction A (a
+  20,000-zatoshi transparent output from Alice's change) and links it to R.
 - EVM observers: ETH amount, maker/recipient, T, t after reveal, deadlines,
   terms commitment and timing. ETH-side privacy is not claimed.
 - Counterparty: agreed amounts, the peer's one-time receive **address** (never

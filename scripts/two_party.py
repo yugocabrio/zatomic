@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 import secrets
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -32,6 +33,31 @@ PORTS = {'network': 8790, 'alice': 8791, 'bob': 8792}
 TOPICS = ('manifest', 'sealed')
 HEX = set('0123456789abcdef')
 PRIVATE = {'alice': ('alice', 'alice-source', 'alice-app'), 'bob': ('bob', 'bob-app')}
+CHILDREN = ROOT / '.local/two-party-children.json'
+
+
+def reap_orphans():
+    """A network stopped with SIGKILL cannot stop its Anvil or apps, which run
+    in their own sessions. Called under the chain-driver lock, so any recorded
+    survivor is an orphan of an earlier network, never a live one."""
+    if not CHILDREN.exists():
+        return
+    recorded = set(json.loads(CHILDREN.read_text()))
+    table = subprocess.run(['ps', '-A', '-o', 'pid=,pgid=,command='], capture_output=True, text=True).stdout
+    for line in table.splitlines():
+        pid, group, command = line.split(None, 2)
+        # Anvil itself, or anything left in an app's own process group (the
+        # app, its signer service or an operator command).
+        if (int(pid) in recorded and 'anvil' in command and '/network/anvil-state.json' in command) or (
+                int(group) in recorded and any(s in command for s in ('party_app.py', 'signer_transport.py', 'latch_operator.py'))):
+            os.kill(int(pid), signal.SIGTERM)  # Anvil writes its --state file on exit.
+            for _ in range(50):
+                if subprocess.run(['ps', '-p', pid], capture_output=True).returncode:
+                    break
+                time.sleep(.1)
+            else:
+                os.kill(int(pid), signal.SIGKILL)
+    CHILDREN.unlink()
 
 
 def sealed(envelope, role):
@@ -60,8 +86,15 @@ class Network:
     def note(self, text):
         self.events = (self.events + [{'at': int(time.time()), 'text': text}])[-40:]
 
+    def record_children(self):
+        pids = [self.anvil.pid] + [p.pid for p in self.apps.values() if p.poll() is None]
+        atomic(CHILDREN, pids)
+
     # Public chains -------------------------------------------------------
     def start_chains(self):
+        with socket.socket() as probe:
+            if probe.connect_ex(('127.0.0.1', evm.PORT)) == 0:
+                raise RuntimeError(f'port {evm.PORT} is already in use; stop the other local chain first')
         state = self.root / 'network/anvil-state.json'
         log = (self.root / 'network/anvil.log').open('a')
         self.anvil = subprocess.Popen(['anvil', '--host', '127.0.0.1', '--port', str(evm.PORT),
@@ -134,6 +167,7 @@ class Network:
             cwd=ROOT, stdout=log, stderr=log, start_new_session=True,
             env=dict(os.environ, LATCH_RELAY_TOKEN=self.app_tokens[role], RAYON_NUM_THREADS='2'))
         self.apps[role] = process
+        self.record_children()
         self.note(f'{role.capitalize()} app started (sandboxed)')
 
     def crash(self, role, reason='demo interruption'):
@@ -223,6 +257,7 @@ def main():
     # chain checks cannot start their own Anvil or mine underneath it.
     lock = (ROOT / '.local/chain-driver.lock').open('a')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    reap_orphans()
     network = Network(root)
     network.start_chains()
     for role in PRIVATE:
@@ -254,6 +289,7 @@ def main():
             network.crash(role, None)
         os.killpg(network.anvil.pid, signal.SIGTERM)  # Anvil writes its --state file on exit.
         network.anvil.wait(timeout=20)
+        CHILDREN.unlink(missing_ok=True)
 
 
 if __name__ == '__main__':

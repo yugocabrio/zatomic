@@ -209,6 +209,23 @@ pub fn scan(dir: &Path, capture: &Path) -> Result<Value> {
     }
     let fvk = fvk(dir)?;
     let ivks = [Scope::External, Scope::Internal].map(|s| fvk.to_ivk(s));
+    // Notes known exactly in advance, witnessed by commitment rather than
+    // decryption: Alice's refund auxiliary spends her own funding change.
+    let mut watched = BTreeMap::<[u8; 32], (Value, [u8; 32])>::new();
+    if dir.join("watched-notes.json").exists() {
+        for note in storage::json(&dir.join("watched-notes.json"))?
+            .as_array()
+            .ok_or("watched notes")?
+        {
+            parse_note(note)?;
+            let mut data = note.clone();
+            let nullifier = decode(note, "nullifier")?;
+            data.as_object_mut()
+                .ok_or("watched note")?
+                .remove("nullifier");
+            watched.insert(decode(note, "cmx")?, (data, nullifier));
+        }
+    }
     let mut tree = tree(v["initial_tree"].as_str().ok_or("initial tree")?)?;
     let expected = self::tree(v["final_tree"].as_str().ok_or("final tree")?)?;
     let mut height = 2u64;
@@ -291,6 +308,24 @@ pub fn scan(dir: &Path, capture: &Path) -> Result<Value> {
                         }
                         break;
                     }
+                }
+                if let Some((note, nullifier)) = watched.get(&a.cmx().to_bytes())
+                    && !owned.contains_key(&a.cmx().to_bytes())
+                {
+                    let mut data = note.clone();
+                    data["txid"] = json!(tx.txid().to_string());
+                    data["action"] = json!(i);
+                    data["height"] = b["height"].clone();
+                    data["coinbase"] = json!(txindex == 0);
+                    owned.insert(
+                        a.cmx().to_bytes(),
+                        (
+                            data,
+                            Witness::from_tree(tree.clone()).ok_or("empty tree")?,
+                            *nullifier,
+                            false,
+                        ),
+                    );
                 }
             }
         }

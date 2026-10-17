@@ -6,7 +6,7 @@ tokens. This does not read owner keys or adaptor witnesses. No deploy/send RPC
 exists here. It rejects synthetic provenance before any network disclosure.
 """
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -89,6 +89,17 @@ def native_auxiliary(agreement, expected, observation, now):
         'observed_at': observation['observed_at'], 'mempool_conflicts_excluded': False}
 
 
+def deferred_auxiliary(expected, now):
+    """Before the refund path there is nothing to observe: Alice's auxiliary
+    transaction A creates the coin only then. Skipping the query also keeps the
+    transparent address away from the provider until a refund."""
+    if expected.get('deferred') is not True or expected['value_zatoshi'] != 20_000:
+        raise RuntimeError('deferred refund auxiliary target mismatch')
+    return {'txid': expected['txid'], 'index': expected['index'], 'value_zatoshi': 20_000,
+        'deferred': True, 'observed': False, 'provider_trusted': False,
+        'observed_at': datetime.fromtimestamp(now, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}
+
+
 def preflight(bundle, proposal, consents, phase, directory, endpoint, source_wallet=None, owner=None):
     agreement, verified, files = agreement_from_files(bundle, proposal, consents)
     if owner is None:
@@ -124,13 +135,15 @@ def observe_verified(bundle, agreement, verified, phase, directory, endpoint, so
     # observation terminates this invocation before native observer queries.
     observation = eth.observe(agreement, phase, probe_sepolia.ReadOnlyRpc(endpoint), endpoint)
     save(directory/'eth.json', observation)
-    save(directory/'auxiliary-target.json', verified['native_auxiliary'])
-    auxiliary_dir = directory/'native-auxiliary'
-    subprocess.run(['node', str(ROOT/'scripts/observe_testnet_auxiliary.mjs'), '--receiver',
-        str(directory/'auxiliary-target.json'), str(auxiliary_dir)],
-        capture_output=True, text=True, timeout=150, check=True)
-    auxiliary_observation = read(auxiliary_dir/'observation.json')
-    native_auxiliary(agreement, verified['native_auxiliary'], auxiliary_observation, int(time.time()))
+    deferred = verified['native_auxiliary'].get('deferred') is True
+    if not deferred:
+        save(directory/'auxiliary-target.json', verified['native_auxiliary'])
+        auxiliary_dir = directory/'native-auxiliary'
+        subprocess.run(['node', str(ROOT/'scripts/observe_testnet_auxiliary.mjs'), '--receiver',
+            str(directory/'auxiliary-target.json'), str(auxiliary_dir)],
+            capture_output=True, text=True, timeout=150, check=True)
+        auxiliary_observation = read(auxiliary_dir/'observation.json')
+        native_auxiliary(agreement, verified['native_auxiliary'], auxiliary_observation, int(time.time()))
     source_check = None
     if phase == 'funding':
         zcash, source_check = public_source.observe(source_context, agreement)
@@ -151,7 +164,8 @@ def observe_verified(bundle, agreement, verified, phase, directory, endpoint, so
     blockers = timestamp_policy.clock_blockers(plan, zcash, observation['clock'], now)
     if blockers:
         raise RuntimeError('cross-chain clock observations stale/incomplete: ' + ','.join(blockers))
-    auxiliary = native_auxiliary(agreement, verified['native_auxiliary'], auxiliary_observation, now)
+    auxiliary = (deferred_auxiliary(verified['native_auxiliary'], now) if deferred
+        else native_auxiliary(agreement, verified['native_auxiliary'], auxiliary_observation, now))
     result = {'format': 'latch-public-preflight-v1', 'agreement_digest': verified['agreement_digest'],
         'phase': phase, 'both_conditional_consents_verified': True,
         'eth_exact_code_state_reserves_checked': True, 'native_funding': funding,

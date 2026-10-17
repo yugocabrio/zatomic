@@ -284,6 +284,7 @@ pub fn source_snapshot(
     current_file: &Path,
     principal: u64,
     output: &Path,
+    reserve: u64,
 ) -> Result<Value> {
     const MIN_CONFIRMATIONS: u64 = 12;
     if principal <= 10_000 || principal > 2_100_000_000_000_000 - 10_000 {
@@ -361,7 +362,7 @@ pub fn source_snapshot(
             return Err("source note height outside lineage".into());
         }
         if note.recipient() == fvk.address_at(0u32, Scope::External)
-            && note.value().inner() > principal + 10_000
+            && note.value().inner() > principal + 10_000 + reserve
             && (!coinbase || mined + 100 <= height)
         {
             selected = Some(data.clone());
@@ -378,6 +379,7 @@ pub fn source_snapshot(
         "height":height,"tip":current["tip"],"tree":current["tree"],
         "anchor_height":anchor_height,"anchor_tip":old["tip"],"anchor_tree":old["tree"],
         "anchor":old["anchor"],"notes":[source],"principal_zatoshi":principal,
+        "change_reserve_zatoshi":reserve,
         "confirmation_policy":{"profile":"candidate-source-confirmations-v1","minimum":MIN_CONFIRMATIONS},
         "anchor_confirmations":height-anchor_height+1,
         "source_confirmations":height-number(&source,"height")?+1,

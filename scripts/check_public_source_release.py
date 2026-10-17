@@ -22,6 +22,8 @@ from regtest_wallet import ROOT, NATIVE, save
 from testnet_wallet import read
 import timestamp_policy
 
+DEFERRED = False
+
 
 def inspect_retained(root, setup):
     wallet = root/'coordinator/synthetic-source'
@@ -85,7 +87,10 @@ def check(root, setup):
         return run(actors.command(role, [str(NATIVE), command, str(root/role), str(incoming)]))
 
     graph = root/'coordinator'
-    run([NATIVE, 'check-unsigned-graph-synthetic', graph, root/'alice/authenticated-destinations.json'])
+    run([NATIVE, 'check-unsigned-graph-synthetic-deferred' if DEFERRED else 'check-unsigned-graph-synthetic',
+        graph, root/'alice/authenticated-destinations.json'])
+    if DEFERRED and read(graph/'graph.json')['refund_auxiliary'] != 'deferred':
+        raise RuntimeError('graph does not defer the refund auxiliary')
     meta = read(graph/'graph.json')
     save(graph/'plan.json', timestamp_policy.build(meta['refund_lock']['value']-108000))
     save(graph/'destinations.json', read(root/'alice/authenticated-destinations.json'))
@@ -138,9 +143,10 @@ def check(root, setup):
         (directory/'consents.json').write_text(json.dumps(bad))
         try: run([NATIVE, 'check-public-source-signing', wallet, graph, fd], True, pass_fds=(fd,))
         finally: (directory/'consents.json').write_text(json.dumps(files['consents']))
-        if marker.exists() or raw_path.exists(): raise RuntimeError('refused context signed F')
+        if marker.exists() or raw_path.exists() or (wallet/'auxiliary-signed.pczt').exists():
+            raise RuntimeError('refused context signed F or A')
         pending = release.native_worker(wallet, graph, fd, True, True)
-        if pending['private_source_authorization_saved'] or marker.exists():
+        if pending['private_source_authorization_saved'] or marker.exists() or (wallet/'auxiliary-signed.pczt').exists():
             raise RuntimeError('inspection signed pending source')
         child = subprocess.Popen([str(NATIVE), 'check-public-source-signing', str(wallet), str(graph), str(fd)],
             pass_fds=(fd,), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, text=True)
@@ -162,6 +168,14 @@ def check(root, setup):
         if (not resumed['private_source_authorization_saved'] or not replay['raw_bytes_reused']
                 or raw_path.read_bytes() != raw or journal_path.read_bytes() != journal):
             raise RuntimeError('exact signed source replay changed')
+        if DEFERRED:
+            # A is signed and durable whenever F is, and replay never re-signs it.
+            signed_aux = (wallet/'auxiliary-signed.pczt').read_bytes()
+            expected = {'txid': read(graph/'auxiliary.json')['txid'], 'signed': True}
+            if (resumed['refund_auxiliary'] != expected or replay['refund_auxiliary'] != expected
+                    or release.native_worker(wallet, graph, fd, True)['refund_auxiliary'] != expected
+                    or (wallet/'auxiliary-signed.pczt').read_bytes() != signed_aux):
+                raise RuntimeError('refund auxiliary not signed exactly once with F')
         # Simulated raw-before-outgoing-journal interruption; retain its backup.
         journal_path.rename(wallet/'outgoing-test-backup.json')
         if release.native_worker(wallet, graph, fd, True, True)['outgoing_record_present']:
@@ -186,6 +200,7 @@ def check(root, setup):
         'inherited_lock_survives_parent_descriptor_close': True,
         'closed_and_standard_descriptors_fail_cleanly': True,
         'offline_inspection_with_original_and_owner_roots_denied': True,
+        'refund_auxiliary_deferred_and_signed_with_funding': DEFERRED,
         'public_funded_source': False, 'fresh_public_preflight_positive': False,
         'node_acceptance': False, 'broadcast': False}
     save(root/'report.json', result)
@@ -194,7 +209,9 @@ def check(root, setup):
 
 if __name__ == '__main__':
     os.umask(0o077)
-    inspect_only = sys.argv[1:2] == ['--inspect-retained']
-    args = sys.argv[2:] if inspect_only else sys.argv[1:]
+    DEFERRED = '--deferred' in sys.argv
+    argv = [a for a in sys.argv if a != '--deferred']
+    inspect_only = argv[1:2] == ['--inspect-retained']
+    args = argv[2:] if inspect_only else argv[1:]
     result = (inspect_retained if inspect_only else check)(*(Path(p).resolve() for p in args))
     print(json.dumps(result, indent=2))

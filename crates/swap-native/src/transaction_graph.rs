@@ -1,5 +1,10 @@
 //! Shared NU7 effect construction. Never signs a real input or broadcasts.
-use crate::{Result, auxiliary::Auxiliary, err, refund_lock::RefundLock};
+use crate::{
+    Result,
+    auxiliary::{Auxiliary, COMPACT_VALUE},
+    err,
+    refund_lock::RefundLock,
+};
 use orchard::{
     Note,
     keys::{FullViewingKey, Scope},
@@ -19,7 +24,7 @@ use zcash_protocol::{
     memo::MemoBytes,
     value::Zatoshis,
 };
-use zcash_transparent::bundle::OutPoint;
+use zcash_transparent::{address::TransparentAddress, bundle::OutPoint};
 
 pub struct Source {
     pub fvk: FullViewingKey,
@@ -107,6 +112,51 @@ pub fn funding<P: Parameters>(
             .finalize_io(&mut rng)
             .map_err(err)?;
     Ok((pczt, index))
+}
+
+/// ZIP 317 fee of the auxiliary transaction: two padded Ironwood actions plus
+/// one transparent output.
+pub const AUXILIARY_FEE: u64 = 15_000;
+
+/// Alice's private auxiliary transaction A. It spends her own funding change,
+/// creates the 20,000-zatoshi transparent coin that the refund needs for its
+/// lock time and returns the rest to her shielded address. Alice signs it at
+/// setup but sends it only if she needs the refund, so a settled swap leaves no
+/// transparent output on chain.
+pub fn auxiliary_funding<P: Parameters>(
+    params: P,
+    height: u32,
+    source: Source,
+    auxiliary: &TransparentAddress,
+) -> Result<Pczt> {
+    let change = source
+        .note
+        .value()
+        .inner()
+        .checked_sub(COMPACT_VALUE + AUXILIARY_FEE)
+        .filter(|value| *value > 0)
+        .ok_or("funding change too small for the refund auxiliary")?;
+    let anchor = source.path.root(source.note.commitment().into());
+    let mut b = builder(params, height, anchor)?;
+    b.add_ironwood_spend::<Infallible>(source.fvk.clone(), source.note, source.path)
+        .map_err(err)?;
+    b.add_ironwood_output::<Infallible>(
+        None,
+        source.fvk.address_at(0u32, Scope::External),
+        Zatoshis::from_u64(change)?,
+        MemoBytes::empty(),
+    )
+    .map_err(err)?;
+    b.add_transparent_output(auxiliary, Zatoshis::from_u64(COMPACT_VALUE)?)
+        .map_err(err)?;
+    let mut rng = rand::rng();
+    let parts = b
+        .build_for_pczt(&mut rng, &FeeRule::standard())
+        .map_err(err)?
+        .pczt_parts;
+    IoFinalizer::new(Creator::build_from_parts(parts).ok_or("auxiliary parts")?)
+        .finalize_io(&mut rng)
+        .map_err(|e| err(e).into())
 }
 
 pub fn exit<P: Parameters>(

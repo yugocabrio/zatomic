@@ -31,6 +31,16 @@ const MEMBERS: [&str; 8] = [
     "selected-auxiliary.json",
     "auxiliary-source.json",
 ];
+/// v2 packages reserve only the source note: the refund's transparent coin is
+/// created later by Alice's private auxiliary transaction from F's change.
+const MEMBERS_V2: [&str; 5] = [
+    "anchor.json",
+    "current.json",
+    "plan.json",
+    "source.json",
+    "canonical.json",
+];
+const AUXILIARY_RECORD: &str = "auxiliary.json";
 
 fn sha(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
@@ -51,8 +61,22 @@ pub(crate) fn package(bank: &Path, folder: &Path) -> Result<Value> {
     let reservation = storage::json(&bank.join("source-reservation.json"))?;
     let raw = storage::read(&folder.join("manifest.json"), 50_000_000)?;
     let manifest: Value = serde_json::from_slice(&raw)?;
-    if reservation["format"] != "latch-source-reservation-v1"
-        || manifest["format"] != "latch-source-inputs-v1"
+    let members: &[&str] = if deferred(&manifest) {
+        &MEMBERS_V2
+    } else {
+        &MEMBERS
+    };
+    let formats = (
+        reservation["format"].as_str().unwrap_or(""),
+        manifest["format"].as_str().unwrap_or(""),
+    );
+    if !matches!(
+        formats,
+        ("latch-source-reservation-v1", "latch-source-inputs-v1")
+            | ("latch-source-reservation-v2", "latch-source-inputs-v2")
+    ) || (deferred(&manifest)
+        && (manifest["selected_auxiliary_outpoint"] != Value::Null
+            || manifest["refund_auxiliary"] != "deferred"))
         || reservation["genesis"] != TESTNET_GENESIS
         || manifest["genesis"] != TESTNET_GENESIS
         || reservation["manifest_sha256"] != sha(&raw)
@@ -61,11 +85,11 @@ pub(crate) fn package(bank: &Path, folder: &Path) -> Result<Value> {
             != std::fs::canonicalize(bank)?
         || manifest["files"]
             .as_object()
-            .is_none_or(|files| files.len() != MEMBERS.len())
+            .is_none_or(|files| files.len() != members.len())
     {
         return Err("public input reservation/package mismatch".into());
     }
-    for name in MEMBERS {
+    for name in members {
         if manifest["files"][name] != sha(&storage::read(&folder.join(name), 50_000_000)?) {
             return Err("reserved graph input changed".into());
         }
@@ -84,6 +108,81 @@ pub(crate) fn package(bank: &Path, folder: &Path) -> Result<Value> {
         return Err("testnet source wallet required".into());
     }
     Ok(manifest)
+}
+
+pub(crate) fn deferred(manifest: &Value) -> bool {
+    manifest["format"] == "latch-source-inputs-v2"
+}
+
+fn source_aux_key(bank: &Path) -> Result<secp256k1::SecretKey> {
+    Ok(secp256k1::SecretKey::from_secret_bytes(
+        storage::read(&bank.join("aux-key.bin"), 32)?
+            .try_into()
+            .map_err(|_| "aux key")?,
+    )?)
+}
+
+/// Alice's deferred auxiliary transaction A as prepared with this graph: the
+/// unsigned PCZT, its record, and the refund coin it creates for R.
+pub(crate) struct DeferredAuxiliary {
+    pub unsigned: Pczt,
+    pub record: Value,
+    pub coin: Auxiliary,
+}
+
+/// Key-free check of the saved A against its record: exact files, deferred,
+/// no transparent input, one 20,000-zatoshi output, recorded txid and script.
+pub(crate) fn deferred_record(graph_dir: &Path) -> Result<(Pczt, Value)> {
+    let record = storage::json(&graph_dir.join(AUXILIARY_RECORD))?;
+    let raw = storage::read(&graph_dir.join("auxiliary.pczt"), 1_000_000)?;
+    let check = storage::read(&graph_dir.join("auxiliary-check.pczt"), 1_000_000)?;
+    let unsigned = Pczt::parse(&raw).map_err(err)?;
+    let effects = unsigned.clone().into_effects().map_err(err)?;
+    let bundle = effects
+        .transparent_bundle()
+        .ok_or("auxiliary transparent output")?;
+    if record["format"] != "latch-deferred-refund-auxiliary-v1"
+        || record["files"]["auxiliary.pczt"] != sha(&raw)
+        || record["files"]["auxiliary-check.pczt"] != sha(&check)
+        || record["txid"] != regtest_swap::effects_txid(&unsigned)?.to_string()
+        || record["index"] != 0
+        || !bundle.vin.is_empty()
+        || bundle.vout.len() != 1
+        || u64::from(bundle.vout[0].value()) != crate::auxiliary::COMPACT_VALUE
+        || record["script"] != hex::encode(&bundle.vout[0].script_pubkey().0.0)
+        || unsigned.ironwood().anchor().is_some()
+        || u32::from(effects.expiry_height()) != 0
+        || effects.lock_time() != 0
+    {
+        return Err("deferred auxiliary changed".into());
+    }
+    Ok((unsigned, record))
+}
+
+pub(crate) fn deferred_auxiliary(
+    key: secp256k1::SecretKey,
+    graph_dir: &Path,
+) -> Result<DeferredAuxiliary> {
+    let (unsigned, record) = deferred_record(graph_dir)?;
+    let effects = unsigned.clone().into_effects().map_err(err)?;
+    // Fails unless A pays exactly this key's address.
+    let coin = Auxiliary::deferred(
+        key,
+        regtest_swap::effects_txid(&unsigned)?,
+        effects.transparent_bundle(),
+    )?;
+    Ok(DeferredAuxiliary {
+        unsigned,
+        record,
+        coin,
+    })
+}
+
+pub(crate) fn source_deferred_auxiliary(
+    bank: &Path,
+    graph_dir: &Path,
+) -> Result<DeferredAuxiliary> {
+    deferred_auxiliary(source_aux_key(bank)?, graph_dir)
 }
 
 pub(crate) fn unsigned(pczt: &Pczt, transparent: bool) -> Result<()> {
@@ -128,6 +227,14 @@ pub(crate) fn unsigned(pczt: &Pczt, transparent: bool) -> Result<()> {
     Ok(())
 }
 
+enum RefundCoin {
+    /// A mined, reserved transparent coin (v1 packages, synthetic drafts).
+    Reserved(Auxiliary),
+    /// Created by Alice's auxiliary transaction from F's change, keyed by the
+    /// source wallet's auxiliary key.
+    Deferred(secp256k1::SecretKey),
+}
+
 struct Draft {
     source: Source,
     principal: u64,
@@ -135,12 +242,105 @@ struct Draft {
     joint: FullViewingKey,
     alice: orchard::Address,
     bob: orchard::Address,
-    auxiliary: Auxiliary,
+    auxiliary: RefundCoin,
     lock: RefundLock,
+}
+
+/// Build the unsigned, deferred A from F's change and keep it out of the
+/// reviewed graph: owners review R, which commits to A's txid.
+fn build_auxiliary(
+    key: secp256k1::SecretKey,
+    preview: &zcash_primitives::transaction::Transaction,
+    source_fvk: &FullViewingKey,
+    change_value: u64,
+    height: u32,
+    output: &Path,
+) -> Result<Auxiliary> {
+    let bundle = preview.ironwood_bundle().ok_or("funding Ironwood")?;
+    let found = (0..bundle.actions().len())
+        .filter_map(|i| {
+            bundle
+                .decrypt_output_with_key(i, &source_fvk.to_ivk(Scope::External))
+                .map(|(note, _, _)| (i, note))
+        })
+        .filter(|(_, note)| note.value().inner() == change_value)
+        .collect::<Vec<_>>();
+    let [(action, change)] = found[..] else {
+        return Err("funding change output".into());
+    };
+    let path = MerklePath::from_parts(
+        0,
+        std::array::from_fn(|i| MerkleHashOrchard::empty_root((i as u8).into())),
+    );
+    let address = zcash_transparent::address::TransparentAddress::from_pubkey(
+        &secp256k1::PublicKey::from_secret_key(&key),
+    );
+    let built = transaction_graph::auxiliary_funding(
+        TEST_NETWORK,
+        height,
+        Source {
+            fvk: source_fvk.clone(),
+            note: change,
+            path: path.clone(),
+        },
+        &address,
+    )?;
+    let message = regtest_swap::message(&built)?;
+    let unsigned_aux = pczt::roles::redactor::Redactor::new(built)
+        .redact_ironwood_with(|mut b| {
+            b.clear_anchor();
+            b.redact_actions(|mut a| a.clear_spend_witness());
+        })
+        .finish();
+    let anchor = path.root(change.commitment().into());
+    let checked = regtest_swap::prove_pczt(regtest_swap::anchor_for_check(
+        unsigned_aux.clone(),
+        path,
+        anchor,
+    )?)?;
+    regtest_swap::verify_claim_proof(checked.clone())?;
+    if regtest_swap::message(&unsigned_aux)? != message {
+        return Err("deferred auxiliary changed message".into());
+    }
+    let effects = unsigned_aux.clone().into_effects().map_err(err)?;
+    let coin = Auxiliary::deferred(
+        key,
+        regtest_swap::effects_txid(&unsigned_aux)?,
+        effects.transparent_bundle(),
+    )?;
+    let mut files = serde_json::Map::new();
+    for (name, pczt) in [
+        ("auxiliary.pczt", unsigned_aux),
+        ("auxiliary-check.pczt", checked),
+    ] {
+        let bytes = pczt.serialize().map_err(err)?;
+        storage::atomic_write(&output.join(name), &bytes)?;
+        files.insert(name.into(), json!(sha(&bytes)));
+    }
+    let mut note = wallet::note_json(&change);
+    note["action"] = json!(action);
+    storage::atomic_json(
+        &output.join(AUXILIARY_RECORD),
+        &json!({"format":"latch-deferred-refund-auxiliary-v1","txid":coin.txid.to_string(),
+            "index":0,"value_zatoshi":crate::auxiliary::COMPACT_VALUE,
+            "script":hex::encode(&coin.coin.script_pubkey().0.0),"change_note":note,
+            "funding_txid":preview.txid().to_string(),"files":files,
+            "signed":false,"broadcast":false,
+            "scope":"Alice's private refund auxiliary; sent only on the refund path"}),
+    )?;
+    Ok(coin)
 }
 
 fn build(draft: Draft, output: &Path, binding: Value) -> Result<Value> {
     storage::create_dir(output)?;
+    let source_fvk = draft.source.fvk.clone();
+    let change_value = draft
+        .source
+        .note
+        .value()
+        .inner()
+        .checked_sub(draft.principal + 10_000)
+        .ok_or("source note too small")?;
     let (funding, index) = transaction_graph::funding(
         TEST_NETWORK,
         draft.height,
@@ -161,6 +361,18 @@ fn build(draft: Draft, output: &Path, binding: Value) -> Result<Value> {
     if pending.value().inner() != draft.principal {
         return Err("pending amount mismatch".into());
     }
+    let deferred = matches!(draft.auxiliary, RefundCoin::Deferred(_));
+    let auxiliary = match draft.auxiliary {
+        RefundCoin::Reserved(coin) => coin,
+        RefundCoin::Deferred(key) => build_auxiliary(
+            key,
+            &preview,
+            &source_fvk,
+            change_value,
+            draft.height,
+            output,
+        )?,
+    };
     let path = MerklePath::from_parts(
         0,
         std::array::from_fn(|i| MerkleHashOrchard::empty_root((i as u8).into())),
@@ -172,7 +384,7 @@ fn build(draft: Draft, output: &Path, binding: Value) -> Result<Value> {
     let mut messages = serde_json::Map::new();
     for (name, receiver, refund) in [
         ("claim", draft.bob, None),
-        ("refund", draft.alice, Some((&draft.auxiliary, draft.lock))),
+        ("refund", draft.alice, Some((&auxiliary, draft.lock))),
     ] {
         let pczt = transaction_graph::exit(
             TEST_NETWORK,
@@ -230,6 +442,9 @@ fn build(draft: Draft, output: &Path, binding: Value) -> Result<Value> {
         "funding_authorized":false,"broadcast":false,
         "scope":"unsigned native graph only; setup receipts do not authorize this graph or funding"});
     draft.lock.attach(&mut graph);
+    // Reviewed by both owners: the refund's coin does not exist until Alice
+    // sends her own auxiliary transaction, and only if she refunds.
+    graph["refund_auxiliary"] = json!(if deferred { "deferred" } else { "reserved" });
     let digest = sha(&serde_json::to_vec(&graph)?);
     storage::atomic_json(&output.join("graph.json"), &graph)?;
     Ok(
@@ -285,16 +500,29 @@ pub fn prepare(bank: &Path, folder: &Path, destinations: &Path, output: &Path) -
     {
         return Err("reserved source ownership/path mismatch".into());
     }
-    let auxiliary = Auxiliary::load_reserved(
-        bank,
-        height,
-        &storage::json(&folder.join("auxiliary-source.json"))?,
-    )?;
-    if manifest["selected_auxiliary_outpoint"]
-        != json!({"txid":auxiliary.txid.to_string(),"index":auxiliary.index})
-    {
-        return Err("reserved auxiliary outpoint mismatch".into());
-    }
+    let auxiliary = if deferred(&manifest) {
+        if note.value().inner()
+            <= principal
+                + 10_000
+                + crate::auxiliary::COMPACT_VALUE
+                + transaction_graph::AUXILIARY_FEE
+        {
+            return Err("source note leaves too little change for the refund auxiliary".into());
+        }
+        RefundCoin::Deferred(source_aux_key(bank)?)
+    } else {
+        let coin = Auxiliary::load_reserved(
+            bank,
+            height,
+            &storage::json(&folder.join("auxiliary-source.json"))?,
+        )?;
+        if manifest["selected_auxiliary_outpoint"]
+            != json!({"txid":coin.txid.to_string(),"index":coin.index})
+        {
+            return Err("reserved auxiliary outpoint mismatch".into());
+        }
+        RefundCoin::Reserved(coin)
+    };
     let joint = parse_fvk(roles, "joint_fvk")?;
     let alice = crate::participants::receiver(roles, "alice")?;
     let bob = crate::participants::receiver(roles, "bob")?;
@@ -326,7 +554,11 @@ fn hash_setup(setup: &Value) -> Result<String> {
 }
 
 /// Explicit synthetic diagnostic, never an alternate input path to prepare().
-pub fn synthetic(output: &Path, authenticated: Option<&Path>) -> Result<Value> {
+pub fn synthetic(
+    output: &Path,
+    authenticated: Option<&Path>,
+    deferred_coin: bool,
+) -> Result<Value> {
     let mut rng = rand::rng();
     let mut binding = json!({"synthetic":true,"scope":"nonexistent note/UTXO; no chain acceptance or wallet reservation"});
     let (principal, joint, alice, bob) = if let Some(path) = authenticated {
@@ -352,7 +584,9 @@ pub fn synthetic(output: &Path, authenticated: Option<&Path>) -> Result<Value> {
     };
     let source_key = crate::random_key(&mut rng);
     let source_fvk = FullViewingKey::from(&source_key);
-    let note = crate::note(&source_fvk, principal + 10_001, &mut rng);
+    // A deferred draft needs change for the auxiliary transaction.
+    let extra = if deferred_coin { 50_000 } else { 1 };
+    let note = crate::note(&source_fvk, principal + 10_000 + extra, &mut rng);
     let path = MerklePath::from_parts(
         0,
         std::array::from_fn(|i| MerkleHashOrchard::empty_root((i as u8).into())),
@@ -360,16 +594,20 @@ pub fn synthetic(output: &Path, authenticated: Option<&Path>) -> Result<Value> {
     let key = secp256k1::SecretKey::from_secret_bytes([1; 32])?;
     let public = secp256k1::PublicKey::from_secret_key(&key);
     let address = zcash_transparent::address::TransparentAddress::from_pubkey(&public);
-    let auxiliary = Auxiliary {
-        key,
-        public,
-        address,
-        txid: zcash_protocol::TxId::from_bytes([0x13; 32]),
-        index: 0,
-        coin: zcash_transparent::bundle::TxOut::new(
-            zcash_protocol::value::Zatoshis::from_u64(20_000)?,
-            address.script().into(),
-        ),
+    let auxiliary = if deferred_coin {
+        RefundCoin::Deferred(key)
+    } else {
+        RefundCoin::Reserved(Auxiliary {
+            key,
+            public,
+            address,
+            txid: zcash_protocol::TxId::from_bytes([0x13; 32]),
+            index: 0,
+            coin: zcash_transparent::bundle::TxOut::new(
+                zcash_protocol::value::Zatoshis::from_u64(20_000)?,
+                address.script().into(),
+            ),
+        })
     };
     let height = u32::from(
         TEST_NETWORK

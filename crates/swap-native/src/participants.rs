@@ -498,6 +498,12 @@ pub fn serve(dir: &Path, id: u16) -> Result<()> {
                 };
                 json!({"share":hex::encode(share)})
             }
+            Some("accept_auxiliary") if id == 1 => {
+                if pending.is_some() {
+                    return Err("cannot accept refund auxiliary during signing".into());
+                }
+                crate::recovery_bundle::accept_auxiliary(dir, &request["auxiliary"])?
+            }
             Some("accept_bundle") => {
                 if pending.is_some() {
                     return Err("cannot accept recovery bundle during signing".into());
@@ -728,5 +734,20 @@ impl Pair {
             }
         }
         Ok(json!({"alice":a,"bob":b,"both_acknowledged_before_funding":true}))
+    }
+
+    /// Alice alone receives her auxiliary transaction, after the shared bundle.
+    pub fn deliver_auxiliary(&mut self, auxiliary: Value) -> Result<Value> {
+        let digest = crate::recovery_bundle::auxiliary_digest(&auxiliary)?;
+        let receipt = self
+            .alice
+            .request(json!({"command":"accept_auxiliary","auxiliary":auxiliary}))?;
+        if receipt["participant"] != 1
+            || receipt["auxiliary_digest"] != digest
+            || receipt["durably_saved"] != true
+        {
+            return Err("Alice did not acknowledge her refund auxiliary".into());
+        }
+        Ok(receipt)
     }
 }

@@ -42,6 +42,17 @@ pub fn inspect(path: &Path) -> Result<Value> {
     )
 }
 
+/// The v6 txid of a PCZT's effects. It excludes anchors, proofs and
+/// signatures, so it is fixed before any of them exist.
+pub(crate) fn effects_txid(pczt: &Pczt) -> Result<zcash_protocol::TxId> {
+    let tx = pczt.clone().into_effects().map_err(err)?;
+    Ok(zcash_primitives::transaction::txid::to_txid(
+        tx.version(),
+        tx.consensus_branch_id(),
+        &tx.digest(TxIdDigester),
+    ))
+}
+
 pub(crate) fn message(pczt: &Pczt) -> Result<[u8; 32]> {
     let tx = pczt.clone().into_effects().map_err(err)?;
     Ok(
@@ -147,7 +158,11 @@ pub(crate) fn extract_checked(pczt: Pczt) -> Result<Transaction> {
         .map_err(|e| err(e).into())
 }
 
-fn anchor_for_check(pczt: Pczt, path: MerklePath, anchor: orchard::Anchor) -> Result<Pczt> {
+pub(crate) fn anchor_for_check(
+    pczt: Pczt,
+    path: MerklePath,
+    anchor: orchard::Anchor,
+) -> Result<Pczt> {
     let digest = message(&pczt)?;
     let witnesses = (0..pczt.ironwood().actions().len())
         .map(|i| (i, path.clone()))
@@ -256,6 +271,87 @@ pub(crate) fn apply(pczt: Pczt, index: usize, sig: [u8; 64], digest: [u8; 32]) -
         .finish())
 }
 
+struct AuxiliaryTransaction {
+    coin: crate::auxiliary::Auxiliary,
+    note: Value,
+    /// Alice's private copy: signed A, its circuit check and its input note.
+    packet: Value,
+}
+
+/// Build and sign Alice's auxiliary transaction A from her funding change. Like
+/// the exits it stays deferred: no anchor or proof until a refund needs it.
+fn auxiliary_transaction(
+    funding: &Transaction,
+    alice_key: &orchard::keys::SpendingKey,
+    alice_fvk: &FullViewingKey,
+    change_value: u64,
+    dummy_path: &MerklePath,
+    height: u32,
+) -> Result<AuxiliaryTransaction> {
+    let bundle = funding.ironwood_bundle().ok_or("funding bundle")?;
+    let change = (0..bundle.actions().len())
+        .filter_map(|i| bundle.decrypt_output_with_key(i, &alice_fvk.to_ivk(Scope::External)))
+        .map(|(note, _, _)| note)
+        .filter(|note| note.value().inner() == change_value)
+        .collect::<Vec<_>>();
+    let [change] = change[..] else {
+        return Err("funding change output".into());
+    };
+    let key = crate::auxiliary::fresh_key();
+    let address = zcash_transparent::address::TransparentAddress::from_pubkey(
+        &secp256k1::PublicKey::from_secret_key(&key),
+    );
+    let built = crate::transaction_graph::auxiliary_funding(
+        Regtest,
+        height + 1,
+        crate::transaction_graph::Source {
+            fvk: alice_fvk.clone(),
+            note: change,
+            path: dummy_path.clone(),
+        },
+        &address,
+    )?;
+    let before = message(&built)?;
+    let deferred = Redactor::new(built)
+        .redact_ironwood_with(|mut b| {
+            b.clear_anchor();
+            b.redact_actions(|mut a| a.clear_spend_witness());
+        })
+        .finish();
+    let real = deferred
+        .ironwood()
+        .actions()
+        .iter()
+        .enumerate()
+        .filter(|(_, a)| a.spend().spend_auth_sig().is_none())
+        .map(|(i, _)| i)
+        .collect::<Vec<_>>();
+    if message(&deferred)? != before || real.len() != 1 {
+        return Err("auxiliary deferral changed effects".into());
+    }
+    let mut signer = Signer::new(deferred).map_err(err)?;
+    signer
+        .sign_ironwood(rand::rng(), real[0], &SpendAuthorizingKey::from(alice_key))
+        .map_err(err)?;
+    let signed = signer.finish();
+    let anchor = dummy_path.root(change.commitment().into());
+    let checked = prove_pczt(anchor_for_check(
+        signed.clone(),
+        dummy_path.clone(),
+        anchor,
+    )?)?;
+    let extracted = extract_checked(checked.clone())?;
+    let coin = crate::auxiliary::Auxiliary::deferred(
+        key,
+        extracted.txid(),
+        extracted.transparent_bundle(),
+    )?;
+    let note = wallet::note_json(&change);
+    let packet = json!({"version":1,"auxiliary":hex::encode(signed.serialize().map_err(err)?),
+        "auxiliary_check":hex::encode(checked.serialize().map_err(err)?),"note":note});
+    Ok(AuxiliaryTransaction { coin, note, packet })
+}
+
 pub fn prepare(bank: &Path, scan: &Path, dir: &Path, pins: Option<&Path>) -> Result<Value> {
     prepare_inner(bank, scan, dir, pins, None)
 }
@@ -307,9 +403,14 @@ fn prepare_inner(
         .ok_or("notes")?
         .iter()
         .find(|n| {
-            n["value"]
-                .as_u64()
-                .is_some_and(|v| v > amounts.principal + 10_000)
+            n["value"].as_u64().is_some_and(|v| {
+                v > amounts.principal
+                    + 10_000
+                    + crate::auxiliary::COMPACT_VALUE
+                    + crate::transaction_graph::AUXILIARY_FEE
+            }) && !n["cmx"]
+                .as_str()
+                .is_some_and(|cmx| bank.join("reserved-notes").join(cmx).exists())
                 && (n["coinbase"] == false
                     || n["height"]
                         .as_u64()
@@ -338,9 +439,6 @@ fn prepare_inner(
     if input.recipient() != alice_fvk.address_at(0u32, Scope::External) {
         return Err("source receiver mismatch".into());
     }
-    let aux = crate::auxiliary::Auxiliary::load(bank, height)?;
-    let auxindex = aux.index;
-    let auxcoin = &aux.coin;
     storage::create_dir(dir)?;
     let mut pair = crate::participants::Pair::start(dir)?;
     let mut rng = rand::rng();
@@ -355,11 +453,12 @@ fn prepare_inner(
     )?;
     let receiver = pair.bob_receiver;
     let refund_receiver = pair.alice_receiver;
+    let change_value = input.value().inner() - amounts.principal - 10_000;
     let (pczt, output) = crate::transaction_graph::funding(
         Regtest,
         height + 1,
         crate::transaction_graph::Source {
-            fvk: alice_fvk,
+            fvk: alice_fvk.clone(),
             note: input,
             path,
         },
@@ -387,6 +486,26 @@ fn prepare_inner(
         std::array::from_fn(|i| MerkleHashOrchard::empty_root((i as u8).into())),
     );
     let dummy_anchor = dummy_path.root(pending.commitment().into());
+    let auxiliary = auxiliary_transaction(
+        &funding,
+        &alice_key,
+        &alice_fvk,
+        change_value,
+        &dummy_path,
+        height,
+    )?;
+    let aux = &auxiliary.coin;
+    let auxindex = aux.index;
+    let auxcoin = &aux.coin;
+    // The source wallet must keep this change unspent until the swap settles:
+    // the refund's transparent input exists only once A spends it.
+    std::fs::create_dir_all(bank.join("reserved-notes"))?;
+    storage::write_json(
+        &bank
+            .join("reserved-notes")
+            .join(auxiliary.note["cmx"].as_str().ok_or("cmx")?),
+        &json!({"purpose":"refund auxiliary input","swap":dir}),
+    )?;
     let claim = crate::transaction_graph::exit(
         Regtest,
         height + 1,
@@ -427,7 +546,7 @@ fn prepare_inner(
             receiver: refund_receiver,
             payout: amounts.payout,
         },
-        Some((&aux, refund_lock)),
+        Some((aux, refund_lock)),
     )?;
     let one = pasta_old::pallas::Scalar::ONE;
     let mut refund_policy = policy.clone();
@@ -481,7 +600,8 @@ fn prepare_inner(
         "refund_auxiliary_signature_verified_before_funding":true,
         "participant_bundles_acknowledged_before_funding":true,
         "funding_authorization_withheld_from_peer_until_acknowledgment":true,
-        "refund_transparent_auxiliary":true,"funding_and_claim_fully_shielded":true});
+        "refund_transparent_auxiliary":true,"refund_auxiliary_deferred":true,
+        "funding_and_claim_fully_shielded":true});
     refund_lock.attach(&mut terms);
     if let Some(trade) = &trade {
         terms["trade"] = trade.clone();
@@ -508,7 +628,14 @@ fn prepare_inner(
         "refund":hex::encode(refund.clone().serialize().map_err(err)?),"presignature":pre_json(&pre),
         "claim_check":hex::encode(claim_check.serialize().map_err(err)?),
         "refund_check":hex::encode(refund_check.serialize().map_err(err)?)});
-    let receipts = pair.deliver_bundle(bundle)?;
+    let mut receipts = pair.deliver_bundle(bundle)?;
+    // A goes to Alice alone. Bob needs only its txid, which R already commits
+    // to; holding A would let him put Alice's change on chain.
+    receipts["alice_auxiliary"] = pair.deliver_auxiliary(auxiliary.packet.clone())?;
+    storage::write(
+        &dir.join("aux-key.bin"),
+        &auxiliary.coin.key.to_secret_bytes(),
+    )?;
     storage::write_json(&dir.join("participant-receipts.json"), &receipts)?;
     // Independent operators receive and retain the complete bundle through
     // their authenticated service. Their private directories are not mounted
@@ -526,6 +653,14 @@ fn prepare_inner(
         storage::write(
             &dir.join("alice/refund.pczt"),
             &refund.serialize().map_err(err)?,
+        )?;
+        storage::write(
+            &dir.join("alice/auxiliary.pczt"),
+            &crate::recovery_bundle::encoded(&auxiliary.packet, "auxiliary")?,
+        )?;
+        storage::write_json(
+            &dir.join("watched-notes.json"),
+            &crate::recovery_bundle::watched_notes(&auxiliary.packet)?,
         )?;
     }
     storage::write_json(&dir.join("terms.json"), &terms)?;
@@ -608,7 +743,51 @@ pub fn authorize_funding(bank: &Path, dir: &Path, packet: &Path) -> Result<Value
     inspect(&dir.join("funding.hex"))
 }
 
+/// Put Alice's deferred auxiliary transaction on chain: re-prove A against the
+/// current tree. Its effects, signature and txid were fixed at setup.
+fn finish_auxiliary(dir: &Path, scan: &Path) -> Result<Value> {
+    let terms = storage::json(&dir.join("terms.json"))?;
+    let snapshot = storage::json(scan)?;
+    if snapshot["genesis"] != wallet::GENESIS {
+        return Err("wrong observed chain".into());
+    }
+    let watched = storage::json(&dir.join("watched-notes.json"))?;
+    let watched = watched
+        .as_array()
+        .and_then(|w| w.first())
+        .ok_or("watched note")?;
+    let source = snapshot["notes"]
+        .as_array()
+        .ok_or("notes")?
+        .iter()
+        .find(|n| n["cmx"] == watched["cmx"] && n["value"] == watched["value"])
+        .ok_or("refund auxiliary input absent or spent")?;
+    let pczt =
+        Pczt::parse(&storage::read(&dir.join("alice/auxiliary.pczt"), 100_000)?).map_err(err)?;
+    let tx = reprove_exit(pczt, source)?;
+    if tx.txid().to_string() != terms["aux_outpoint"]["txid"] {
+        return Err("re-proving changed the auxiliary transaction".into());
+    }
+    let mut raw = Vec::new();
+    tx.write(&mut raw)?;
+    let output = dir.join(format!(
+        "auxiliary-{}-{}.hex",
+        snapshot["height"],
+        hex::encode(Sha256::digest(&raw))
+    ));
+    storage::atomic_write(&output, hex::encode(raw).as_bytes())?;
+    Ok(
+        json!({"scope":"actual regtest refund auxiliary, not yet broadcast","mode":"auxiliary",
+        "txid":tx.txid().to_string(),"lock_time":tx.lock_time(),"expiry_height":u32::from(tx.expiry_height()),
+        "transparent_outputs":tx.transparent_bundle().map(|b|b.vout.len()).unwrap_or(0),
+        "proof_and_signatures_verified":true,"prepared_before_funding":true,"file":output}),
+    )
+}
+
 pub fn finish(dir: &Path, scan: &Path, mode: &str, witness: Option<&str>) -> Result<Value> {
+    if mode == "auxiliary" {
+        return finish_auxiliary(dir, scan);
+    }
     let terms = storage::json(&dir.join("terms.json"))?;
     let amounts = crate::trade::amounts(&terms)?;
     let snapshot = storage::json(scan)?;

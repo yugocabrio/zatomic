@@ -92,6 +92,49 @@ impl Auxiliary {
     }
 }
 
+/// A fresh key for one swap's refund auxiliary; never reused across swaps.
+pub fn fresh_key() -> secp256k1::SecretKey {
+    let mut rng = rand::rng();
+    loop {
+        let mut bytes = [0; 32];
+        rand::Rng::fill_bytes(&mut rng, &mut bytes);
+        if let Ok(key) = secp256k1::SecretKey::from_secret_bytes(bytes) {
+            return key;
+        }
+    }
+}
+
+impl Auxiliary {
+    /// The refund's transparent input as the only output of Alice's
+    /// unbroadcast auxiliary transaction A (see `transaction_graph`).
+    pub fn deferred(
+        key: secp256k1::SecretKey,
+        txid: TxId,
+        bundle: Option<
+            &zcash_transparent::bundle::Bundle<impl zcash_transparent::bundle::Authorization>,
+        >,
+    ) -> Result<Self> {
+        let public = secp256k1::PublicKey::from_secret_key(&key);
+        let address = TransparentAddress::from_pubkey(&public);
+        let bundle = bundle.ok_or("auxiliary transparent output")?;
+        if !bundle.vin.is_empty()
+            || bundle.vout.len() != 1
+            || bundle.vout[0].recipient_address() != Some(address)
+            || u64::from(bundle.vout[0].value()) != COMPACT_VALUE
+        {
+            return Err("auxiliary transaction must create exactly the refund coin".into());
+        }
+        Ok(Self {
+            key,
+            public,
+            address,
+            txid,
+            index: 0,
+            coin: bundle.vout[0].clone(),
+        })
+    }
+}
+
 /// Split a disposable mined coin into a 20,000-zatoshi timelock/fee coin and
 /// transparent change before preparing a swap. Never touches shielded principal.
 pub fn compact(bank: &Path, scan: &Path) -> Result<Value> {

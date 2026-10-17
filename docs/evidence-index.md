@@ -26,6 +26,13 @@ manifests and sealed envelopes. Before, it could read the ZEC amount, funding
 txid and joint note commitment. A fresh exchange ran over the sealed relay.
 [Record](../evidence/2026-10-17-relay-sealing.json).
 
+**Fully shielded settlement, 2026-10-17:** a settled swap now puts only F and C
+on the Zcash chain. The refund's transparent coin comes from Alice's private
+auxiliary transaction, sent only if she refunds. Two-party success and refund,
+a browser refund recovery and a timelock check ran on chain. The public path
+was ported too (synthetic-input checks; funded refund not yet exercised).
+[Record](../evidence/2026-10-17-deferred-auxiliary.json).
+
 Latest additions after the original local release:
 [actual browser OTC success/refund](../evidence/2026-10-15-browser-otc.json),
 [isolated pinned deployment](../evidence/2026-10-15-public-deployment-integration.json),

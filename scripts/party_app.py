@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import signal
 import subprocess
 import sys
 import threading
@@ -185,7 +186,12 @@ class App:
 
     # Background work -------------------------------------------------------------
     def background(self):
+        parent = os.getppid()
         while True:
+            if os.getppid() != parent:
+                # The network is gone. Take this app's whole process group
+                # (its signer service and any running command) down with it.
+                os.killpg(os.getpgid(0), signal.SIGKILL)
             try:
                 with self.lock:
                     if not self.busy:
@@ -289,7 +295,7 @@ class App:
         trade = read(self.me / 'accepted-trade.json')
         call(self.network, '/api/faucet', {'address': self.manifest('alice')['identity']['address']}, self.relay_token)
         bank = self.source / 'bank'
-        if not (bank / 'aux-source-compact.json').exists():
+        if not (bank / 'funded.json').exists():
             # Local faucet: mines regtest coinbase to Alice's own source wallet.
             subprocess.run([sys.executable, str(ROOT / 'scripts/regtest_wallet.py'), 'fund', str(bank)],
                 cwd=ROOT, check=True, capture_output=True, timeout=600)

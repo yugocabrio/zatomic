@@ -495,6 +495,12 @@ fn main() -> Result<()> {
         Some("testnet-recovery-watch") if a.len() == 5 => {
             public_witness::init(Path::new(&a[2]), Path::new(&a[3]), a[4].parse()?)?
         }
+        Some("testnet-auxiliary-prove") if a.len() == 6 => public_funding::prove_auxiliary(
+            Path::new(&a[2]),
+            Path::new(&a[3]),
+            Path::new(&a[4]),
+            Path::new(&a[5]),
+        )?,
         Some("testnet-recovery-snapshot") if a.len() == 6 => public_witness::select(
             Path::new(&a[2]),
             Path::new(&a[3]),
@@ -572,13 +578,17 @@ fn main() -> Result<()> {
         Some("compact-scan") if a.len() == 4 || a.len() == 5 => {
             compact_wallet::scan(Path::new(&a[2]), Path::new(&a[3]), a.get(4).map(Path::new))?
         }
-        Some("compact-source-snapshot") if a.len() == 7 => compact_wallet::source_snapshot(
-            Path::new(&a[2]),
-            Path::new(&a[3]),
-            Path::new(&a[4]),
-            a[5].parse()?,
-            Path::new(&a[6]),
-        )?,
+        Some("compact-source-snapshot") if a.len() == 7 || a.len() == 8 => {
+            compact_wallet::source_snapshot(
+                Path::new(&a[2]),
+                Path::new(&a[3]),
+                Path::new(&a[4]),
+                a[5].parse()?,
+                Path::new(&a[6]),
+                // Optional change kept for a deferred refund auxiliary.
+                a.get(7).map(|r| r.parse()).transpose()?.unwrap_or(0),
+            )?
+        }
         Some("testnet-unsigned-graph") if a.len() == 6 => public_graph::prepare(
             Path::new(&a[2]),
             Path::new(&a[3]),
@@ -586,7 +596,10 @@ fn main() -> Result<()> {
             Path::new(&a[5]),
         )?,
         Some("check-unsigned-graph-synthetic") if a.len() == 3 || a.len() == 4 => {
-            public_graph::synthetic(Path::new(&a[2]), a.get(3).map(Path::new))?
+            public_graph::synthetic(Path::new(&a[2]), a.get(3).map(Path::new), false)?
+        }
+        Some("check-unsigned-graph-synthetic-deferred") if a.len() == 3 || a.len() == 4 => {
+            public_graph::synthetic(Path::new(&a[2]), a.get(3).map(Path::new), true)?
         }
         Some("regtest-export-compact") if a.len() == 4 => {
             compact_wallet::export_regtest(Path::new(&a[2]), Path::new(&a[3]))?

@@ -19,7 +19,7 @@ import evm_wallet
 import fee_policy
 import native_funding
 import native_owner
-from recover_regtest_swap import native_exit
+from recover_regtest_swap import auxiliary_depth, native_exit
 from evm_journal import InjectedStop, validate_intent, verify_contract, order_state, require_reveal_window, receipt
 from regtest_node import rpc as zrpc, status
 from regtest_wallet import save, capture, native
@@ -333,6 +333,10 @@ def native_recovery(directory, agreement, terms, role, order, action, fault_afte
         return dict(common, state='waiting-funding-confirmations', funding_recovery=restored,
             new_transaction=restored['new_transaction'])
     native_funding.observe(directory, terms, funding_tx)
+    if mode == 'refund' and auxiliary_depth(root) == 0:
+        # First call: put Alice's auxiliary A on chain. R follows once A is mined.
+        txid, sent = native_exit(root, 'auxiliary', mine=False)
+        return dict(common, state='auxiliary-pending', txid=txid, confirmations=0, new_transaction=sent)
     txid, sent = native_exit(root, mode, witness, mine=False)
     if fault_after_send and sent:
         raise InjectedStop('native-exit-send-before-observation')
@@ -410,7 +414,9 @@ def execute(directory, action, request, fault_after_send=False):
         if not previous:
             unspent_funding(directory, terms)
         auxiliary = terms['aux_outpoint']
-        if zrpc('gettxout', [auxiliary['txid'], auxiliary['index'], True]) is None:
+        # A deferred auxiliary is Alice's own unbroadcast transaction; only an
+        # already-mined coin can be checked (and spent early) here.
+        if not terms.get('refund_auxiliary_deferred') and zrpc('gettxout', [auxiliary['txid'], auxiliary['index'], True]) is None:
             raise RuntimeError('native refund auxiliary unavailable')
         data = evm.calldata('lock(bytes32,address,uint64,(uint256,uint256),bytes32)',
             salt, agreement['recipient'], agreement['eth_expiry'],

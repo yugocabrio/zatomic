@@ -18,6 +18,12 @@ from datetime import datetime
 from testnet_wallet import GENESIS, NATIVE, ROOT, checkpoint, invoke, read
 import timestamp_policy
 
+# Change a v2 source keeps for Alice's deferred refund auxiliary A: its
+# 20,000-zatoshi transparent output plus A's 15,000-zatoshi fee.
+AUXILIARY_RESERVE = 35_000
+FORMATS = {'latch-source-reservation-v1': 'latch-source-inputs-v1',
+    'latch-source-reservation-v2': 'latch-source-inputs-v2'}
+
 
 def digest(path):
     # Enforce the same private bounded file check before hashing.
@@ -72,7 +78,7 @@ def replay(directory, plan_digest, principal):
     if not path.exists() and not path.is_symlink():
         return None
     saved = read(path)
-    if (saved['format'] != 'latch-source-reservation-v1' or saved['genesis'] != GENESIS
+    if (saved['format'] not in FORMATS or saved['genesis'] != GENESIS
             or saved['plan_digest'] != plan_digest or saved['principal_zatoshi'] != principal):
         raise RuntimeError('wallet already has a different source reservation; preserve it for reconciliation')
     name = saved['package']
@@ -82,6 +88,8 @@ def replay(directory, plan_digest, principal):
     if folder.is_symlink() or not folder.is_dir() or folder.stat().st_mode & 0o077:
         raise RuntimeError('private source package required')
     manifest = read(folder / 'manifest.json')
+    if manifest['format'] != FORMATS[saved['format']]:
+        raise RuntimeError('reserved manifest format differs from reservation')
     if digest(folder / 'manifest.json') != saved['manifest_sha256']:
         raise RuntimeError('reserved manifest changed; preserve reservation')
     for member, expected in manifest['files'].items():
@@ -115,7 +123,10 @@ def auxiliary_coin(observation, snapshot, receiver, now):
     return sorted(candidates, key=lambda u: (u['txid'],u['index']))[0]
 
 
-def reserve(directory, candidate, principal):
+def reserve(directory, candidate, principal, deferred=True):
+    """Reserve one shielded source note. New (v2) reservations select no
+    transparent coin: the refund's coin is created from F's change by Alice's
+    auxiliary transaction, only if she refunds. v1 remains for old packages."""
     if type(principal) is not int or not 10_000 < principal <= 2_100_000_000_000_000-10_000:
         raise RuntimeError('principal_zatoshi must include a positive payout and the 10000-zatoshi claim fee')
     plan, plan_digest = checked_plan(candidate)
@@ -143,8 +154,32 @@ def reserve(directory, candidate, principal):
     # This cryptographically validates both checkpoint paths against the wallet
     # before any auxiliary address is disclosed or any reservation is created.
     invoke(NATIVE, 'compact-source-snapshot', directory, folder/'anchor.json',
-        folder/'current.json', principal, folder/'source.json')
+        folder/'current.json', principal, folder/'source.json', AUXILIARY_RESERVE if deferred else 0)
     snapshot = read(folder/'source.json')
+    if deferred:
+        # No transparent address is disclosed to the provider at all.
+        invoke('node', ROOT/'scripts/observe_testnet_source.mjs', folder/'source.json', folder/'canonical.json')
+        canonical = read(folder/'canonical.json')
+        now = int(time.time())
+        timestamp_policy.require_window(plan, 'funding', now)
+        fresh(canonical, now)
+        members = ['anchor.json','current.json','plan.json','source.json','canonical.json']
+        manifest = {'format':'latch-source-inputs-v2','genesis':GENESIS,'plan_digest':plan_digest,
+            'principal_zatoshi':principal,'files':{name:digest(folder/name) for name in members},
+            'selected_note_commitment':snapshot['notes'][0]['cmx'],
+            'selected_auxiliary_outpoint':None,'refund_auxiliary':'deferred',
+            'funding_authorized':False,'broadcast':False,'created_at':now,
+            'scope':'private input preparation only; not a signed swap or canonicality proof'}
+        publish(folder/'manifest.json', manifest)
+        publish(directory/'source-reservation.json', {'format':'latch-source-reservation-v2',
+            'genesis':GENESIS,'plan_digest':plan_digest,'principal_zatoshi':principal,
+            'package':folder.name,'manifest_sha256':digest(folder/'manifest.json'),
+            'selected_note_commitment':manifest['selected_note_commitment'],
+            'selected_auxiliary_outpoint':None,'refund_auxiliary':'deferred'})
+        return {'file':str(folder/'manifest.json'),'reserved':True,'reused_reservation':False,
+            'live_revalidated':True,'source_confirmations':snapshot['source_confirmations'],
+            'anchor_confirmations':snapshot['anchor_confirmations'],'refund_auxiliary':'deferred',
+            'funding_authorized':False,'broadcast':False}
     receiver = invoke(NATIVE, 'testnet-wallet-receivers', directory)
     observed = invoke('node', ROOT/'scripts/observe_testnet_auxiliary.mjs', directory, folder/'auxiliary')
     auxiliary = read(Path(observed['file']))

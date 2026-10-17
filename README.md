@@ -110,9 +110,10 @@ alone is not presented as a successful swap.
 
 ## Boundaries
 
-The exchanged ZEC remains shielded. Refunds additionally use an Alice-owned
-transparent auxiliary input to make the native timelock effective. Its outpoint
-and value are public on refund. ETH-side activity is public.
+The exchanged ZEC remains shielded. A settled swap is fully shielded on Zcash.
+A refund additionally uses an Alice-owned transparent auxiliary coin to make the
+native timelock effective; Alice creates it from her own change only when she
+refunds, so it is public only then. ETH-side activity is public.
 
 Both signers run in separate processes on one host. New browser runs use pinned
 mutual TLS for native preparation and separate owner-held ETH keys and journals.

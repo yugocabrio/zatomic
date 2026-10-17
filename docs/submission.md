@@ -72,9 +72,9 @@ cross-check is not an external audit or a security proof.
 
 The swap requires bounded monitoring, inclusion and reorg assumptions. Arbitrary
 outages or source-conflicting deep forks are outside its demonstrated guarantees.
-ETH addresses, amounts, witness and timing are public. Native refund additionally
-uses a public transparent auxiliary coin; the ZEC exchange principal remains
-shielded. This is not a claim that the entire exchange is anonymous or mainnet
+ETH addresses, amounts, witness and timing are public. A settled swap is fully
+shielded on Zcash; only a refund creates and spends a transparent auxiliary
+coin. The ZEC exchange principal remains shielded either way. This is not a claim that the entire exchange is anonymous or mainnet
 ready.
 
 ## Before submitting

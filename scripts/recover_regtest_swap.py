@@ -38,12 +38,32 @@ def record_once(directory, stage, value):
         save(directory / f'{stage}.json', value)
 
 
+def auxiliary_depth(swap):
+    """Confirmations of Alice's deferred refund auxiliary A, or None if this
+    workspace's refund spends an already-mined coin."""
+    if not (swap / 'alice/auxiliary.pczt').exists():
+        return None
+    txid = json.loads((swap / 'terms.json').read_text())['aux_outpoint']['txid']
+    try:
+        tx = zrpc('getrawtransaction', [txid, 1])
+    except RpcError as exc:
+        if exc.code != -5:
+            raise
+        return 0
+    return tx.get('confirmations', 0) if tx.get('in_active_chain') else 0
+
+
 def native_exit(swap, mode, witness=None, mine=True):
     # Reconcile current chain/mempool, never an old completion journal. Mining
     # here is explicitly the isolated harness's confirmation mechanism.
     status()
-    if mode not in ('claim', 'refund'):
+    if mode not in ('claim', 'refund', 'auxiliary'):
         raise RuntimeError('unknown native exit')
+    if mode == 'refund' and auxiliary_depth(swap) == 0:
+        # A goes on chain only now, on the refund path. R spends its output.
+        if not mine:
+            raise RuntimeError('refund auxiliary not yet confirmed')
+        native_exit(swap, 'auxiliary')
     files = sorted(swap.glob(f'{mode}-*.hex'))
     txids = set()
     for path in files:

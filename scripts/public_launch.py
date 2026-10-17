@@ -162,7 +162,7 @@ def main():
     os.umask(0o077)
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('action',choices=('owners','prepare','native-exit','verify'));p.add_argument('root',type=Path)
-    p.add_argument('--eth-rpc',default='https://sepolia.drpc.org');p.add_argument('--gas-cap-wei',type=int,default=1_000_000_000)
+    p.add_argument('--eth-rpc',default='https://sepolia.gateway.tenderly.co');p.add_argument('--gas-cap-wei',type=int,default=1_000_000_000)
     p.add_argument('--zec-amount',default='0.001');p.add_argument('--eth-amount',default='0.001')
     p.add_argument('--role',choices=('alice','bob'),default='bob');p.add_argument('--version')
     a=p.parse_args(); root=a.root.resolve()

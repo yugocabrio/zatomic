@@ -224,9 +224,8 @@ class Manager:
                 mode, fault = SCENARIOS[scenario]
                 args = ['python3', str(ROOT / 'scripts/prefunding_swap.py'), mode, str(folder / 'run'),
                         '--accepted-quote', str(folder / 'quote')]
-                # Every run funds its own source note and refund auxiliary coin.
-                # Both owners learn the auxiliary outpoint, so reusing it would
-                # let different counterparties link one seller across swaps.
+                # Every run funds its own source note. Its refund auxiliary is
+                # created from that run's funding change, only if it refunds.
                 if fault:
                     args += ['--fault-after', fault]
             job = persisted(job)

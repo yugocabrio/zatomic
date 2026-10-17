@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-17",
+  "scope": "Local profiles (browser demo, two-party mode, operator harness) on isolated Zebra NU7 regtest and Anvil. Internal work, not an external audit. The public-testnet path was ported the same night (see public_profile); it has synthetic-input checks only.",
+  "finding": {
+    "id": "P5",
+    "summary": "The refund's 20,000-zatoshi transparent coin was created and mined before every swap, so even a settled swap left a transparent output on chain, a repeatable pattern next to each funding transaction."
+  },
+  "fix": {
+    "construction": "At setup Alice's source wallet builds and signs a private auxiliary transaction A: it spends her own F change (one Ironwood spend), creates the 20,000-zatoshi P2PKH coin to a fresh key and returns the rest to her shielded address (fee 15,000). R spends A's output; v6 txids exclude anchors and proofs, so R can commit to A's txid while A stays deferred. Only Alice's participant receives A, over the pinned TLS channel, after the shared bundle. A is sent only on the refund path, then R.",
+    "alice_participant_checks": [
+      "A deferred (no anchor or proof) and identical to its checked copy minus proof data",
+      "A proof and every signature valid on a temporary tree",
+      "V6/NU7, expiry 0, lock time 0, no transparent input, exactly one output equal to the refund input in the accepted bundle (txid, index, value, script)",
+      "A spends the stated note, with an authorized spend whose nullifier matches"
+    ],
+    "bob": "Receives only R, which commits to A's txid. He cannot send A. His safety does not depend on A: R is time-locked whatever its input. His lock no longer requires the coin to be on chain.",
+    "reservation": "The source wallet records A's input note under bank/reserved-notes and never selects it for another swap.",
+    "scanning": "Alice's recovery workspace witnesses A's input by note commitment (watched-notes.json), without her source viewing key.",
+    "bank_funding": "Regtest bank funding no longer mines a transparent coin or a split transaction.",
+    "implementation": [
+      "crates/swap-native/src/transaction_graph.rs",
+      "crates/swap-native/src/auxiliary.rs",
+      "crates/swap-native/src/regtest_swap.rs",
+      "crates/swap-native/src/participants.rs",
+      "crates/swap-native/src/recovery_bundle.rs",
+      "crates/swap-native/src/wallet.rs",
+      "scripts/recover_regtest_swap.py",
+      "scripts/evm_participant.py",
+      "scripts/owner_swap.py",
+      "scripts/run_regtest_swap.py",
+      "scripts/regtest_wallet.py",
+      "scripts/signer_transport.py"
+    ]
+  },
+  "runs": {
+    "two_party_success": {
+      "workspace": ".local/two-party-007",
+      "funding_txid": "2fa2ca1e6c94a3577401bff865dd4e52d147e63a93de0720d0963134c5a3b0fe",
+      "eth_lock": "0x0a53d72313345c7c4af3403cfb81df638092619cf42d8c918ef9e5ea1572238d",
+      "eth_claim": "0x1b9392ed58161983ae8d20b88efc467d932d80d426b663650cf460d9e2ed003c",
+      "alice_withdraw": "0xe51862505632241480d51e92af39be097cfaa03aebf712bec9f81d23ab43ac96",
+      "zec_claim": "fafda5658effac3f71f2b486ce18fe62d84bf02c1da81244d45abb5d7b975a19",
+      "zec_received_zatoshi": 1900000,
+      "auxiliary_txid_never_broadcast": "03d629152458d58761489e2ad06fb8e48c715f5ba16638c9f1b84618c871fe1b",
+      "on_chain": "F and C have no transparent input or output; A was never broadcast; no non-coinbase transparent transaction from two blocks before F to the tip."
+    },
+    "two_party_refund": {
+      "workspace": ".local/two-party-006",
+      "funding_txid": "1672647b6c7801ab5cbcc7bd7956a989185c378468f7bd6edf01a1acc61c0219",
+      "funding_height": 5400,
+      "refund_height": 5419,
+      "eth_lock": "0xe964596c84c6e89c5fb2ad10ad7d66b1a959a12c625f14072e83f6135c906443",
+      "eth_refund": "0xeb42a3705220c9f3c5a85c1dbdb6de76a0895570127174303d18ed3e26d33ec1",
+      "bob_withdraw": "0x243e937992e4d49c42eec5b8b8a4043b56dc5d6dac0f4acaabb2e75242a564b7",
+      "auxiliary_txid": "be764934a028dc687f4eb7e93fef00ce3b8ea142a2921c8b1aba33abf2b3a0b8",
+      "auxiliary_height": 5426,
+      "zec_refund": "c42e6004f93f28c38db8d5b81fd955c71ba94d9246c55f88d4ace4d92027088f",
+      "zec_refund_height": 5428,
+      "on_chain": "A mined only after the ETH order expired and the refund height passed; R spends A output 0 with sequence 0xfffffffe and lock time equal to the refund height."
+    },
+    "browser_refund_stop_recovery": {
+      "run": "1792272793700-3437d0db",
+      "scenario": "refund-stop, then Restart & recover",
+      "funding_txid": "9173564a63b8f2c0161f7359a2868424dc3aea27c64c1fb900c7baeb46cf0d7c",
+      "funding_height": 5636,
+      "refund_height": 5655,
+      "auxiliary_txid": "0bf84df3bc6e0c6607881e87b1a8c4a27e2d2fed2e4939906ce161fb60fbead5",
+      "auxiliary_height": 5657,
+      "zec_refund": "37c53f31b07f31e8611bf2fd91692069554dfbfd5deb6a9f9ee5051d68b58d67",
+      "zec_refund_height": 5659,
+      "on_chain": "A mined only during recovery, after the refund height; R spends it."
+    },
+    "legacy_harness_refund": {
+      "command": "python3 scripts/run_regtest_swap.py refund .local/deferred-aux-refund-001",
+      "funding_txid": "9f96c3146fef9c44328cd6f063fe8bcfc4dfed549de72e84cf3a5e5ea92c9fb3",
+      "auxiliary_txid": "da8228ec2cb9325e4d676a092939a8e4fef2d254270bb5faf6679ff361e97dd1",
+      "refund_height": 5781,
+      "early_refund_after_auxiliary": "transaction did not pass consensus validation: transaction is locked until after block height 5781",
+      "zec_refund": "11a65989a5927d8afff76d67a21d7c99ee227d80c8162036c29917dfd73c2eee",
+      "result": "complete"
+    }
+  },
+  "checks": {
+    "clippy": "cargo clippy --locked --offline --all-targets -j 2 -- -D warnings: clean",
+    "tests": "cargo test --locked --offline -j 2: all pass",
+    "auxiliary_tamper_test": {
+      "command": "LATCH_AUXILIARY_FIXTURE=<copy of Alice participant dir> cargo test --release -p shielded-swap-native reject_corrupt_refund_auxiliary -- --ignored",
+      "result": "pass",
+      "refused": [
+        "input note changed",
+        "spend authorization removed",
+        "anchored instead of deferred",
+        "refund substituted for the auxiliary",
+        "invalid auxiliary proof",
+        "unknown version"
+      ],
+      "nothing_saved_on_refusal": true
+    },
+    "bundle_tamper_test": "reject_corrupt_native_recovery_bundles on a copy of Bob's directory from the two-party success run: pass",
+    "relay_privacy": "check_relay_privacy.py on .local/two-party-007: pass (2 identities in clear, 6 sealed)",
+    "receiver_privacy": "check_receiver_privacy.py on .local/two-party-007: 0 receiving FVKs"
+  },
+  "demo_robustness": "Stopping the two-party network could orphan its Anvil, apps and signer services; the next start then used the stale Anvil and a stale signer held port 18742. Apps now kill their own process group when the network disappears; a new network reaps recorded survivors and refuses a busy Anvil port. Verified across four restarts.",
+  "limits": [
+    "On a refund, A shows 20,000 zatoshi leaving the shielded pool to a fresh transparent address, and R spends it.",
+    "Alice must keep the reserved change unspent until the swap settles; spending it would make her own refund invalid (not a risk to Bob).",
+    "Public profile: the refund-time A re-proof and send (public_auxiliary_execute.py) need real funds and are not yet exercised."
+  ],
+  "public_testnet": "No public transaction, deployment or faucet request.",
+  "private_material_committed": false,
+  "public_profile": {
+    "date": "2026-10-18",
+    "design": "New source reservations (latch-source-inputs-v2) hold only the shielded note and keep 35,000 zatoshi of change. The unsigned graph builds A from F's change, paying the source wallet's pinned auxiliary script, and keeps it outside the reviewed files (graph.json records refund_auxiliary=deferred). The source signer verifies A spends exactly F's change and signs A before F. Preflights for funding, lock and reveal no longer query the transparent address. public_auxiliary_execute.py re-proves A from the source wallet's own checkpoints and sends it only when Alice's claim history is unexposed and the ETH order is stably empty or refunded; R then requires A's coin with the agreed confirmations.",
+    "checks": {
+      "deferred": {
+        "command": "python3 scripts/check_public_source_release.py --deferred .local/public-source-release-deferred-001 .local/public-launch-002",
+        "result": "pass",
+        "covers": "synthetic graph with A, both owner reviews, presign, recovery bundle with R spending A, both consents, source signing with SIGKILL between release marker and F, exact replay; A signed exactly once with F and never by inspection or a refused context"
+      },
+      "reserved_regression": {
+        "command": "python3 scripts/check_public_source_release.py .local/public-source-release-reserved-002 .local/public-launch-002",
+        "result": "pass"
+      },
+      "clippy_and_tests": "clean / all pass"
+    },
+    "funding_change": "The public run needs one shielded note of at least 0.0016 TAZ and no transparent coin.",
+    "rpc_finding": "dRPC's free plan no longer serves Sepolia ('chain is not available on free plan'), and publicnode prunes the genesis block the clients verify. https://sepolia.gateway.tenderly.co passed the read-only probe (chain 11155111, genesis verified); it is now the default.",
+    "funding_observed_read_only": "Source wallet decrypted one 0.125 TAZ Ironwood note (13 confirmations at height 4513088). Alice holds 0.05 Sepolia ETH; Bob and the deployer were still unfunded."
+  }
+}

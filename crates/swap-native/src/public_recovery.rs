@@ -224,8 +224,7 @@ pub fn check_source_spend(pczt_path: &Path, snapshot: &Path) -> Result<Value> {
         "live_chain_checked":false,"funding_authorized":false,"broadcast":false}))
 }
 
-pub(crate) fn reserved_graph(bank: &Path, folder: &Path, packet: &Value) -> Result<Value> {
-    let manifest = public_graph::package(bank, folder)?;
+pub(crate) fn graph_dir(folder: &Path) -> Result<std::path::PathBuf> {
     let draft = storage::json(&folder.join("graph-draft.json"))?;
     let name = draft["directory"]
         .as_str()
@@ -238,6 +237,24 @@ pub(crate) fn reserved_graph(bank: &Path, folder: &Path, packet: &Value) -> Resu
     {
         return Err("reserved graph outside package".into());
     }
+    Ok(graph_dir)
+}
+
+/// The refund's transparent input: the reserved coin's outpoint, or for a v2
+/// package the output of Alice's deferred auxiliary transaction.
+pub(crate) fn refund_outpoint(manifest: &Value, folder: &Path) -> Result<Value> {
+    if public_graph::deferred(manifest) {
+        let (_, record) = public_graph::deferred_record(&graph_dir(folder)?)?;
+        Ok(json!({"txid":record["txid"],"index":record["index"]}))
+    } else {
+        Ok(manifest["selected_auxiliary_outpoint"].clone())
+    }
+}
+
+pub(crate) fn reserved_graph(bank: &Path, folder: &Path, packet: &Value) -> Result<Value> {
+    let manifest = public_graph::package(bank, folder)?;
+    let draft = storage::json(&folder.join("graph-draft.json"))?;
+    let graph_dir = graph_dir(folder)?;
     let graph_raw = storage::read(&graph_dir.join("graph.json"), 200_000)?;
     let graph: Value = serde_json::from_slice(&graph_raw)?;
     if graph != packet["graph"]
@@ -249,8 +266,20 @@ pub(crate) fn reserved_graph(bank: &Path, folder: &Path, packet: &Value) -> Resu
         || graph["input_binding"]["plan_digest"] != manifest["plan_digest"]
         || graph["principal_zatoshi"] != manifest["principal_zatoshi"]
         || packet["plan"] != storage::json(&folder.join("plan.json"))?
+        || graph["refund_auxiliary"]
+            != if public_graph::deferred(&manifest) {
+                "deferred"
+            } else {
+                "reserved"
+            }
     {
         return Err("recovery graph differs from source reservation".into());
+    }
+    if public_graph::deferred(&manifest) {
+        let (_, record) = public_graph::deferred_record(&graph_dir)?;
+        if record["funding_txid"] != graph["funding_txid"] {
+            return Err("deferred auxiliary belongs to another funding".into());
+        }
     }
     for (field, file) in [
         ("claim", "claim.pczt"),
@@ -288,7 +317,8 @@ pub fn check_reserved_graph(bank: &Path, folder: &Path, review: &Path) -> Result
         "review_packet_digest":verified.report["review_packet_digest"],
         "plan_digest":manifest["plan_digest"],"principal_zatoshi":manifest["principal_zatoshi"],
         "selected_note_commitment":manifest["selected_note_commitment"],
-        "selected_auxiliary_outpoint":manifest["selected_auxiliary_outpoint"],
+        "selected_auxiliary_outpoint":refund_outpoint(&manifest, folder)?,
+        "refund_auxiliary":if public_graph::deferred(&manifest) {"deferred"} else {"reserved"},
         "live_chain_checked":false,"funding_authorized":false,"broadcast":false}))
 }
 
@@ -304,15 +334,18 @@ pub fn prepare(bank: &Path, folder: &Path, review_path: &Path, presigned: &Path)
             .as_u64()
             .ok_or("source height")?,
     )?;
-    let aux = Auxiliary::load_reserved(
-        bank,
-        height,
-        &storage::json(&folder.join("auxiliary-source.json"))?,
-    )?;
+    let aux = if public_graph::deferred(&manifest) {
+        public_graph::source_deferred_auxiliary(bank, &graph_dir(folder)?)?.coin
+    } else {
+        Auxiliary::load_reserved(
+            bank,
+            height,
+            &storage::json(&folder.join("auxiliary-source.json"))?,
+        )?
+    };
     let r = pczt(&packet, "refund")?;
     let input = &r.transparent().inputs()[0];
-    if manifest["selected_auxiliary_outpoint"]
-        != json!({"txid":aux.txid.to_string(),"index":aux.index})
+    if refund_outpoint(&manifest, folder)? != json!({"txid":aux.txid.to_string(),"index":aux.index})
         || input.prevout_txid() != aux.txid.as_ref()
         || *input.prevout_index() != u32::try_from(aux.index)?
         || *input.value() != u64::from(aux.coin.value())
@@ -338,20 +371,24 @@ pub fn prepare(bank: &Path, folder: &Path, review_path: &Path, presigned: &Path)
 pub fn synthetic(review: &Path, presigned: &Path, output: &Path) -> Result<Value> {
     let packet = storage::json(review)?;
     let r = pczt(&packet, "refund")?;
+    let key = secp256k1::SecretKey::from_secret_bytes([1; 32])?;
+    // A deferred synthetic draft keeps its auxiliary beside the review.
+    let expected = if packet["graph"]["refund_auxiliary"] == "deferred" {
+        let coin =
+            public_graph::deferred_auxiliary(key, review.parent().ok_or("review directory")?)?.coin;
+        (*coin.txid.as_ref(), u32::try_from(coin.index)?)
+    } else {
+        ([0x13; 32], 0)
+    };
     if packet["graph"]["input_binding"]["synthetic"] != true
         || r.transparent().inputs().len() != 1
-        || *r.transparent().inputs()[0].prevout_txid() != [0x13; 32]
-        || *r.transparent().inputs()[0].prevout_index() != 0
+        || *r.transparent().inputs()[0].prevout_txid() != expected.0
+        || *r.transparent().inputs()[0].prevout_index() != expected.1
         || *r.transparent().inputs()[0].value() != 20_000
     {
         return Err("only explicit nonexistent synthetic inputs allowed".into());
     }
-    assemble(
-        packet,
-        storage::json(presigned)?,
-        &secp256k1::SecretKey::from_secret_bytes([1; 32])?,
-        output,
-    )
+    assemble(packet, storage::json(presigned)?, &key, output)
 }
 
 fn receipt_digest(payload: &Value) -> Result<[u8; 32]> {

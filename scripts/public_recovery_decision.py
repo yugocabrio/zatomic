@@ -138,7 +138,10 @@ def reconcile_locked(owner, fingerprint, consents, wallet=None, batches=4, endpo
         try:
             auxiliary_raw = observe_auxiliary(agreement, checked, directory)
         except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
-            errors.append('auxiliary-reader-failed-private-response-retained')
+            # A deferred coin exists only after Alice sends her auxiliary A
+            # (public_auxiliary_execute.py) and it gains the agreed confirmations.
+            errors.append('deferred-refund-auxiliary-not-yet-confirmed'
+                if checked['native_auxiliary'].get('deferred') else 'auxiliary-reader-failed-private-response-retained')
         # A just-mined refund consumed its own auxiliary. Reconcile again
         # before treating that disappearance as loss of the recovery path.
         native = native_reconcile.observe_locked(owner, fingerprint, wallet, batches)

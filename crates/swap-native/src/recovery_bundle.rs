@@ -17,7 +17,7 @@ use zcash_transparent::{
     sighash::{SighashType, SignableInput as TransparentInput},
 };
 
-fn encoded(bundle: &Value, field: &str) -> Result<Vec<u8>> {
+pub(crate) fn encoded(bundle: &Value, field: &str) -> Result<Vec<u8>> {
     Ok(hex::decode(
         bundle[field]
             .as_str()
@@ -331,6 +331,92 @@ pub fn accept(
     Ok(receipt)
 }
 
+pub fn auxiliary_digest(auxiliary: &Value) -> Result<String> {
+    let mut hash = Sha256::new();
+    hash.update(b"Latch refund auxiliary v1\0");
+    hash.update(serde_json::to_vec(auxiliary)?);
+    Ok(hex::encode(hash.finalize()))
+}
+
+/// The note A spends, with its nullifier, so a scan can witness it without
+/// Alice's source viewing key. The nullifier comes from A's own signed spend.
+pub(crate) fn watched_notes(auxiliary: &Value) -> Result<Value> {
+    let note = wallet::parse_note(&auxiliary["note"])?;
+    let mut found = Vec::new();
+    pczt::roles::verifier::Verifier::new(pczt(auxiliary, "auxiliary")?)
+        .with_ironwood::<String, _>(|bundle| {
+            for action in bundle.actions() {
+                if let Some(fvk) = action.spend().fvk()
+                    && action.spend().nullifier() == &note.nullifier(fvk)
+                    && action.spend().spend_auth_sig().is_some()
+                {
+                    found.push(action.spend().nullifier().to_bytes());
+                }
+            }
+            Ok(())
+        })
+        .map_err(err)?;
+    let [nullifier] = found[..] else {
+        return Err("auxiliary does not spend its stated note".into());
+    };
+    let mut watched = auxiliary["note"].clone();
+    watched["nullifier"] = json!(hex::encode(nullifier));
+    Ok(json!([watched]))
+}
+
+/// Alice's own refund auxiliary transaction A, delivered after the shared
+/// bundle. It must be fully signed and proof-checked, deferred, and create
+/// exactly the transparent input that the accepted refund spends.
+pub fn accept_auxiliary(dir: &Path, auxiliary: &Value) -> Result<Value> {
+    let bundle = storage::json(&dir.join("recovery-bundle.json"))?;
+    if auxiliary["version"] != 1 || bundle["terms"]["refund_auxiliary_deferred"] != true {
+        return Err("refund auxiliary not expected".into());
+    }
+    let deferred = pczt(auxiliary, "auxiliary")?;
+    let checked = pczt(auxiliary, "auxiliary_check")?;
+    if deferred.ironwood().anchor().is_some() || deferred.ironwood().zkproof().is_some() {
+        return Err("refund auxiliary must remain deferred".into());
+    }
+    verify_reproving_material(&deferred, &checked)?;
+    if regtest_swap::message(&deferred)? != regtest_swap::message(&checked)? {
+        return Err("auxiliary proof effects differ".into());
+    }
+    let tx = regtest_swap::extract_checked(checked)?;
+    let aux = &bundle["policy"]["aux"];
+    let transparent = tx
+        .transparent_bundle()
+        .ok_or("auxiliary transparent output")?;
+    if tx.version() != zcash_primitives::transaction::TxVersion::V6
+        || tx.consensus_branch_id() != BranchId::Nu7
+        || u32::from(tx.expiry_height()) != 0
+        || tx.lock_time() != 0
+        || tx.sapling_bundle().is_some()
+        || tx.orchard_bundle().is_some()
+        || !transparent.vin.is_empty()
+        || transparent.vout.len() != 1
+        || hex::encode(tx.txid().as_ref()) != aux["txid_le"]
+        || aux["index"] != 0
+        || u64::from(transparent.vout[0].value()) != aux["value"].as_u64().unwrap_or(0)
+        || hex::encode(&transparent.vout[0].script_pubkey().0.0) != aux["script"]
+    {
+        return Err("auxiliary does not create the refund's transparent input".into());
+    }
+    watched_notes(auxiliary)?;
+    let saved = dir.join("auxiliary-bundle.json");
+    if saved.exists() {
+        if storage::json(&saved)? != *auxiliary {
+            return Err("immutable refund auxiliary changed".into());
+        }
+    } else {
+        storage::write_json(&saved, auxiliary)?;
+    }
+    Ok(
+        json!({"participant":1,"auxiliary_digest":auxiliary_digest(auxiliary)?,
+        "auxiliary_txid":tx.txid().to_string(),"durably_saved":true,
+        "proof_and_signatures_verified":true}),
+    )
+}
+
 /// Create a watch-only native recovery workspace from this participant's own
 /// accepted bundle. No coordinator directory, peer files or signing key is
 /// required by the resulting prover. The appropriate chain witness is supplied
@@ -366,6 +452,18 @@ pub fn export(dir: &Path, output: &Path) -> Result<Value> {
             &destination.join("refund.pczt"),
             &encoded(&bundle, "refund")?,
         )?;
+        if bundle["terms"]["refund_auxiliary_deferred"] == true {
+            let auxiliary = storage::json(&dir.join("auxiliary-bundle.json"))?;
+            accept_auxiliary(dir, &auxiliary)?;
+            storage::write(
+                &destination.join("auxiliary.pczt"),
+                &encoded(&auxiliary, "auxiliary")?,
+            )?;
+            storage::write_json(
+                &output.join("watched-notes.json"),
+                &watched_notes(&auxiliary)?,
+            )?;
+        }
     } else {
         storage::write(&destination.join("claim.pczt"), &encoded(&bundle, "claim")?)?;
         storage::write_json(
@@ -384,6 +482,69 @@ pub fn export(dir: &Path, output: &Path) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Run against a COPY of Alice's participant directory from a deferred
+    /// auxiliary run, with auxiliary-bundle.json moved to auxiliary-good.json.
+    /// Every altered packet must fail before anything is saved.
+    #[test]
+    #[ignore = "requires LATCH_AUXILIARY_FIXTURE pointing to a copied Alice participant directory"]
+    fn reject_corrupt_refund_auxiliary() -> Result<()> {
+        let dir = std::path::PathBuf::from(std::env::var("LATCH_AUXILIARY_FIXTURE")?);
+        let good = storage::json(&dir.join("auxiliary-good.json"))?;
+        let mut cases = Vec::new();
+        let mut altered = good.clone();
+        altered["note"]["value"] = json!(good["note"]["value"].as_u64().unwrap() + 1);
+        cases.push(("input note changed", altered));
+        let mut altered = good.clone();
+        altered["auxiliary"] = json!(hex::encode(
+            Redactor::new(pczt(&good, "auxiliary")?)
+                .redact_ironwood_with(|mut b| {
+                    b.redact_actions(|mut a| a.clear_spend_auth_sig())
+                })
+                .finish()
+                .serialize()
+                .map_err(err)?
+        ));
+        cases.push(("spend authorization removed", altered));
+        let mut altered = good.clone();
+        altered["auxiliary"] = altered["auxiliary_check"].clone();
+        cases.push(("anchored instead of deferred", altered));
+        let bundle = storage::json(&dir.join("recovery-bundle.json"))?;
+        let mut altered = good.clone();
+        altered["auxiliary"] = bundle["refund"].clone();
+        altered["auxiliary_check"] = bundle["refund_check"].clone();
+        cases.push(("refund substituted for the auxiliary", altered));
+        let proof = pczt(&good, "auxiliary_check")?
+            .ironwood()
+            .zkproof()
+            .clone()
+            .ok_or("test proof")?;
+        let mut raw = encoded(&good, "auxiliary_check")?;
+        let offset = raw
+            .windows(proof.len())
+            .position(|w| w == proof)
+            .ok_or("proof bytes absent")?;
+        raw[offset + proof.len() / 2] ^= 1;
+        let mut altered = good.clone();
+        altered["auxiliary_check"] = json!(hex::encode(raw));
+        cases.push(("invalid auxiliary proof", altered));
+        let mut altered = good.clone();
+        altered["version"] = json!(2);
+        cases.push(("unknown version", altered));
+        for (attack, altered) in cases {
+            assert!(
+                accept_auxiliary(&dir, &altered).is_err(),
+                "accepted {attack}"
+            );
+            assert!(
+                !dir.join("auxiliary-bundle.json").exists(),
+                "saved on {attack}"
+            );
+        }
+        let receipt = accept_auxiliary(&dir, &good)?;
+        assert_eq!(receipt["durably_saved"], true);
+        Ok(())
+    }
 
     /// Run explicitly against a fresh completed bundle fixture. No chain
     /// mutation or signing occurs; each altered bundle must fail before save.

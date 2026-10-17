@@ -11,7 +11,8 @@ import time
 import urllib.request
 from urllib.parse import urlsplit
 
-ENDPOINT = 'https://ethereum-sepolia-rpc.publicnode.com'
+# publicnode pruned the genesis block that the clients verify (2026-10-18).
+ENDPOINT = 'https://sepolia.gateway.tenderly.co'
 CHAIN_ID = 11155111
 GENESIS = '0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9'
 ALLOWED = {'eth_chainId', 'eth_getBlockByNumber', 'eth_maxPriorityFeePerGas',

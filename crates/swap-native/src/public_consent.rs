@@ -274,7 +274,9 @@ pub fn verify(bundle: &Path, proposal: &Path, consents: &Path) -> Result<Value> 
         "aux_address":address.to_zcash_address(zcash_protocol::consensus::NetworkType::Test).to_string(),
         "aux_script":hex::encode(script),
         "txid":zcash_protocol::TxId::from_bytes(*input.prevout_txid()).to_string(),
-        "index":input.prevout_index(),"value_zatoshi":input.value()});
+        "index":input.prevout_index(),"value_zatoshi":input.value(),
+        // Deferred: the coin appears only when Alice sends her auxiliary A.
+        "deferred":bundle["review"]["graph"]["refund_auxiliary"] == "deferred"});
     // Deliberately not a token usable by the existing source authorizer.
     Ok(
         json!({"format":"latch-public-conditional-consents-check-v1","agreement_digest":hash(&agreement)?,

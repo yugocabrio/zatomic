@@ -32,12 +32,15 @@ keys; do not fund it. Keep all keys and protocol packets private. Trade:
 | Bob | 0.0021 Sepolia ETH | 0.001 trade + 700,000 lock + 200,000 refund + 200,000 withdrawal gas |
 | Dedicated deployer | 0.001 Sepolia ETH | 1,000,000 deployment gas |
 | Total | **0.0043 Sepolia ETH** | Initial reserves, not expected fees |
-| Native source | **one 0.002 test ZEC Ironwood note** | Principal 0.0011, F fee 0.0001, private change 0.0008 |
-| Refund auxiliary | **one exact 0.0002 test ZEC UTXO** | Own v6/NU7 non-coinbase origin; return 0.00015 on refund |
+| Native source | **one Ironwood note of at least 0.0016 test ZEC** (a 1 TAZ faucet drip is fine) | Principal 0.0011, F fee 0.0001; the change keeps 0.00035 for the refund auxiliary |
 
-The 0.002 source note is the rounded working balance for this launch, not a
-mathematical minimum: the selector requires a single note strictly larger than
-0.0012 ZEC so that F has positive change. The 0.0002 auxiliary must be exact.
+No transparent coin is funded. New source reservations (v2) select only the
+shielded note: the selector requires a single note strictly larger than 0.00155
+ZEC. At release the source signer also signs Alice's private auxiliary
+transaction A, which spends F's change and creates the refund's 20,000-zatoshi
+coin. A is sent only on the no-reveal refund path (see below), so a settled
+swap leaves no transparent output and never discloses the auxiliary address to
+the provider. Do **not** send anything to the wallet's transparent address.
 
 This replaces the previous 0.431 ETH budget. All swap gas limits, recovery
 reserves, confirmation requirements and clock windows are unchanged. Only the
@@ -65,7 +68,10 @@ Zcash network: public testnet, genesis `05a60a92d99d85997cce3b87616c089f6124d734
 branch `77190ad9`, v6 Ironwood, `testnet.zec.rocks:443`.
 Ethereum: Sepolia 11155111, genesis
 `0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9`.
-Explicit RPC: `https://sepolia.drpc.org`; no automatic provider fallback.
+Explicit RPC: `https://sepolia.gateway.tenderly.co`; no automatic provider fallback.
+On 2026-10-18 dRPC's free plan stopped serving Sepolia, and publicnode has
+pruned the genesis block that the clients verify; Tenderly's public gateway
+passed the read-only genesis and finality probe.
 
 Pinned PointEscrow, no constructor arguments/value:
 
@@ -84,11 +90,8 @@ Funding methods checked on 2026-10-15:
   [ZecDev's migration resources](https://www.zecdev.org/zcash-z3) list Ironwood
   support, but actual receipt/decryption with this wallet remains to be verified.
   A 1 TAZ faucet note exceeds our minimum; change remains in the source wallet.
-- The exact auxiliary must therefore come from an existing **public testnet**
-  Ironwood-capable wallet/operator sending one 20,000-zatoshi output. Funding an
-  arbitrary transparent faucet amount is insufficient. No sender for converting
-  faucet receipts into this auxiliary is provided by Latch; this is an explicit
-  funding prerequisite, not an invisible integration step.
+- No transparent funding is needed (since 2026-10-17): the refund's coin comes
+  from the source note's own change, through Alice's auxiliary transaction.
 - [Ethereum's network guide](https://ethereum.org/developers/docs/networks/)
   lists Sepolia faucets, including [Chainlink](https://faucets.chain.link/sepolia).
   Eligibility/account/human checks vary; no faucet request or login was made.
@@ -105,7 +108,7 @@ key to make a missing step pass.
 
 ```sh
 LATCH_RUN="$PWD/.local/public-launch-002"
-LATCH_RPC='https://sepolia.drpc.org'
+LATCH_RPC='https://sepolia.gateway.tenderly.co'
 LATCH_CONSENTS="$LATCH_RUN/packets/consents.json"
 
 # Already executed; idempotently verifies the existing quote and real DKG.
@@ -113,7 +116,6 @@ python3 scripts/public_launch.py owners "$LATCH_RUN"
 # Read-only sync. Retain a checkpoint after incoming funds, then another at
 # least 11 blocks later. Source/auxiliary/anchor each need 12 confirmations.
 python3 scripts/testnet_wallet.py sync "$LATCH_RUN/source" --batches 32
-python3 scripts/testnet_wallet.py auxiliary "$LATCH_RUN/source"
 
 # Check only; currently refuses because the deployer is unfunded.
 python3 scripts/public_deploy.py "$LATCH_RUN/deployment-owner" --eth-rpc "$LATCH_RPC"
@@ -207,10 +209,21 @@ restore an old filesystem snapshot over current exposure history.
   original source wallet and canonical old anchor. Reuse exact bytes only.
 - **No claim exposure:** after ETH expiry Bob prepares/sends `refund`, then
   `withdraw` using the same outgoing/execute commands with `--action refund` or
-  `--action withdraw`. After native timestamp maturity Alice runs
+  `--action withdraw`. Once the ETH order is stably refunded (or was never
+  locked), Alice sends her auxiliary transaction A. It refuses if her own claim
+  history may be exposed or the order is not stably empty/refunded:
+
+  ```sh
+  python3 scripts/public_auxiliary_execute.py "$LATCH_RUN/alice" "$LATCH_RUN/source" "$LATCH_CONSENTS" --eth-rpc "$LATCH_RPC"
+  python3 scripts/public_auxiliary_execute.py "$LATCH_RUN/alice" "$LATCH_RUN/source" "$LATCH_CONSENTS" --eth-rpc "$LATCH_RPC" --broadcast-testnet
+  ```
+
+  Wait until A has 12 confirmations (repeat the check-only command; it reports
+  the state). After native timestamp maturity Alice runs
   `public_launch.py native-exit ... --role alice`, then `public_native_execute.py`
-  with Alice, her version and `alice-watch`. The sender checks auxiliary, ETH
-  state and sticky exposure; do not infer non-exposure from an absent RPC result.
+  with Alice, her version and `alice-watch`. The sender checks the auxiliary
+  coin, ETH state and sticky exposure; do not infer non-exposure from an absent
+  RPC result.
 - **Any possible claim exposure:** Bob resumes his opening monitor and claim.
   Alice must reconcile/rebroadcast the same claim within the allowed policy;
   later absence never authorizes a no-reveal refund fallback. Recovery can mean

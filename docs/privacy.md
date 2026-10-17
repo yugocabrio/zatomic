@@ -9,9 +9,9 @@ against the code, not taken on trust.
 
 | Observer | Learns | Does not learn |
 |---|---|---|
-| **Zcash chain observer** | That shielded transactions occurred, their fee and timing. On the refund path only, one transparent auxiliary input and its change output. | Amounts, senders, recipients, memos. Which note F created. That claim C spends that note. |
+| **Zcash chain observer** | That shielded transactions occurred, their fee and timing. A settled swap has no transparent component. On the refund path only: Alice's auxiliary transaction (one 20,000-zatoshi transparent output) and the refund that spends it. | Amounts, senders, recipients, memos. Which note F created. That claim C spends that note. |
 | **Ethereum chain observer** | Bob's and Alice's ETH addresses, the ETH amount, the expiry, the point `T`, a hash of the agreed terms, the revealed `t`, and who relayed the claim. | Any Zcash address, viewing key, note or ZEC amount. The terms appear only as a hash commitment. |
-| **Your counterparty** | The agreed amounts, both ETH addresses, your **one-time** Zcash receive address, the funding txid, the shared one-time joint note, and the refund auxiliary outpoint. | Your viewing keys, your source wallet, or where your received ZEC goes next. |
+| **Your counterparty** | The agreed amounts, both ETH addresses, your **one-time** Zcash receive address, the funding txid, the shared one-time joint note, and the refund auxiliary outpoint (a txid that reaches the chain only if Alice refunds). | Your viewing keys, your source wallet, or where your received ZEC goes next. |
 | **Relay** (two-party mode) | Each owner's identity: public keys and ETH address. For every other message: sender, recipient, size and time. | The quote, amounts, terms, funding txid, note commitment, consents or order ID. These are sealed to the recipient. |
 | **RPC / light-wallet provider** | Which transactions and orders your client asks about, plus network metadata (IP address, timing). | Your notes: compact blocks are trial-decrypted locally. |
 | **The browser page** | Public stage records only: txids, confirmations, amounts. | Keys, notes, PCZTs, witnesses or journals. The server only reads named public files; `check_demo_boundary.py` tests this. |
@@ -47,14 +47,21 @@ suggests the approximate ZEC amount via the market price. Recipients and exact
 ZEC amounts stay hidden. The Ironwood pool is still small, which makes timing
 correlation easier.
 
-**The refund path uses one transparent input.** Zcash enforces `nLockTime`
-only when a transaction has a non-final transparent input. A shielded-only
-refund would be valid immediately, so Alice could race Bob's claim. R therefore
-spends a dedicated 20,000-zatoshi transparent coin with a non-final sequence.
-The coin's outpoint, its value and the refund's time become public, but only if
-a refund happens. Every swap uses a fresh coin; the local demo funds one per run.
-How that coin was funded (faucet, or a deshielding transaction) determines what
-it links to.
+**Only a refund touches the transparent pool (local profiles, 2026-10-17).**
+Zcash enforces `nLockTime` only when a transaction has a non-final transparent
+input. A shielded-only refund would be valid immediately, so Alice could race
+Bob's claim. R therefore spends a 20,000-zatoshi transparent coin with a
+non-final sequence. That coin used to be created and mined before the swap, so
+even a settled swap left a transparent output on chain. Now Alice's source
+wallet signs a private auxiliary transaction A at setup: it spends her own F
+change and creates the coin. A is never sent unless Alice refunds, and only her
+own participant holds it. A settled swap puts only F and C on chain, both fully
+shielded. On a refund, A shows 20,000 zatoshi leaving the shielded pool to a
+transparent address, and R spends it. Locally that address is fresh per swap;
+on the public testnet it is the source wallet's dedicated auxiliary address,
+which the provider first sees only on a refund. The public path does the same
+since 2026-10-17: its source reservation holds only the shielded note, and the
+source signer signs A together with F.
 
 **ETH side.** Addresses, the amount and timing are public by design. Use fresh
 ETH addresses per trade if those must not link to other activity.

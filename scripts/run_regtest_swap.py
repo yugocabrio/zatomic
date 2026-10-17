@@ -51,12 +51,16 @@ def require_aux_unspent(terms):
     aux = terms.get('aux_outpoint')
     if aux is None:
         raise RuntimeError('prepared graph lacks an authenticated auxiliary outpoint')
+    if terms.get('refund_auxiliary_deferred'):
+        return  # Created by Alice's own auxiliary transaction, only if she refunds.
     coin = zrpc('gettxout', [aux['txid'], aux['index'], True])
     if coin is None:
         raise RuntimeError('refund auxiliary coin is already spent; refuse to fund or reveal')
 
 
 def reserve_aux(bank, directory, terms):
+    if terms.get('refund_auxiliary_deferred'):
+        return  # The native setup reserved the funding change A spends.
     reservation = bank / 'aux-reservation.json'
     if reservation.exists():
         previous = json.loads(reservation.read_text())
@@ -67,6 +71,17 @@ def reserve_aux(bank, directory, terms):
             reservation.unlink()  # Only this runner's reservation, after completion.
     save(reservation, {'run': str(directory), 'outpoint': terms['aux_outpoint']})
 
+
+
+def early_refund_rejected(directory, refund):
+    early_error = reject_native(Path(refund['file']))
+    # Require the failure to be about finality, not a bad proof or signature.
+    if not any(s in early_error.lower() for s in ['nonfinal', 'non-final', 'locktime', 'lock time', 'locked until']):
+        raise RuntimeError(f'premature refund rejected for unexpected reason: {early_error}')
+    # A node may wrap a cached rejection differently on replay. Revalidate its
+    # meaning above, but preserve the original durable evidence verbatim.
+    if not (directory / '03-early-refund-rejected.json').exists():
+        event(directory, '03-early-refund-rejected', {'node_error': early_error})
 
 
 def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=None, resume_prepared=False):
@@ -125,14 +140,10 @@ def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=Non
     refund_file = swap / f'refund-{observed["height"]}.hex'
     refund = (native('regtest-inspect', refund_file) if refund_file.exists()
               else native('regtest-finish', swap, observed['file'], 'refund'))
-    early_error = reject_native(Path(refund['file']))
-    # Require the failure to be about finality, not a bad proof or signature.
-    if not any(s in early_error.lower() for s in ['nonfinal', 'non-final', 'locktime', 'lock time', 'locked until']):
-        raise RuntimeError(f'premature refund rejected for unexpected reason: {early_error}')
-    # A node may wrap a cached rejection differently on replay. Revalidate its
-    # meaning above, but preserve the original durable evidence verbatim.
-    if not (directory / '03-early-refund-rejected.json').exists():
-        event(directory, '03-early-refund-rejected', {'node_error': early_error})
+    if not terms.get('refund_auxiliary_deferred'):
+        early_refund_rejected(directory, refund)
+    # Otherwise R's input appears only when Alice sends A on the refund path;
+    # the lock time is checked there, after A and before the refund height.
     with socket.socket() as probe:
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         probe.bind(('127.0.0.1', evm.PORT))
@@ -232,6 +243,10 @@ def run(directory, mode, existing_bank=None, resume_setup=False, fault_after=Non
                 refunded = send_evm(directory, {'from': relay, 'to': contract, 'gas': hex(200_000),
                                     'data': evm.calldata('refund(bytes32)', order)}, kind='refund')
                 event(directory, '05-eth-refunded', {'txid': refunded['transactionHash']})
+                if terms.get('refund_auxiliary_deferred'):
+                    from recover_regtest_swap import native_exit  # Avoids an import cycle.
+                    native_exit(swap, 'auxiliary')  # A goes on chain only now.
+                    early_refund_rejected(directory, refund)
                 blocks = max(0, terms['refund_height'] + 1 - status()['blocks'])
                 if blocks:
                     zrpc('generate', [blocks], timeout=300)

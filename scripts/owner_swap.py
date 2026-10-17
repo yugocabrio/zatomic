@@ -200,6 +200,11 @@ def owner_native_exit(directory, role, order, action):
     owner = directory / 'owners' / role
     observed = client(action, owner, {'order': order})
     sent = observed['new_transaction']
+    if observed['state'] == 'auxiliary-pending':
+        # A deferred refund first puts Alice's auxiliary A on chain.
+        zrpc('generate', [2], timeout=300)
+        observed = client(action, owner, {'order': order})
+        sent = sent or observed['new_transaction']
     if observed['state'] in ('pending', 'confirming'):
         zrpc('generate', [2 - observed['confirmations']], timeout=300)
         observed = client(action, owner, {'order': order})

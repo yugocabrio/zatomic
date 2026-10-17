@@ -28,6 +28,88 @@ fn sha(raw: &[u8]) -> String {
     hex::encode(Sha256::digest(raw))
 }
 
+const SIGNED_AUXILIARY: &str = "auxiliary-signed.pczt";
+
+/// Alice's refund auxiliary A must spend exactly F's change to this source.
+/// The source signs it with F, and saves it first: R is spendable only via A.
+fn sign_auxiliary(
+    bank: &Path,
+    graph_dir: &Path,
+    preview: &Transaction,
+    inspect_only: bool,
+) -> Result<Value> {
+    let deferred = public_graph::source_deferred_auxiliary(bank, graph_dir)?;
+    let key = wallet::key(bank)?;
+    let fvk = orchard::keys::FullViewingKey::from(&key);
+    let note = wallet::parse_note(&deferred.record["change_note"])?;
+    let action = usize::try_from(
+        deferred.record["change_note"]["action"]
+            .as_u64()
+            .ok_or("change action")?,
+    )?;
+    let bundle = preview.ironwood_bundle().ok_or("funding preview")?;
+    let (change, _, _) = bundle
+        .decrypt_output_with_key(action, &fvk.to_ivk(orchard::keys::Scope::External))
+        .ok_or("funding change not owned by this source")?;
+    if wallet::note_json(&change)["cmx"] != deferred.record["change_note"]["cmx"]
+        || deferred.record["funding_txid"] != preview.txid().to_string()
+    {
+        return Err("auxiliary does not spend this funding's change".into());
+    }
+    let message = regtest_swap::message(&deferred.unsigned)?;
+    let mut real = Vec::new();
+    pczt::roles::verifier::Verifier::new(deferred.unsigned.clone())
+        .with_ironwood::<String, _>(|b| {
+            let bad = |s: &str| pczt::roles::verifier::OrchardError::Custom(s.to_owned());
+            for (i, a) in b.actions().iter().enumerate() {
+                if a.spend().spend_auth_sig().is_none() {
+                    if a.spend().fvk() != &Some(fvk.clone())
+                        || a.spend().nullifier() != &note.nullifier(&fvk)
+                    {
+                        return Err(bad("auxiliary spends another note"));
+                    }
+                    a.spend().verify_nullifier(None).map_err(|e| bad(&err(e)))?;
+                    a.spend().verify_rk(None).map_err(|e| bad(&err(e)))?;
+                    real.push(i);
+                }
+            }
+            Ok(())
+        })
+        .map_err(err)?;
+    let [index] = real[..] else {
+        return Err("auxiliary needs exactly one source spend".into());
+    };
+    let path = bank.join(SIGNED_AUXILIARY);
+    let signed = if path.try_exists()? {
+        Pczt::parse(&storage::read(&path, 1_000_000)?).map_err(err)?
+    } else if inspect_only {
+        return Ok(json!({"txid":deferred.record["txid"],"signed":false}));
+    } else {
+        let mut signer = Signer::new(deferred.unsigned.clone()).map_err(err)?;
+        signer
+            .sign_ironwood(rand::rng(), index, &SpendAuthorizingKey::from(&key))
+            .map_err(err)?;
+        signer.finish()
+    };
+    let signature = signed.ironwood().actions()[index]
+        .spend()
+        .spend_auth_sig()
+        .ok_or("auxiliary signature missing")?;
+    orchard::primitives::redpallas::VerificationKey::<orchard::primitives::redpallas::SpendAuth>::try_from(
+        *signed.ironwood().actions()[index].spend().rk(),
+    )?
+    .verify(&message, &orchard::primitives::redpallas::Signature::from(signature))?;
+    if regtest_swap::message(&signed)? != message
+        || regtest_swap::effects_txid(&signed)?.to_string() != deferred.record["txid"]
+    {
+        return Err("signed auxiliary differs from the prepared one".into());
+    }
+    if !path.try_exists()? {
+        storage::atomic_write(&path, &signed.serialize().map_err(err)?)?;
+    }
+    Ok(json!({"txid":deferred.record["txid"],"signed":true}))
+}
+
 fn inherited_lock(bank: &Path, fd: RawFd) -> Result<File> {
     if fd < 3 {
         return Err("inherited source lock descriptor required".into());
@@ -98,6 +180,56 @@ fn verify_bytes(unsigned: &Pczt, raw: &[u8], synthetic: bool) -> Result<Value> {
         json!({"format":"latch-public-source-bytes-v1","txid":tx.txid().to_string(),
         "bytes_sha256":sha(raw),"proof_and_signatures_verified":true,"agreed_effects_and_anchor_preserved":true,
         "synthetic_inputs":synthetic,"broadcast":false,"send_authorized":false}),
+    )
+}
+
+/// Refund path only: re-prove Alice's signed auxiliary A at a confirmed
+/// historical anchor from the source wallet's own checkpoints. Its effects,
+/// signature and txid were fixed when the source released F.
+pub fn prove_auxiliary(bank: &Path, old: &Path, current: &Path, output: &Path) -> Result<Value> {
+    let reservation = storage::json(&bank.join("source-reservation.json"))?;
+    let folder = bank.join(reservation["package"].as_str().ok_or("source package")?);
+    let manifest = public_graph::package(bank, &folder)?;
+    if !public_graph::deferred(&manifest) {
+        return Err("this reservation has no deferred refund auxiliary".into());
+    }
+    let deferred =
+        public_graph::source_deferred_auxiliary(bank, &public_recovery::graph_dir(&folder)?)?;
+    let record = &deferred.record;
+    let signed =
+        Pczt::parse(&storage::read(&bank.join(SIGNED_AUXILIARY), 1_000_000)?).map_err(err)?;
+    if regtest_swap::effects_txid(&signed)?.to_string() != record["txid"]
+        || regtest_swap::message(&signed)? != regtest_swap::message(&deferred.unsigned)?
+    {
+        return Err("signed auxiliary differs from the prepared one".into());
+    }
+    let fvk = orchard::keys::FullViewingKey::from(&wallet::key(bank)?);
+    let snapshot = crate::compact_wallet::funding_snapshot(
+        &storage::json(old)?,
+        &storage::json(current)?,
+        &fvk,
+        &record["change_note"],
+        record["funding_txid"].as_str().ok_or("funding txid")?,
+        usize::try_from(record["change_note"]["action"].as_u64().ok_or("action")?)?,
+    )?;
+    let tx = regtest_swap::reprove_exit(signed, &snapshot["notes"][0])?;
+    if tx.txid().to_string() != record["txid"] || tx.consensus_branch_id() != BranchId::Nu7 {
+        return Err("re-proving changed the auxiliary transaction".into());
+    }
+    let mut raw = Vec::new();
+    tx.write(&mut raw)?;
+    if !output.exists() {
+        storage::create_dir(output)?;
+    }
+    let file = output.join(format!("auxiliary-{}.hex", sha(&raw)));
+    if !file.exists() {
+        storage::atomic_write(&file, hex::encode(&raw).as_bytes())?;
+    }
+    Ok(
+        json!({"format":"latch-refund-auxiliary-version-v1","txid":record["txid"],
+        "bytes_sha256":sha(&raw),"file":file,"height":snapshot["height"],
+        "anchor_height":snapshot["anchor_height"],"change_confirmations":snapshot["funding_confirmations"],
+        "proof_and_signature_verified":true,"broadcast":false}),
     )
 }
 
@@ -187,11 +319,17 @@ pub fn sign(
             Ok(())
         })
         .map_err(err)?;
+    let preview_tx = regtest_swap::unsigned_preview(&unsigned)?;
     let mut preview = Vec::new();
-    regtest_swap::unsigned_preview(&unsigned)?.write(&mut preview)?;
+    preview_tx.write(&mut preview)?;
     if packet["funding_preview"] != hex::encode(preview) {
         return Err("source funding differs from owner-reviewed preview".into());
     }
+    let deferred = packet["graph"]["refund_auxiliary"] == "deferred";
+    if !synthetic && deferred != public_graph::deferred(&reservation) {
+        return Err("graph and reservation disagree on the refund auxiliary".into());
+    }
+    let graph_dir = funding_path.parent().ok_or("graph directory")?;
     let intent = storage::json(&out.join("intent.json"))?;
     if intent["format"] != "latch-public-source-signing-intent-v1"
         || intent["agreement_digest"] != checked["agreement_digest"]
@@ -228,6 +366,13 @@ pub fn sign(
     } else {
         immutable(&marker, &decision)?;
     }
+    // A is signed and durable before F's signature exists, so a released F
+    // always leaves Alice a usable refund input.
+    let auxiliary = if deferred {
+        sign_auxiliary(bank, graph_dir, &preview_tx, inspect_only)?
+    } else {
+        Value::Null
+    };
     let (raw, reused) = if raw_path.try_exists()? {
         (hex::decode(storage::read(&raw_path, 4_000_000)?)?, true)
     } else {
@@ -269,6 +414,7 @@ pub fn sign(
     }
     Ok(
         json!({"release_digest":hash(&decision)?,"checked":checked_bytes,"raw_bytes_reused":reused,
+        "refund_auxiliary":auxiliary,
         "private_source_authorization_saved":true,"outgoing_record_present":journal_path.try_exists()?,
         "live_observations_verified_by_native":false,
         "broadcast":false,"send_authorized":false}),

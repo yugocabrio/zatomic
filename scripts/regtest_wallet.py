@@ -103,32 +103,18 @@ def funding_capture(directory):
 
 
 def fund(directory):
+    """One mined shielded source note. No transparent coin: a swap's refund
+    auxiliary is created from its own funding change, only if refunded."""
     os.umask(0o077)
-    require_capacity(104)  # Reject before creating a wallet or mining anything.
+    require_capacity(101)  # Reject before creating a wallet or mining anything.
     if status()['blocks'] < 2:
         raise RuntimeError('activate isolated NU7 first')
     initialized = native('regtest-init', directory)
     rpc('generatetoaddress', [1, initialized['address']], timeout=300)
-    aux = rpc('generatetoaddress', [1, initialized['aux_address']], timeout=300)[0]
-    block = rpc('getblock', [aux, 2])
-    save(directory / 'aux-source.json', {'height': block['height'],
-         'tx': block['tx'][0]['hex'], 'address': initialized['aux_address']})
     rpc('generate', [100], timeout=300)
     result = capture(directory)
     if result['unspent_notes'] != 1:
         raise RuntimeError('expected one mined shielded source note')
-    compact = native('regtest-compact-aux', directory, result['file'])
-    tx_hex = Path(compact['file']).read_text().strip()
-    if rpc('sendrawtransaction', [tx_hex], timeout=180) != compact['txid']:
-        raise RuntimeError('auxiliary split transaction mismatch')
-    rpc('generate', [2], timeout=300)
-    accepted = rpc('getrawtransaction', [compact['txid'], 1])
-    if not accepted['in_active_chain'] or accepted['confirmations'] < 2:
-        raise RuntimeError('auxiliary split not confirmed')
-    mined = rpc('getblock', [accepted['blockhash'], 1])['height']
-    save(directory / 'aux-source-compact.json', {'height': mined, 'tx': tx_hex,
-        'index': compact['index'], 'value_zatoshi': compact['value_zatoshi']})
-    result = capture(directory)
     save(directory / 'funded.json', result)
     return result
 
