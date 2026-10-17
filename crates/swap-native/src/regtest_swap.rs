@@ -353,8 +353,8 @@ fn prepare_inner(
         &dir.join("frost-public.bin"),
         &public.serialize().map_err(err)?,
     )?;
-    let receiver = pair.bob_fvk.clone();
-    let refund_receiver = pair.alice_fvk.clone();
+    let receiver = pair.bob_receiver;
+    let refund_receiver = pair.alice_receiver;
     let (pczt, output) = crate::transaction_graph::funding(
         Regtest,
         height + 1,
@@ -394,7 +394,7 @@ fn prepare_inner(
             joint: joint.clone(),
             note: pending,
             path: dummy_path.clone(),
-            receiver: receiver.clone(),
+            receiver,
             payout: amounts.payout,
         },
         None,
@@ -405,7 +405,7 @@ fn prepare_inner(
     let mut funding_raw = Vec::new();
     funding_preview(&funding)?.write(&mut funding_raw)?;
     let mut policy = json!({"mode":"claim", "joint_fvk":hex::encode(joint.to_bytes()),
-        "alice_fvk":hex::encode(refund_receiver.to_bytes()),"bob_fvk":hex::encode(receiver.to_bytes()),
+        "alice_receiver":hex::encode(refund_receiver.to_raw_address_bytes()),"bob_receiver":hex::encode(receiver.to_raw_address_bytes()),
         "pending":pending_json,"funding":hex::encode(funding_raw),
         "aux":{"txid_le":hex::encode(aux.txid.as_ref()),"index":auxindex,"value":u64::from(auxcoin.value()),"script":hex::encode(&auxcoin.script_pubkey().0.0)}});
     refund_lock.attach(&mut policy);
@@ -424,7 +424,7 @@ fn prepare_inner(
             joint: joint.clone(),
             note: pending,
             path: dummy_path.clone(),
-            receiver: refund_receiver.clone(),
+            receiver: refund_receiver,
             payout: amounts.payout,
         },
         Some((&aux, refund_lock)),

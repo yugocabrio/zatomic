@@ -76,13 +76,13 @@ def check(root):
         if invoke(role,'setup-start')!=first[role]: raise RuntimeError('round1 restart changed')
     changed=copy.deepcopy(first['alice']); changed['payload']['quote_digest']='00'*32
     invoke('bob','setup-round2',changed,reject=True)
-    changed=copy.deepcopy(first['bob']); changed['payload']['recipient_fvk']=first['alice']['payload']['recipient_fvk']
+    changed=copy.deepcopy(first['bob']); changed['payload']['receiver']=first['alice']['payload']['receiver']
     invoke('alice','setup-round2',changed,reject=True)
     second={r:invoke(r,'setup-round2',first['bob' if r=='alice' else 'alice']) for r in identities}
     for role in identities:
         peer='bob' if role=='alice' else 'alice'
         if invoke(role,'setup-round2',first[peer])!=second[role]: raise RuntimeError('round2 restart changed')
-    changed=copy.deepcopy(first['bob']); changed['payload']['recipient_fvk']=first['alice']['payload']['joint_seed_fvk']
+    changed=copy.deepcopy(first['bob']); changed['payload']['receiver']=first['alice']['payload']['joint_seed_fvk']
     invoke('alice','setup-round2',resign('bob',changed),reject=True)
     changed=copy.deepcopy(second['alice']); changed['payload']['to']='alice'
     invoke('bob','setup-finish',resign('alice',changed),reject=True)
@@ -90,7 +90,7 @@ def check(root):
     for role in identities:
         peer='bob' if role=='alice' else 'alice'
         if invoke(role,'setup-finish',second[peer])!=ready[role]: raise RuntimeError('complete restart changed')
-    changed=copy.deepcopy(ready['bob']); changed['payload']['setup']['destinations']['bob_fvk']=first['alice']['payload']['recipient_fvk']
+    changed=copy.deepcopy(ready['bob']); changed['payload']['setup']['destinations']['bob_receiver']=first['alice']['payload']['receiver']
     invoke('alice','setup-agree',resign('bob',changed),reject=True)
     final={r:invoke(r,'setup-agree',ready['bob' if r=='alice' else 'alice']) for r in identities}
     if final['alice']!=final['bob']: raise RuntimeError('different destination descriptors')
@@ -100,7 +100,7 @@ def check(root):
         if invoke(role,'setup-agree',ready[peer])!=final[role]: raise RuntimeError('agreement replay changed')
     changed=copy.deepcopy(final['alice']); del changed['receipts']['bob']
     invoke('alice','verify-destinations',changed,reject=True)
-    changed=copy.deepcopy(final['alice']); changed['setup']['destinations']['joint_fvk']=first['alice']['payload']['recipient_fvk']
+    changed=copy.deepcopy(final['alice']); changed['setup']['destinations']['joint_fvk']=first['alice']['payload']['joint_seed_fvk']
     invoke('alice','verify-destinations',changed,reject=True)
     # The legacy spender must still refuse the public-profile accepted quote.
     legacy=subprocess.run([str(ROOT/'target/release/shielded-swap-native'),'otc-verify-acceptance',

@@ -38,12 +38,33 @@ fn commitment(v: &Value, k: &str) -> Result<shielded_swap_crypto::round1::Signin
         .map_err(|e| err(e).into())
 }
 
+/// One-time receive address of `role`. Peers and coordinators exchange only
+/// this, never a viewing key: an FVK would let the counterparty follow the
+/// payout's next spend. Older records carried the FVK; derive its address.
+pub(crate) fn receiver(v: &Value, role: &str) -> Result<orchard::Address> {
+    let key = format!("{role}_receiver");
+    if v.get(&key).is_some() {
+        return address(v, &key);
+    }
+    Ok(fvk(v, &format!("{role}_fvk"))?.address_at(0u32, Scope::External))
+}
+
+pub(crate) fn address(v: &Value, key: &str) -> Result<orchard::Address> {
+    Option::from(orchard::Address::from_raw_address_bytes(&decode(v, key)?))
+        .ok_or_else(|| "receiver address encoding".into())
+}
+
+pub(crate) fn address_hex(fvk: &FullViewingKey) -> String {
+    hex::encode(fvk.address_at(0u32, Scope::External).to_raw_address_bytes())
+}
+
 /// Both participants inspect the same effects; each authenticates their OWN
-/// receiving key. A coordinator cannot change a payout and obtain both shares.
+/// receiving address and decrypts only their own payout. `own` is None for a
+/// coordinator, which checks commitments but holds no receiving key.
 pub(crate) fn validate(
     pczt: Pczt,
     policy: &Value,
-    own: &FullViewingKey,
+    own: Option<&FullViewingKey>,
     id: u16,
     public: &keys::PublicKeyPackage,
     target: [u8; 32],
@@ -56,7 +77,7 @@ pub(crate) fn validate(
 pub(crate) fn validate_testnet(
     pczt: Pczt,
     policy: &Value,
-    own: &FullViewingKey,
+    own: Option<&FullViewingKey>,
     id: u16,
     public: &keys::PublicKeyPackage,
     target: [u8; 32],
@@ -68,7 +89,7 @@ pub(crate) fn validate_testnet(
 fn validate_amounts(
     pczt: Pczt,
     policy: &Value,
-    own: &FullViewingKey,
+    own: Option<&FullViewingKey>,
     id: u16,
     public: &keys::PublicKeyPackage,
     target: [u8; 32],
@@ -78,15 +99,13 @@ fn validate_amounts(
     if joint.to_bytes()[..32] != public.verifying_key().serialize().map_err(err)? {
         return Err("joint key not our DKG".into());
     }
-    let alice = fvk(policy, "alice_fvk")?;
-    let bob = fvk(policy, "bob_fvk")?;
-    if own.to_bytes()
-        != if id == 1 {
-            alice.to_bytes()
-        } else {
-            bob.to_bytes()
-        }
-    {
+    let alice = receiver(policy, "alice")?;
+    let bob = receiver(policy, "bob")?;
+    if alice == bob || alice == joint.address_at(0u32, Scope::External) {
+        return Err("distinct receivers required".into());
+    }
+    let mine = if id == 1 { alice } else { bob };
+    if own.is_some_and(|own| own.address_at(0u32, Scope::External) != mine) {
         return Err("own receiver changed".into());
     }
     let is_claim = match policy["mode"].as_str() {
@@ -94,7 +113,7 @@ fn validate_amounts(
         Some("refund") => false,
         _ => return Err("unknown signing mode".into()),
     };
-    let recipient = if is_claim { &bob } else { &alice };
+    let recipient = if is_claim { bob } else { alice };
     if !is_claim && target != shielded_swap_crypto::generator().to_bytes() {
         return Err("refund must be immediately completable".into());
     }
@@ -222,10 +241,11 @@ fn validate_amounts(
                     return Err(bad("unsigned dummy"));
                 }
                 if output > 0 {
+                    // verify_note_commitment above binds this recipient and
+                    // value to the committed note, without any viewing key.
                     if paid.is_some()
                         || output != amounts.payout
-                        || *a.output().recipient()
-                            != Some(recipient.address_at(0u32, Scope::External))
+                        || *a.output().recipient() != Some(recipient)
                     {
                         return Err(bad("recipient or payout changed"));
                     }
@@ -236,13 +256,17 @@ fn validate_amounts(
         })
         .map_err(err)?;
     let paid = paid.ok_or("missing payout")?;
-    let (decrypted, _, _) = effects
-        .ironwood_bundle()
-        .ok_or("Ironwood missing")?
-        .decrypt_output_with_key(paid, &recipient.to_ivk(Scope::External))
-        .ok_or("payout ciphertext not decryptable")?;
-    if decrypted.value().inner() != amounts.payout {
-        return Err("decrypted payout changed".into());
+    // Only the recipient can and must check that its ciphertext decrypts:
+    // an undecryptable note would strand the recipient's own funds.
+    if let Some(own) = own.filter(|_| (id == 2) == is_claim) {
+        let (decrypted, _, _) = effects
+            .ironwood_bundle()
+            .ok_or("Ironwood missing")?
+            .decrypt_output_with_key(paid, &own.to_ivk(Scope::External))
+            .ok_or("payout ciphertext not decryptable")?;
+        if decrypted.value().inner() != amounts.payout || decrypted.recipient() != recipient {
+            return Err("decrypted payout changed".into());
+        }
     }
     let digest: [u8; 32] = v6_signature_hash(
         &effects,
@@ -289,7 +313,7 @@ pub fn serve(dir: &Path, id: u16) -> Result<()> {
     let mut key = None;
     let mut public = None;
     let mut own_target = None;
-    let mut hello = json!({"resumed":resumed,"recipient_fvk":hex::encode(own.to_bytes())});
+    let mut hello = json!({"resumed":resumed,"receiver":address_hex(&own)});
     if resumed {
         let manifest = storage::json(&dir.join("dkg-complete.json"))?;
         if manifest["id"] != id || manifest["threshold"] != 2 {
@@ -409,7 +433,7 @@ pub fn serve(dir: &Path, id: u16) -> Result<()> {
                 let (context, index) = validate(
                     pczt,
                     &request["policy"],
-                    &own,
+                    Some(&own),
                     id,
                     public.as_ref().ok_or("DKG incomplete")?,
                     target,
@@ -576,8 +600,8 @@ pub struct Pair {
     alice: Process,
     bob: Process,
     pub public: keys::PublicKeyPackage,
-    pub alice_fvk: FullViewingKey,
-    pub bob_fvk: FullViewingKey,
+    pub alice_receiver: orchard::Address,
+    pub bob_receiver: orchard::Address,
     pub point: [u8; 32],
     pub point_x: Value,
     pub point_y: Value,
@@ -600,10 +624,11 @@ impl Pair {
                 return Err("public signers disagree on reviewed graph/DKG".into());
             }
         }
+        let destinations = &setup["destinations"];
         if a["id"] != 1
             || b["id"] != 2
-            || a["recipient_fvk"] != setup["destinations"]["alice_fvk"]
-            || b["recipient_fvk"] != setup["destinations"]["bob_fvk"]
+            || address(&a, "receiver")? != receiver(destinations, "alice")?
+            || address(&b, "receiver")? != receiver(destinations, "bob")?
         {
             return Err("public signer identities/destinations differ".into());
         }
@@ -611,8 +636,8 @@ impl Pair {
             alice,
             bob,
             public: keys::PublicKeyPackage::deserialize(&bytes(setup, "public")?).map_err(err)?,
-            alice_fvk: fvk(&a, "recipient_fvk")?,
-            bob_fvk: fvk(&b, "recipient_fvk")?,
+            alice_receiver: address(&a, "receiver")?,
+            bob_receiver: address(&b, "receiver")?,
             point: decode(setup, "adaptor_point")?,
             point_x: setup["point_x"].clone(),
             point_y: setup["point_y"].clone(),
@@ -633,8 +658,8 @@ impl Pair {
             alice,
             bob,
             public: keys::PublicKeyPackage::deserialize(&bytes(&a3, "public")?).map_err(err)?,
-            alice_fvk: fvk(&a, "recipient_fvk")?,
-            bob_fvk: fvk(&b, "recipient_fvk")?,
+            alice_receiver: address(&a, "receiver")?,
+            bob_receiver: address(&b, "receiver")?,
             point: decode(&a, "adaptor_point")?,
             point_x: a["point_x"].clone(),
             point_y: a["point_y"].clone(),

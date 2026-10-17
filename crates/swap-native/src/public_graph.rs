@@ -133,8 +133,8 @@ struct Draft {
     principal: u64,
     height: u32,
     joint: FullViewingKey,
-    alice: FullViewingKey,
-    bob: FullViewingKey,
+    alice: orchard::Address,
+    bob: orchard::Address,
     auxiliary: Auxiliary,
     lock: RefundLock,
 }
@@ -268,7 +268,8 @@ pub fn prepare(bank: &Path, folder: &Path, destinations: &Path, output: &Path) -
         || plan["policy"]["eth_chain_id"] != 11155111
         || lock.required_time().is_none()
         || roles.as_object().is_none_or(|v| v.len() != 7)
-        || roles["format"] != "latch-graph-destinations-v1"
+        // Funded graphs only from address-only (v2) setups; v1 shared FVKs.
+        || roles["format"] != "latch-graph-destinations-v2"
         || roles["native_genesis"] != TESTNET_GENESIS
         || roles["native_branch"] != "77190ad9"
         || roles["eth_chain_id"] != 11155111
@@ -295,9 +296,10 @@ pub fn prepare(bank: &Path, folder: &Path, destinations: &Path, output: &Path) -
         return Err("reserved auxiliary outpoint mismatch".into());
     }
     let joint = parse_fvk(roles, "joint_fvk")?;
-    let alice = parse_fvk(roles, "alice_fvk")?;
-    let bob = parse_fvk(roles, "bob_fvk")?;
-    if joint == alice || joint == bob || alice == bob {
+    let alice = crate::participants::receiver(roles, "alice")?;
+    let bob = crate::participants::receiver(roles, "bob")?;
+    let shared = joint.address_at(0u32, Scope::External);
+    if shared == alice || shared == bob || alice == bob {
         return Err("distinct graph destinations required".into());
     }
     build(
@@ -337,15 +339,15 @@ pub fn synthetic(output: &Path, authenticated: Option<&Path>) -> Result<Value> {
         (
             amount(&checked, "principal_zatoshi")?,
             parse_fvk(roles, "joint_fvk")?,
-            parse_fvk(roles, "alice_fvk")?,
-            parse_fvk(roles, "bob_fvk")?,
+            crate::participants::receiver(roles, "alice")?,
+            crate::participants::receiver(roles, "bob")?,
         )
     } else {
         (
             1_010_000,
             FullViewingKey::from(&crate::random_key(&mut rng)),
-            FullViewingKey::from(&crate::random_key(&mut rng)),
-            FullViewingKey::from(&crate::random_key(&mut rng)),
+            FullViewingKey::from(&crate::random_key(&mut rng)).address_at(0u32, Scope::External),
+            FullViewingKey::from(&crate::random_key(&mut rng)).address_at(0u32, Scope::External),
         )
     };
     let source_key = crate::random_key(&mut rng);

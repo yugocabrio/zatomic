@@ -4,6 +4,7 @@ No peer directory, coordinator checkpoint, source wallet or spending key is
 read. Current chain status is observed separately by the owning CLI.
 """
 import json
+from regtest_wallet import native
 from signer_transport import private_file
 
 
@@ -22,9 +23,14 @@ def workspace(directory, role, terms, bundle, receipt):
     for name, expected in [('terms.json', terms), ('pending-note.json', bundle['policy']['pending'])]:
         if json.loads(private_file(root / name, 200_000)) != expected:
             raise RuntimeError('owner native workspace terms changed')
-    encoded = {'joint-fvk.bin': bundle['policy']['joint_fvk'],
-        f'{role}/joint-fvk.bin': bundle['policy'][f'{role}_fvk'],
-        f'{role}/{expected_mode}.pczt': bundle[expected_mode]}
+    policy = bundle['policy']
+    encoded = {'joint-fvk.bin': policy['joint_fvk'], f'{role}/{expected_mode}.pczt': bundle[expected_mode]}
+    if f'{role}_fvk' in policy:
+        # Older bundles carried the receiving FVK itself.
+        encoded[f'{role}/joint-fvk.bin'] = policy[f'{role}_fvk']
+    elif native('wallet-receiver', root / role)['receiver'] != policy[f'{role}_receiver']:
+        # Address-only bundles: the workspace's own key must receive the payout.
+        raise RuntimeError('owner native workspace differs from accepted bundle')
     for name, value in encoded.items():
         if private_file(root / name, 200_000) != bytes.fromhex(value):
             raise RuntimeError('owner native workspace differs from accepted bundle')

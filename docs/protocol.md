@@ -232,8 +232,10 @@ the exact preparation thresholds and evidence limits in
   and time; it may link that auxiliary coin to the refund.
 - EVM observers: ETH amount, maker/recipient, T, t after reveal, deadlines,
   terms commitment and timing. ETH-side privacy is not claimed.
-- Counterparty: agreed amounts/destinations and shared-note viewing/proving data.
-  One-time DKG and fresh viewing keys prevent viewing unrelated swaps.
+- Counterparty: agreed amounts, the peer's one-time receive **address** (never
+  its viewing key, since 2026-10-17), and shared-note viewing/proving data. The
+  one-time DKG prevents viewing unrelated swaps. Observer by observer:
+  [privacy](privacy.md).
 - Local fixture runner: both clients' synthetic secrets on one host; not evidence
   of independent operators or production secret isolation.
 

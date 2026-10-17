@@ -20,9 +20,11 @@ signer refuses coordinators that skip this step.
 
 ## Funding and exact deployment
 
-The current private manifest is `.local/public-launch-001/launch-plan.json` and
-the address table is `.local/public-launch-001/launch-plan.md`. Keep all keys and
-protocol packets private. Trade: **0.001 test ZEC for 0.001 Sepolia ETH**.
+The current workspace is `.local/public-launch-002` (address-only v2 owner setup,
+2026-10-17). Its funding table is the private `launch-plan.md` in that directory.
+`public-launch-001` is retired, because its v1 setup shared receiving viewing
+keys; do not fund it. Keep all keys and protocol packets private. Trade:
+**0.001 test ZEC for 0.001 Sepolia ETH**.
 
 | Account | Minimum initial balance at 1 gwei ceiling | Reason |
 |---|---:|---|
@@ -102,7 +104,7 @@ lower-level CLIs and authenticated private packet exchange. Never copy a peer's
 key to make a missing step pass.
 
 ```sh
-LATCH_RUN="$PWD/.local/public-launch-001"
+LATCH_RUN="$PWD/.local/public-launch-002"
 LATCH_RPC='https://sepolia.drpc.org'
 LATCH_CONSENTS="$LATCH_RUN/packets/consents.json"
 

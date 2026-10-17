@@ -47,7 +47,7 @@ pub struct Verified {
 /// Checks bytes and proving material locally, without trusting the preparer's
 /// `proofs_verified` booleans or accessing its source wallet. Clock bounds/live
 /// observations are separate policies; this function never permits funding.
-pub fn verify(packet: &Value, own: &FullViewingKey, id: u16) -> Result<Verified> {
+pub fn verify(packet: &Value, own: Option<&FullViewingKey>, id: u16) -> Result<Verified> {
     if packet.as_object().is_none_or(|o| o.len() != 9)
         || packet["format"] != "latch-public-graph-review-v1"
     {
@@ -146,11 +146,17 @@ pub fn verify(packet: &Value, own: &FullViewingKey, id: u16) -> Result<Verified>
     if *aux.value() != 20_000 {
         return Err("dedicated refund coin value".into());
     }
-    let mut policy = json!({"joint_fvk":roles["joint_fvk"],"alice_fvk":roles["alice_fvk"],
-        "bob_fvk":roles["bob_fvk"],"pending":wallet::note_json(&notes[0]),"funding":packet["funding_preview"],
+    let mut policy = json!({"joint_fvk":roles["joint_fvk"],"pending":wallet::note_json(&notes[0]),"funding":packet["funding_preview"],
         "refund_lock":graph["refund_lock"],"trade":descriptor["trade"],"session":"00".repeat(32),
         "aux":{"txid_le":hex::encode(aux.prevout_txid()),"index":aux.prevout_index(),
             "value":aux.value(),"script":hex::encode(aux.script_pubkey())}});
+    // v2 destinations carry receive addresses only; v1 carried FVKs. Copy
+    // exactly what was authenticated so reviewed-policy digests stay stable.
+    for field in ["alice_receiver", "bob_receiver", "alice_fvk", "bob_fvk"] {
+        if let Some(value) = roles.get(field) {
+            policy[field] = value.clone();
+        }
+    }
     policy["review_packet_digest"] = json!(hash(packet)?);
     policy["execution_plan_digest"] = json!(plan_digest);
     let mut contexts = json!({});
@@ -207,7 +213,7 @@ pub fn verify(packet: &Value, own: &FullViewingKey, id: u16) -> Result<Verified>
 
 pub fn export(graph_dir: &Path, destinations: &Path, plan: &Path, output: &Path) -> Result<Value> {
     let descriptor = storage::json(destinations)?;
-    let checked = public_setup::authenticate(&descriptor)?;
+    public_setup::authenticate(&descriptor)?;
     let graph = storage::json(&graph_dir.join("graph.json"))?;
     let raw = storage::read(&graph_dir.join("funding.pczt"), 1_000_000)?;
     if graph["files"]["funding.pczt"] != sha(&raw) {
@@ -225,7 +231,7 @@ pub fn export(graph_dir: &Path, destinations: &Path, plan: &Path, output: &Path)
             1_000_000
         )?));
     }
-    let report = verify(&packet, &fvk(&checked["destinations"], "alice_fvk")?, 1)?.report;
+    let report = verify(&packet, None, 1)?.report;
     storage::atomic_json(output, &packet)?;
     Ok(
         json!({"file":output,"review_packet_digest":report["review_packet_digest"],
@@ -264,7 +270,7 @@ pub fn review(dir: &Path, input: &Path) -> Result<Value> {
     if packet_path.exists() && storage::json(&packet_path)? != packet {
         return Err("owner already reviewed another graph".into());
     }
-    let checked = verify(&packet, &wallet::fvk(&dir.join("native"))?, id)?;
+    let checked = verify(&packet, Some(&wallet::fvk(&dir.join("native"))?), id)?;
     // Persist both the exact reviewed packet and derived signing policy. A crash
     // before the receipt can only retry these identical bytes; never sign here.
     for (name, value) in [

@@ -7,7 +7,7 @@ use crate::{
 };
 use ff_old::{Field, PrimeField};
 use group_old::{Curve, Group, GroupEncoding};
-use orchard::keys::FullViewingKey;
+use orchard::keys::{FullViewingKey, Scope};
 use pasta_old::{arithmetic::CurveAffine, pallas};
 use rand_core::OsRng;
 use serde_json::{Value, json};
@@ -97,8 +97,16 @@ pub fn authenticate(v: &Value) -> Result<Value> {
         return Err("setup binding schema/quote mismatch".into());
     }
     let roles = &s["destinations"];
+    // v2 shares one-time receive addresses only. v1 (earlier fixtures and
+    // setups) shared receiving FVKs; it stays readable, never produced.
+    let receivers = match roles["format"].as_str() {
+        Some("latch-graph-destinations-v2") => "receiver",
+        Some("latch-graph-destinations-v1") => "fvk",
+        _ => return Err("setup destination format".into()),
+    };
     if roles.as_object().is_none_or(|o| o.len() != 7)
-        || roles["format"] != "latch-graph-destinations-v1"
+        || roles.get(format!("alice_{receivers}")).is_none()
+        || roles.get(format!("bob_{receivers}")).is_none()
         || roles["native_genesis"] != TESTNET_GENESIS
         || roles["native_branch"] != "77190ad9"
         || roles["eth_chain_id"] != 11155111
@@ -118,9 +126,10 @@ pub fn authenticate(v: &Value) -> Result<Value> {
         return Err("two-owner DKG required".into());
     }
     let j = fvk(roles, "joint_fvk")?;
-    let a = fvk(roles, "alice_fvk")?;
-    let b = fvk(roles, "bob_fvk")?;
-    if j != joint(&public, s)? || a == b || j == a || j == b {
+    let a = crate::participants::receiver(roles, "alice")?;
+    let b = crate::participants::receiver(roles, "bob")?;
+    let shared = j.address_at(0u32, Scope::External);
+    if j != joint(&public, s)? || a == b || shared == a || shared == b {
         return Err("DKG/destination mismatch".into());
     }
     point(s)?;
@@ -188,7 +197,9 @@ pub fn run(dir: &Path, action: &str, incoming: Option<&Path>) -> Result<Value> {
         wallet::init_testnet(&native)?;
         let (secret, package) = keys::dkg::part1(mine, 2, 2, OsRng).map_err(err)?;
         let mut p = base(role, &quote, "round1");
-        p["recipient_fvk"] = json!(hex::encode(wallet::fvk(&native)?.to_bytes()));
+        // Only the one-time receive address leaves this owner; a viewing key
+        // would let the counterparty follow the payout's later spends.
+        p["receiver"] = json!(crate::participants::address_hex(&wallet::fvk(&native)?));
         p["package"] = json!(hex::encode(package.serialize().map_err(err)?));
         let mut state = json!({});
         if id == 1 {
@@ -220,7 +231,7 @@ pub fn run(dir: &Path, action: &str, incoming: Option<&Path>) -> Result<Value> {
     }
     let first = storage::json(&dir.join("setup-round1.json"))?;
     let own_first = verify(&first["packet"], owners, role, &quote, "round1")?;
-    if own_first["recipient_fvk"] != hex::encode(wallet::fvk(&native)?.to_bytes()) {
+    if own_first["receiver"] != crate::participants::address_hex(&wallet::fvk(&native)?) {
         return Err("own receiving key changed".into());
     }
     let packet: Value = serde_json::from_slice(&storage::read(
@@ -229,7 +240,9 @@ pub fn run(dir: &Path, action: &str, incoming: Option<&Path>) -> Result<Value> {
     )?)?;
     if action == "round2" {
         let other = verify(&packet, owners, peer, &quote, "round1")?;
-        if fvk(&other, "recipient_fvk")? == fvk(&own_first, "recipient_fvk")? {
+        if crate::participants::address(&other, "receiver")?
+            == crate::participants::address(&own_first, "receiver")?
+        {
             return Err("distinct native receivers required".into());
         }
         let mut ordered = json!({});
@@ -301,10 +314,10 @@ pub fn run(dir: &Path, action: &str, incoming: Option<&Path>) -> Result<Value> {
         .map_err(err)?;
         let a = &second["round1"]["alice"];
         let b = &second["round1"]["bob"];
-        let roles = json!({"format":"latch-graph-destinations-v1","native_genesis":TESTNET_GENESIS,
+        let roles = json!({"format":"latch-graph-destinations-v2","native_genesis":TESTNET_GENESIS,
             "native_branch":"77190ad9","eth_chain_id":11155111,
             "joint_fvk":hex::encode(joint(&public,a)?.to_bytes()),
-            "alice_fvk":a["recipient_fvk"],"bob_fvk":b["recipient_fvk"]});
+            "alice_receiver":a["receiver"],"bob_receiver":b["receiver"]});
         let setup = json!({"quote_digest":quote,"round1_digest":round1_digest,"round2_digest":round2_digest,
             "public":hex::encode(public.serialize().map_err(err)?),"destinations":roles,
             "joint_seed_fvk":a["joint_seed_fvk"],"adaptor_point":a["adaptor_point"],"point_x":a["point_x"],"point_y":a["point_y"]});

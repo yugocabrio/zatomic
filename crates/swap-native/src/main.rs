@@ -641,6 +641,11 @@ fn main() -> Result<()> {
             return Ok(());
         }
         Some("regtest-inspect") if a.len() == 3 => regtest_swap::inspect(Path::new(&a[2]))?,
+        // Public receive address of a local wallet or watch-only workspace;
+        // lets owner tooling bind its own key to an address-only bundle.
+        Some("wallet-receiver") if a.len() == 3 => serde_json::json!({
+            "receiver": participants::address_hex(&wallet::fvk(Path::new(&a[2]))?)
+        }),
         Some("inspect-transaction") if a.len() == 3 => {
             observed_transaction::inspect(Path::new(&a[2]))?
         }

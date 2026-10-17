@@ -135,7 +135,10 @@
           <div class="leg"><span class="leg-label">Agreed for Alice</span><strong id="leg-eth">—</strong><small>ETH · public on Ethereum</small></div>
         </div>
         <div class="meter" aria-hidden="true"><i id="meter-fill"></i></div>
-        <ol class="steps" id="steps" aria-label="Settlement steps"></ol>
+        <details class="steps-wrap" id="steps-wrap" open>
+          <summary id="steps-summary">Settlement steps</summary>
+          <ol class="steps" id="steps" aria-label="Settlement steps"></ol>
+        </details>
         <section id="recovery" class="recovery" hidden aria-labelledby="recovery-title">
           <p class="kicker kicker-warn" id="recovery-kicker">Process stopped</p>
           <h4 id="recovery-title"></h4>

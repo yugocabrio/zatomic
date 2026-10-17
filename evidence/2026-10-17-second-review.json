@@ -259,5 +259,136 @@
   "any public-testnet transaction"
  ],
  "private_material_committed": false,
- "public_testnet": false
+ "public_testnet": false,
+ "privacy_followup": {
+  "findings": {
+   "P1": "receiving full viewing keys were sent to the counterparty and coordinator (fixed: addresses only)",
+   "P2": "expiry_height=0 makes F/C/R recognisable (documented in docs/privacy.md; inherent to pre-signed exits)",
+   "P3": "demo reused one refund auxiliary coin across successful runs (fixed: one coin per run)"
+  },
+  "native_binary_sha256": "678db3b825523768b3eef155b6ec2851df855003421e55b4e8f7b99b9168056b",
+  "browser_runs": {
+   "success_error_after_reveal_then_recovered": {
+    "browser_run": "1792261640786-dc065589",
+    "scenario": "success",
+    "signed_quote": {
+     "zec_amount": "0.0333",
+     "eth_amount": "0.0612",
+     "quote_digest": "5bc4e0c837bbb6088d193b767850d365b2e93dd1f38f75f9fee85a5eca25513b"
+    },
+    "stage_records": [
+     "00-funding-preview-rejected",
+     "01-authorized",
+     "01-consented",
+     "01-prepared",
+     "02-funded",
+     "04-eth-locked",
+     "05-eth-claimed",
+     "06-zec-claimed",
+     "08-complete",
+     "09-recovered"
+    ],
+    "mode": "success",
+    "native_amount_zatoshi": 3330000,
+    "eth_wei_received": 61200000000000000,
+    "eth_withdraw_tx": "0xf5ae4765a677403ef6e12b4742b91f392e92fce9900d85a275d9f8e8ac2cab41",
+    "txids": {
+     "02-funded": "930a012972f6cc9e9dc927dcd101bc608fa4774efb6b5845c18df308aa86daf9",
+     "04-eth-locked": "0xaef11d496adccd2723f6e676dd6b8112c473edbbabee3c222a818c144bea55df",
+     "05-eth-claimed": "0xc44b1079039d7339be79dab9ade0f1bb310e52e0aae316cec36d871156a6be2a",
+     "06-zec-claimed": "b292101d171fa7bdf22fa5d0780086dde8e01ac15a4130de7e162fd9216c0508"
+    },
+    "receiving_fvks_found": 0,
+    "replay_new_native_transactions": 0,
+    "replay_new_evm_transactions": 0
+   },
+   "success": {
+    "browser_run": "1792262296875-ee466ce2",
+    "scenario": "success",
+    "signed_quote": {
+     "zec_amount": "0.015",
+     "eth_amount": "0.0285",
+     "quote_digest": "5be0fd486f774a9f840084f5005e708845ccc3ca27c2123e1ec2aca4331e2cac"
+    },
+    "stage_records": [
+     "00-funding-preview-rejected",
+     "01-authorized",
+     "01-consented",
+     "01-prepared",
+     "02-funded",
+     "04-eth-locked",
+     "05-eth-claimed",
+     "06-zec-claimed",
+     "08-complete",
+     "09-recovered"
+    ],
+    "mode": "success",
+    "native_amount_zatoshi": 1500000,
+    "eth_wei_received": 28500000000000000,
+    "eth_withdraw_tx": "0xee2309014ee756195639654f5df3080b8e7a2a07aac6a787856dc917c7d04e59",
+    "txids": {
+     "02-funded": "026b463f0a6be4eebda5aa4f5633980671c108ca08d1ea505906f98c37e49719",
+     "04-eth-locked": "0x3c52e5fb85aae900e6683218f86e775d95e7cd8e1eba34edbef85dcbc69b9e1a",
+     "05-eth-claimed": "0x10bd059ee03e19a54927dbf70368018ff73e80e4cd24f83fc39dad2f133adbfe",
+     "06-zec-claimed": "0fcd2eb42b1ed1168ceeda7496cbeb41d169e728285acd65da9bc1795f347b09"
+    },
+    "receiving_fvks_found": 0,
+    "replay_new_native_transactions": 0,
+    "replay_new_evm_transactions": 0
+   },
+   "stop_before_reveal_refund": {
+    "browser_run": "1792263099292-d7ebcca7",
+    "scenario": "refund-stop",
+    "signed_quote": {
+     "zec_amount": "0.044",
+     "eth_amount": "0.0808",
+     "quote_digest": "cb12735b2eeefa58b1a9160e5494729cb120d8149fb7595dcbd92718f1777acf"
+    },
+    "stage_records": [
+     "00-funding-preview-rejected",
+     "01-authorized",
+     "01-consented",
+     "01-prepared",
+     "02-funded",
+     "04-eth-locked",
+     "05-eth-refunded",
+     "06-zec-refunded",
+     "08-complete",
+     "09-recovered"
+    ],
+    "mode": "refund",
+    "native_amount_zatoshi": 4400000,
+    "eth_wei_received": 80800000000000000,
+    "eth_withdraw_tx": "0x4612470baa86c17c5e61c6e7216b7c475ce352b7903934210a2a9df012068bfe",
+    "txids": {
+     "02-funded": "fa65e4e7d05b6f3406572910c0226a462296a5673e0d52761dd0e96c84fd92c8",
+     "04-eth-locked": "0xeb0d4eb3646a3a9c9ea8f8603cf881c37604e60876942b0ad55a4f0ff252504f",
+     "05-eth-refunded": "0x871ce80c6b9372a7aec3beefdd196ec0a2351e636ad5b776708ed444d533756a",
+     "06-zec-refunded": "ab2f32c83aad612adf1543a4a75b10dd15c49d15b943e0f326cb8091ab683e0f"
+    },
+    "receiving_fvks_found": 0,
+    "replay_new_native_transactions": 0,
+    "replay_new_evm_transactions": 0
+   }
+  },
+  "error_note": "The first post-fix success run stopped after the ETH claim because native_owner.py still read the removed {role}_fvk field. It was fixed (wallet-receiver binding), and the run was recovered through the browser: Bob claimed the ZEC with Alice offline.",
+  "check_receiver_privacy": {
+   "post_fix_runs": "pass, 0 receiving FVKs",
+   "pre_fix_run 1792256547015-956475c2": "FAILS: alice_fvk/bob_fvk present in both owners' agreement and bundle"
+  },
+  "public_profile_chain_v2": {
+   "command": "check_public_setup -> check-unsigned-graph-synthetic -> check_public_review -> check_public_presign -> check_share_release -> check_public_recovery -> check_public_portable -> check_public_consent",
+   "result": "all pass with latch-graph-destinations-v2 (synthetic, unfunded inputs)"
+  },
+  "bundle_tamper_test": "reject_corrupt_native_recovery_bundles passes on a v2 bundle (LATCH_BUNDLE_FIXTURE)",
+  "independent_operators_gate": {
+   "command": "check_independent_operators.py success .local/operators-1017 --zec-amount 0.0123 --eth-amount 0.0456",
+   "native_received_zatoshi": 1230000,
+   "eth_wei_received": 45600000000000000,
+   "all_six_cross_operator_root_reads_denied": true,
+   "native_setup_via_tls_only": true
+  },
+  "legacy_compatibility": "replay of pre-fix runs 1792255564106-08c0a573 and 1792255821266-e2586289 with the new binary: 0 new transactions",
+  "public_launch": "fresh unfunded workspace .local/public-launch-002 with a v2 owner setup; public-launch-001 retired. No public transaction."
+ }
 }

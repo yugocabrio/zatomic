@@ -176,7 +176,7 @@ pub fn accept(
         return Err("recovery transactions must remain deferred".into());
     }
     let (claim_context, ci) =
-        participants::validate(claim.clone(), &policy, own, id, public, target)?;
+        participants::validate(claim.clone(), &policy, Some(own), id, public, target)?;
     let terms = &bundle["terms"];
     if index(terms, "claim_index")? != ci {
         return Err("recovery claim index changed".into());
@@ -210,7 +210,7 @@ pub fn accept(
     let (_, validated_ri) = participants::validate(
         unsigned_refund,
         &policy,
-        own,
+        Some(own),
         id,
         public,
         shielded_swap_crypto::generator().to_bytes(),
@@ -461,7 +461,7 @@ mod tests {
         altered["terms"]["refund_height"] = json!(1);
         cases.push(("deadline", altered));
         let mut altered = original.clone();
-        altered["policy"]["bob_fvk"] = original["policy"]["alice_fvk"].clone();
+        altered["policy"]["bob_receiver"] = original["policy"]["alice_receiver"].clone();
         cases.push(("recipient", altered));
         let mut altered = original.clone();
         altered["presignature"]["s_hat"] = json!("00".repeat(32));

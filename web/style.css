@@ -191,6 +191,17 @@ h2 { font-size: clamp(26px, 3vw, 34px); letter-spacing: -.03em; line-height: 1.1
 .leg-swap { color: var(--lime); font-size: 20px; }
 .meter { height: 3px; background: var(--dark-line); border-radius: 3px; overflow: hidden; }
 .meter i { display: block; height: 100%; width: 0; background: var(--lime); transition: width .4s ease; }
+/* Result first: a stop or an outcome is shown above the step list. */
+.board > .board-head { order: 0; }
+.board > .legs { order: 1; }
+.board > .recovery, .board > .outcome { order: 2; }
+.board > .meter { order: 3; }
+.board > .steps-wrap { order: 4; }
+.board > .board-foot { order: 5; }
+.steps-wrap > summary { list-style: none; cursor: pointer; font: 600 12px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--on-dark-2); padding: 2px 0 6px; }
+.steps-wrap > summary::-webkit-details-marker { display: none; }
+.steps-wrap > summary::before { content: "▸"; display: inline-block; width: 16px; transition: transform .15s; }
+.steps-wrap[open] > summary::before { transform: rotate(90deg); }
 .steps { list-style: none; padding: 0; margin: 0; display: grid; }
 .step { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid #22382d; position: relative; }
 .step:last-child { border-bottom: 0; }

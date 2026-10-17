@@ -15,7 +15,7 @@ import demo_otc
 from otc_offer import decimal_amount
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
-from regtest_node import ROOT, status as node_status, rpc as zrpc
+from regtest_node import ROOT, status as node_status
 
 DEMO = ROOT / '.local/demo'
 WEB = ROOT / 'web'
@@ -224,19 +224,9 @@ class Manager:
                 mode, fault = SCENARIOS[scenario]
                 args = ['python3', str(ROOT / 'scripts/prefunding_swap.py'), mode, str(folder / 'run'),
                         '--accepted-quote', str(folder / 'quote')]
-                # Reuse only completed demo banks with an unspent small auxiliary
-                # coin. The runner rechecks/reserves it under the chain lock.
-                # Refund scenarios receive a fresh coin and do not consume a
-                # success bank's reusable refund route.
-                if mode == 'success':
-                    for previous in self.records():
-                        bank = previous.parent / 'run/bank'
-                        reservation = bank / 'aux-reservation.json'
-                        if (previous.parent / 'run/08-complete.json').exists() and (bank / 'aux-source-compact.json').exists() and reservation.exists():
-                            outpoint = json.loads(reservation.read_text())['outpoint']
-                            if zrpc('gettxout', [outpoint['txid'], outpoint['index'], True]) is not None:
-                                args += ['--existing-bank', str(bank)]
-                                break
+                # Every run funds its own source note and refund auxiliary coin.
+                # Both owners learn the auxiliary outpoint, so reusing it would
+                # let different counterparties link one seller across swaps.
                 if fault:
                     args += ['--fault-after', fault]
             job = persisted(job)

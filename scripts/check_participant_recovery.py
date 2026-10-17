@@ -56,7 +56,7 @@ def run(swap):
     bob = swap / 'bob'
     must_reject(bob, {'command': 'sign'}, 'nonce absent or already consumed')
     changed = copy.deepcopy(packet)
-    changed['policy']['bob_fvk'] = policy['alice_fvk']
+    changed['policy']['bob_receiver'] = policy['alice_receiver']
     must_reject(bob, changed, 'own receiver changed')
     changed = copy.deepcopy(packet)
     changed['policy']['pending']['value'] += 1

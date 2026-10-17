@@ -40,6 +40,7 @@ oracle deciding the exchange outcome or custodial exchange account.
 
 - [Two-minute captioned video](demo/latch-2min.mp4) — real screen checkpoints, waits omitted
 - [Two-minute walkthrough](demo-walkthrough.md#two-minute-presentation)
+- [What each observer can see](privacy.md)
 - [Evidence by guarantee level](evidence-index.md)
 - [Exact reproduction commands](reproduce.md)
 - [Protocol and transaction order](protocol.md)

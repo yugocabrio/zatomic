@@ -6,7 +6,6 @@ use crate::{
 };
 use ff_old::{Field, PrimeField};
 use group_old::GroupEncoding;
-use orchard::keys::FullViewingKey;
 use pczt::Pczt;
 use rand_core::OsRng;
 use serde_json::{Value, json};
@@ -55,7 +54,7 @@ pub fn serve(dir: &Path) -> Result<()> {
         return Err("public signer local acceptance changed".into());
     }
     let own = wallet::fvk(&dir.join("native"))?;
-    let verified = public_review::verify(&packet, &own, id)?;
+    let verified = public_review::verify(&packet, Some(&own), id)?;
     if verified.report != storage::json(&dir.join("graph-review.json"))?
         || verified.policy != storage::json(&dir.join("reviewed-graph-policy.json"))?
     {
@@ -86,7 +85,7 @@ pub fn serve(dir: &Path) -> Result<()> {
         }
     }
     emit(json!({"format":"latch-public-reviewed-signer-v1","id":id,
-        "review_packet_digest":hash(&packet)?,"public":setup["public"],"recipient_fvk":hex::encode(own.to_bytes())}))?;
+        "review_packet_digest":hash(&packet)?,"public":setup["public"],"receiver":participants::address_hex(&own)}))?;
     let mut input = BufReader::new(std::io::stdin().lock());
     let mut pending: Option<(Nonce, Context, [u8; 32])> = None;
     loop {
@@ -174,12 +173,9 @@ pub fn serve(dir: &Path) -> Result<()> {
 
 pub fn prepare(input: &Path, output: &Path) -> Result<Value> {
     let packet = storage::json(input)?;
-    let own = FullViewingKey::from_bytes(&decode(
-        &packet["destinations"]["setup"]["destinations"],
-        "alice_fvk",
-    )?)
-    .ok_or("Alice FVK")?;
-    let verified = public_review::verify(&packet, &own, 1)?;
+    // The coordinator holds no receiving key; each owner signer verifies its
+    // own payout with its own key before contributing a share.
+    let verified = public_review::verify(&packet, None, 1)?;
     let saved = output.join("exit-presignatures.json");
     if saved.exists() {
         let result = storage::json(&saved)?;

@@ -31,7 +31,8 @@ pub struct Exit {
     pub joint: FullViewingKey,
     pub note: Note,
     pub path: MerklePath,
-    pub receiver: FullViewingKey,
+    /// One-time receive address; the builder never needs the recipient's keys.
+    pub receiver: orchard::Address,
     pub payout: u64,
 }
 
@@ -123,7 +124,7 @@ pub fn exit<P: Parameters>(
         .map_err(err)?;
     b.add_ironwood_output::<Infallible>(
         None,
-        exit.receiver.address_at(0u32, Scope::External),
+        exit.receiver,
         Zatoshis::from_u64(exit.payout)?,
         MemoBytes::empty(),
     )

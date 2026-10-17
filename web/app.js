@@ -167,6 +167,15 @@ function renderSteps(job, m, phase) {
       return item;
     }));
   }
+  // Expanded while settling or stopped; collapsed to a summary once complete,
+  // unless the viewer opened it themselves.
+  const wrap = $('#steps-wrap');
+  const done = steps.filter(s => s.done).length;
+  setText('#steps-summary', phase === 'complete' ? `How it settled · ${done} recorded steps` : 'Settlement steps');
+  if (wrap.dataset.phase !== phase) {
+    wrap.dataset.phase = phase;
+    if (!wrap.dataset.userToggled) wrap.open = phase !== 'complete';
+  }
   const counted = steps.filter(s => s.done || s.skipped).length;
   $('#meter-fill').style.width = `${Math.round(counted / steps.length * 100)}%`;
   return {steps, active};
@@ -358,7 +367,8 @@ function renderBoard(job, phase) {
   if (phase === 'complete') {
     const view = outcomeView(job, m);
     $('#outcome').classList.toggle('is-neutral', !!view.neutral);
-    setText('#outcome-title', view.title);
+    // The board heading already states the outcome; this panel shows the proof.
+    setText('#outcome-title', view.neutral ? 'Nothing was funded' : m.refund || m.fundingOnly ? 'Verified refunds' : 'Verified on both chains');
     const grid = $('#outcome-grid');
     const key = JSON.stringify(view.cells);
     if (grid.dataset.key !== key) {
@@ -506,6 +516,8 @@ $('#start').addEventListener('click', () => {
   action('start', '/api/start', {scenario, id: snapshot?.jobs?.[0]?.id});
 });
 $('#recover').addEventListener('click', () => action('recover', '/api/recover', {id: snapshot?.jobs?.[0]?.id}));
+// Only a click on the summary is the viewer's choice; keep it from then on.
+$('#steps-summary').addEventListener('click', () => { $('#steps-wrap').dataset.userToggled = '1'; });
 
 validate(false);
 poll();

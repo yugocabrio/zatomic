@@ -22,13 +22,6 @@ fn sha(bytes: &[u8]) -> String {
 fn pczt(v: &Value, name: &str) -> Result<Pczt> {
     Pczt::parse(&hex::decode(v[name].as_str().ok_or("recovery PCZT")?)?).map_err(|e| err(e).into())
 }
-fn alice(packet: &Value) -> Result<FullViewingKey> {
-    FullViewingKey::from_bytes(&decode(
-        &packet["destinations"]["setup"]["destinations"],
-        "alice_fvk",
-    )?)
-    .ok_or_else(|| "recovery Alice FVK".into())
-}
 fn lock(path: &Path) -> Result<std::fs::File> {
     let file = OpenOptions::new()
         .read(true)
@@ -102,7 +95,9 @@ fn reconstruct_refund(expected: Pczt, signed: &Pczt) -> Result<Pczt> {
 
 /// Offline native validation only. Provisional anchors are not network anchors,
 /// and a receipt neither proves an unspent source nor authorizes funding.
-pub fn verify(bundle: &Value, own: &FullViewingKey, id: u16) -> Result<Value> {
+/// `own` is the owner's receiving key, or None for a coordinator or an
+/// offline inspector, which check addresses and commitments only.
+pub fn verify(bundle: &Value, own: Option<&FullViewingKey>, id: u16) -> Result<Value> {
     if bundle.as_object().is_none_or(|o| o.len() != 8)
         || bundle["format"] != "latch-public-native-recovery-v1"
         || bundle["funding_authorized"] != false
@@ -146,14 +141,14 @@ fn assemble(
     key: &secp256k1::SecretKey,
     output: &Path,
 ) -> Result<Value> {
-    let verified = public_review::verify(&packet, &alice(&packet)?, 1)?;
+    let verified = public_review::verify(&packet, None, 1)?;
     public_presign::validate_result(&packet, &verified.report, &presigned)?;
     if output.exists() {
         let bundle = storage::json(output)?;
         if bundle["review"] != packet || bundle["presignatures"] != presigned {
             return Err("saved native bundle has different authorization".into());
         }
-        let mut report = verify(&bundle, &alice(&packet)?, 1)?;
+        let mut report = verify(&bundle, None, 1)?;
         report["file"] = json!(output);
         report["reused_bundle"] = json!(true);
         return Ok(report);
@@ -175,7 +170,7 @@ fn assemble(
             .map_err(err)?;
         bundle[name] = json!(hex::encode(signed.serialize().map_err(err)?));
     }
-    let mut report = verify(&bundle, &alice(&bundle["review"])?, 1)?;
+    let mut report = verify(&bundle, None, 1)?;
     storage::atomic_json(output, &bundle)?;
     report["file"] = json!(output);
     report["reused_bundle"] = json!(false);
@@ -288,7 +283,7 @@ pub(crate) fn reserved_graph(bank: &Path, folder: &Path, packet: &Value) -> Resu
 pub fn check_reserved_graph(bank: &Path, folder: &Path, review: &Path) -> Result<Value> {
     let packet = storage::json(review)?;
     let manifest = reserved_graph(bank, folder, &packet)?;
-    let verified = public_review::verify(&packet, &alice(&packet)?, 1)?;
+    let verified = public_review::verify(&packet, None, 1)?;
     Ok(json!({"format":"latch-reserved-public-graph-check-v1",
         "review_packet_digest":verified.report["review_packet_digest"],
         "plan_digest":manifest["plan_digest"],"principal_zatoshi":manifest["principal_zatoshi"],
@@ -302,7 +297,7 @@ pub fn prepare(bank: &Path, folder: &Path, review_path: &Path, presigned: &Path)
     let packet = storage::json(review_path)?;
     let pre = storage::json(presigned)?;
     let manifest = reserved_graph(bank, folder, &packet)?;
-    let verified = public_review::verify(&packet, &alice(&packet)?, 1)?;
+    let verified = public_review::verify(&packet, None, 1)?;
     public_presign::validate_result(&packet, &verified.report, &pre)?;
     let height = u32::try_from(
         storage::json(&folder.join("source.json"))?["height"]
@@ -404,7 +399,7 @@ pub fn accept(dir: &Path, input: &Path) -> Result<Value> {
     {
         return Err("recovery differs from owner's reviewed graph/setup".into());
     }
-    let report = verify(&bundle, &wallet::fvk(&dir.join("native"))?, id)?;
+    let report = verify(&bundle, Some(&wallet::fvk(&dir.join("native"))?), id)?;
     // Bundle fsync precedes signing or returning a receipt. A crash in between
     // may resume only the same bundle; signed receipts are deterministic.
     immutable(&dir.join("public-native-recovery.json"), &bundle)?;
@@ -429,7 +424,7 @@ pub fn receipts(bundle_path: &Path, receipts_path: &Path) -> Result<Value> {
 }
 
 pub(crate) fn check_receipts(bundle: &Value, receipts: &Value) -> Result<Value> {
-    let mut report = verify(bundle, &alice(&bundle["review"])?, 1)?;
+    let mut report = verify(bundle, None, 1)?;
     if receipts.as_object().is_none_or(|o| o.len() != 2) {
         return Err("both recovery receipts required".into());
     }
@@ -468,12 +463,9 @@ pub fn inspect(dir: &Path) -> Result<Value> {
         _ => return Err("portable recovery owner role".into()),
     };
     let packet = &bundle["review"];
-    let own = FullViewingKey::from_bytes(&decode(
-        &packet["destinations"]["setup"]["destinations"],
-        &format!("{role}_fvk"),
-    )?)
-    .ok_or("portable receiving FVK")?;
-    let mut report = verify(&bundle, &own, id)?;
+    // The export carries no receiving key: payout decryption was checked by
+    // the owner at review time; here only addresses/commitments are bound.
+    let mut report = verify(&bundle, None, id)?;
     verify_receipt(
         &receipt,
         &report,
