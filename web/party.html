@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Latch — owner app</title>
+  <meta name="description" content="One owner's app in the Latch two-party demo. It holds only this owner's keys.">
+  <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"><script src="/party.js" defer></script>
+</head>
+<body class="party">
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <span class="brand"><img src="/favicon.svg" alt="" width="28" height="28"><span>latch</span></span>
+    <span class="role-chip" id="role-chip">Owner app</span>
+    <span class="p-holds" id="holds"></span>
+    <div class="network" role="status" aria-live="polite"><i id="network-dot" aria-hidden="true"></i><span id="network-status">Connecting…</span></div>
+  </div>
+</header>
+<main class="wrap p-main">
+  <section class="p-grid">
+    <article class="ticket p-next" aria-labelledby="next-title">
+      <header class="ticket-head"><h1 id="next-title" class="p-title">Next step</h1><span class="chip" id="busy-chip" hidden></span></header>
+      <div class="p-action" id="action" aria-live="polite"></div>
+      <p id="error" class="alert p-alert" role="alert" hidden></p>
+      <ol class="agree p-steps" id="steps"></ol>
+    </article>
+    <aside class="p-side">
+      <section class="board p-board" aria-labelledby="share-title">
+        <p class="kicker kicker-dark">Privacy</p>
+        <h2 id="share-title" class="p-board-title">What this app shares</h2>
+        <div class="p-lists">
+          <div><h3>Sent to <span id="peer-name">the peer</span></h3><ul id="sent"></ul></div>
+          <div><h3>Never leaves this app</h3><ul id="kept"></ul></div>
+        </div>
+        <p class="p-fp">My fingerprint <code id="my-fp">—</code><br>My ETH address <code id="my-address">—</code></p>
+      </section>
+      <section class="receipt p-chain" aria-labelledby="chain-title">
+        <h3 id="chain-title">What I observe on chain</h3>
+        <dl class="review" id="chain"></dl>
+        <p class="fineprint">Local Zebra NU7 regtest and Anvil, shared with the other owner. The network page plays the chains and the relay.</p>
+      </section>
+    </aside>
+  </section>
+</main>
+</body></html>

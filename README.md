@@ -60,6 +60,11 @@ Public synchronization has been exercised with an unfunded wallet. Explicit
 testnet sender entry points now connect private signing and recovery checks;
 their complete funded public execution remains untested.
 
+**Two-party mode:** `make two-party` gives Alice and Bob separate apps (ports
+8791 and 8792). Each holds only its own keys, and the OS sandbox denies it the
+other's files. A third page plays the chains and relays the public messages. See
+[two-party mode](docs/two-party.md).
+
 If already built and the node is running:
 
 ```sh
@@ -70,6 +75,7 @@ python3 scripts/demo_server.py
 
 - [Start here: evidence by guarantee level](docs/evidence-index.md)
 - [What each observer can see (privacy)](docs/privacy.md)
+- [Two-party mode: separate sandboxed apps for Alice and Bob](docs/two-party.md)
 - [Second review (2026-10-17): fixed adaptor share-release flaw, UI redesign, re-verification](docs/review-2026-10-17.md)
 - [Submission draft](docs/submission.md) and [two-minute presentation](docs/demo-walkthrough.md#two-minute-presentation)
 - [Reproduction and CLI gates](docs/reproduce.md)

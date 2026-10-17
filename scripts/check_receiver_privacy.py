@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """No receiving viewing key reaches the counterparty or the coordinator.
 
-Scans every JSON record of a finished browser/regtest run. Peers may hold the
+Scans every JSON record of a finished browser, operator or two-party run. Peers may hold the
 shared one-time joint key and each other's one-time receive address. A
 receiving FVK would let the counterparty follow the payout's later spends.
 Reads local private files; prints only field names and counts.
@@ -33,7 +33,9 @@ def check(run):
             continue
         scanned += 1
         walk(value, str(path.relative_to(run)), hits)
-    policy = json.loads((run / 'coordinator-native-offline/claim-policy.json').read_text())
+    # Browser runs keep it under coordinator-native-offline/, operator and
+    # two-party workspaces under the source operator's swap/.
+    policy = json.loads(next(run.rglob('claim-policy.json')).read_text())
     if hits or not {'alice_receiver', 'bob_receiver', 'joint_fvk'} <= set(policy):
         raise RuntimeError('receiving viewing key exposed: ' + ', '.join(hits[:5]))
     return {'scope': 'one finished local run', 'json_records_scanned': scanned,

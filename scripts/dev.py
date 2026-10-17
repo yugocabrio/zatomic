@@ -7,6 +7,7 @@ import os
 import platform
 import shutil
 import subprocess
+import time
 from regtest_node import ROOT, start, rpc, status
 
 
@@ -52,14 +53,18 @@ def setup():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['doctor', 'setup', 'demo', 'verify'])
+    parser.add_argument('action', choices=['doctor', 'setup', 'demo', 'two-party', 'verify'])
     action = parser.parse_args().action
     if action == 'doctor':
         raise SystemExit(0 if doctor() else 1)
-    if action in ('setup', 'demo'):
+    if action in ('setup', 'demo', 'two-party'):
         setup()
     if action == 'demo':
         os.execvp('python3', ['python3', str(ROOT / 'scripts/demo_server.py')])
+    if action == 'two-party':
+        # One trade per workspace, as with the operator CLI; each start is fresh.
+        workspace = ROOT / '.local' / time.strftime('two-party-%Y%m%d-%H%M%S')
+        os.execvp('python3', ['python3', str(ROOT / 'scripts/two_party.py'), str(workspace)])
     if action == 'verify':
         command('cargo', 'clippy', '--locked', '--all-targets', '-j', '2', '--', '-D', 'warnings')
         command('cargo', 'test', '--locked', '-j', '2')

@@ -16,6 +16,11 @@ browser. It re-ran success, stop-after-reveal and stop-before-reveal runs on the
 rebuilt signer; every replay sent zero new transactions. Same host, isolated
 chains; not an external audit.
 
+**Two-party mode, 2026-10-17:** separate sandboxed apps for Alice and Bob
+settled a trade (with Bob's app killed and restarted after the reveal) and a
+no-reveal refund. [Record](../evidence/2026-10-17-two-party.json),
+[how to run it](two-party.md). Same host; not separate administration.
+
 Latest additions after the original local release:
 [actual browser OTC success/refund](../evidence/2026-10-15-browser-otc.json),
 [isolated pinned deployment](../evidence/2026-10-15-public-deployment-integration.json),

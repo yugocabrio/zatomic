@@ -1,0 +1,66 @@
+{
+ "date": "2026-10-17",
+ "scope": "Two-party local demo: Alice and Bob each run their own app with only their own private roots, isolated by macOS sandbox-exec on one host. Isolated Zebra NU7 regtest and Anvil. Not independent administration, not a public network.",
+ "implementation": "scripts/two_party.py (network, relay, launcher), scripts/party_app.py (owner app over latch_operator.py), web/party.* and web/network.*",
+ "command": "make two-party (equivalently: python3 scripts/two_party.py .local/two-party-NAME)",
+ "native_binary_sha256": "678db3b825523768b3eef155b6ec2851df855003421e55b4e8f7b99b9168056b",
+ "isolation": {
+  "policy": "each app process tree: deny file-read*/file-write* on the other owner roots, the relay store and the network store",
+  "proof": "at launch, under each app policy, reading the other owner identity file raises PermissionError (both directions); shown as isolation_proven on the network page"
+ },
+ "relay": {
+  "messages_per_trade": 8,
+  "field_audit": "only identity public keys/certificates, quote and acceptance signatures, full terms, consent signatures, digests and txids; no receive address, viewing key, witness, note data or nonce"
+ },
+ "success_with_crash": {
+  "quote": {
+   "payout_zatoshi": 2000000,
+   "eth_amount_wei": 40000000000000000
+  },
+  "funding_txid": "7ffbabf163bf7a390f3355828b49a2500250643d7bea8f6a3bf28e3524a6992c",
+  "eth_lock": "0xce9525e66744ee35c62ced96ac04391b1db2374cc86001519e7cd10b09d65caf",
+  "eth_claim": "0xd325c0854983aa637760b5547a31be47e9fe54c92cc60207ae58c5852357750a",
+  "alice_withdraw": "0x68f4ca544377736549fe58a5b4a578c9cc2ab291993895fa2a627d5c80346c50",
+  "zec_claim": "e6ec1392684d66386e704243584b47cff9ac8b5002abc19b1a6a5957c854f8f0",
+  "zec_claim_state": "confirmed",
+  "zec_received": 2000000,
+  "eth_refund": null,
+  "bob_withdraw": null,
+  "zec_refund": null,
+  "zec_refund_state": null,
+  "zec_refunded": null,
+  "relay_messages": 8,
+  "flow": "trust both ways -> Alice quote -> Bob accept (signer online) -> Alice prepare (local faucet, DKG and presign over TLS) -> Bob consent -> Alice consent and fund -> Bob lock -> Alice claim (t public) -> Bob app SIGKILLed -> Alice withdraw -> Bob app restarted -> Bob ZEC claim confirmed and decrypted"
+ },
+ "refund": {
+  "quote": {
+   "payout_zatoshi": 1700000,
+   "eth_amount_wei": 33300000000000000
+  },
+  "funding_txid": "92371bf928111678278852e9c385a0b5bd4f3cef53572520aa0d47b861030548",
+  "eth_lock": "0x0b6b3fd71ea0d9402ac8f47d4b09b24b3e0fe19a2d4f324afd7c763fcb5adf3e",
+  "eth_claim": null,
+  "alice_withdraw": null,
+  "zec_claim": null,
+  "zec_claim_state": null,
+  "zec_received": null,
+  "eth_refund": "0xed715313f005cfc1d55067c67c42f58c7d2b15a7781f253f18a8acd9ffd076c5",
+  "bob_withdraw": "0x25a83059bf4ba4ac2e2d959958e6a3eddceef201d6e648c7537019e613c2aec1",
+  "zec_refund": "216738ae3c3e63c9bf1bae0a001e78e183100cef682f21d1b9f34efc85530f7b",
+  "zec_refund_state": "confirmed",
+  "zec_refunded": 1700000,
+  "relay_messages": 8,
+  "flow": "... -> Bob lock -> Alice does not claim -> network advances ETH time -> Bob refund and withdraw -> network mines past the refund height -> Alice native refund confirmed and decrypted",
+  "driver": "scratch script calling the same /api/act endpoints the pages use"
+ },
+ "receiver_privacy": "check_receiver_privacy.py: 0 receiving FVKs in both workspaces",
+ "network_restart": "network stopped and started again: Anvil state and escrow restored at the same address; apps resumed from their own files",
+ "limits": [
+  "one host and one administrator",
+  "the network process is a stand-in that mines regtest on demand and exposes labelled time controls",
+  "one trade per workspace",
+  "local chain RPC is trusted"
+ ],
+ "public_testnet": false,
+ "private_material_committed": false
+}
