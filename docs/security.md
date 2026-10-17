@@ -1,5 +1,12 @@
 # Security review and deployment limits
 
+**Second review, 2026-10-17:** [findings, fixes and verification](review-2026-10-17.md).
+It found and fixed a share-release-order flaw in the custom adaptor signing (S1).
+A coordinator run by Bob, or colluding with him, could combine a −T-shifted Bob
+nonce with Alice's raw claim share to complete claim C without the witness. Alice's
+signer now verifies Bob's share before releasing her own. See
+[the release-order rule](#adaptor-share-release-order) below.
+
 Latest targeted integration pass: [public and browser review](integration-review.md).
 The older review below remains a historical record. Neither review is an
 independent external audit or a proof of the custom adaptor composition.
@@ -54,6 +61,21 @@ itself a canonical agreement hash; native participants separately validate and
 persist the full transaction policy. This distinction was corrected in the
 library comment during review. The transaction sighash and later owner consent
 perform their respective cryptographic bindings.
+
+### Adaptor share release order
+
+Binding factors do not stop a peer from shifting its hiding commitment by `−T`
+(`D_B = d·G − T`). That peer can never produce a share that verifies. But the
+witness holder's raw share would then complete a valid native signature with
+`s = z_A + d + ρ_B·e + λ_B·c·(x_B + α)`, without `t`. Repeated sessions let a
+malicious coordinator hide this behind a later, honest pre-signature. The rule is
+therefore: **the witness holder releases her share only after the peer's share
+verifies against the same commitments.** `SigningSession::sign_after_peer` enforces
+this. Both signers (`participants.rs` and `public_presign.rs`) require `peer_share`
+for Alice. `Pair::sign` asks Bob first and checks his share before contacting Alice.
+Regression tests: `shifted_peer_nonce_cannot_obtain_witness_free_signature` and
+`scripts/check_share_release.py`. The latter passes on the current build and fails
+on the earlier one.
 
 `participants.rs` durably reserves an attempt before returning nonce commitments,
 consumes its live nonce before answering a signing request, and never serializes

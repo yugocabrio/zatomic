@@ -118,3 +118,144 @@ fn nonce_substitution_and_missing_participant_reject() {
             .is_err()
     );
 }
+
+/// A malicious co-signer shifts its hiding commitment by -T. Its own share can
+/// then never verify, but the honest holder's raw share alone would let it
+/// finish a valid native signature without t. The holder must check first.
+#[test]
+fn shifted_peer_nonce_cannot_obtain_witness_free_signature() {
+    let (keys, public) = keygen();
+    let alice = Identifier::try_from(1u16).unwrap();
+    let bob = Identifier::try_from(2u16).unwrap();
+    let t = pallas::Scalar::random(OsRng);
+    let point = generator() * t;
+    let ctx = Context {
+        session: [7; 32],
+        message: [8; 32],
+        randomizer: pallas::Scalar::random(OsRng).to_repr(),
+        adaptor_point: point.to_bytes(),
+    };
+    let (alice_nonce, alice_commitment) = Nonce::generate(&keys[&alice], &mut OsRng);
+    let (d, e) = (pallas::Scalar::random(OsRng), pallas::Scalar::random(OsRng));
+    let commitment =
+        |p: pallas::Point| round1::NonceCommitment::deserialize(&p.to_bytes()).unwrap();
+    let shifted = round1::SigningCommitments::new(
+        commitment(generator() * d - point),
+        commitment(generator() * e),
+    );
+    let session = SigningSession::new(
+        ctx.clone(),
+        public,
+        BTreeMap::from([(alice, alice_commitment), (bob, shifted)]),
+    )
+    .unwrap();
+    let rho = scalar(
+        &session
+            .factors
+            .get(&bob)
+            .unwrap()
+            .serialize()
+            .try_into()
+            .unwrap(),
+    )
+    .unwrap();
+    let lambda = frost_core::derive_interpolating_value(&bob, &session.package).unwrap();
+    let alpha = scalar(&ctx.randomizer).unwrap();
+    // Everything Bob can compute for his committed nonce; it is off by -t.
+    let bob_part =
+        d + rho * e + lambda * session.challenge * (keys[&bob].signing_share().to_scalar() + alpha);
+    assert!(session.verify_share(&bob, &bob_part.to_repr()).is_err());
+
+    // Enforced path: the holder refuses before producing any share.
+    assert!(
+        session
+            .sign_after_peer(&keys[&alice], alice_nonce, &bob, &bob_part.to_repr())
+            .is_err()
+    );
+
+    // Unprotected path, shown to justify the order: a released raw share is
+    // enough for Bob to complete a native-valid signature without knowing t.
+    let (fresh_nonce, fresh_commitment) = Nonce::generate(&keys[&alice], &mut OsRng);
+    let session = SigningSession::new(
+        ctx.clone(),
+        session.public.clone(),
+        BTreeMap::from([
+            (alice, fresh_commitment),
+            (
+                bob,
+                round1::SigningCommitments::new(
+                    commitment(generator() * d - point),
+                    commitment(generator() * e),
+                ),
+            ),
+        ]),
+    )
+    .unwrap();
+    let rho = scalar(
+        &session
+            .factors
+            .get(&bob)
+            .unwrap()
+            .serialize()
+            .try_into()
+            .unwrap(),
+    )
+    .unwrap();
+    let bob_part =
+        d + rho * e + lambda * session.challenge * (keys[&bob].signing_share().to_scalar() + alpha);
+    let alice_share = session.sign(&keys[&alice], fresh_nonce).unwrap();
+    let mut forged = [0; 64];
+    forged[..32].copy_from_slice(&session.r_hat.to_bytes());
+    forged[32..].copy_from_slice(&(scalar(&alice_share).unwrap() + bob_part).to_repr());
+    let key: [u8; 32] = session
+        .randomized_key
+        .serialize()
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let vk = reddsa::VerificationKey::<reddsa::orchard::SpendAuth>::try_from(key).unwrap();
+    assert!(
+        vk.verify(&ctx.message, &reddsa::Signature::from(forged))
+            .is_ok()
+    );
+}
+
+#[test]
+fn peer_first_release_order_signs_honest_sessions() {
+    let (keys, public) = keygen();
+    let alice = Identifier::try_from(1u16).unwrap();
+    let bob = Identifier::try_from(2u16).unwrap();
+    let t = pallas::Scalar::random(OsRng);
+    let ctx = Context {
+        session: [9; 32],
+        message: [10; 32],
+        randomizer: pallas::Scalar::random(OsRng).to_repr(),
+        adaptor_point: (generator() * t).to_bytes(),
+    };
+    let (an, ac) = Nonce::generate(&keys[&alice], &mut OsRng);
+    let (bn, bc) = Nonce::generate(&keys[&bob], &mut OsRng);
+    let session =
+        SigningSession::new(ctx, public, BTreeMap::from([(alice, ac), (bob, bc)])).unwrap();
+    let bz = session.sign(&keys[&bob], bn).unwrap();
+    let mut wrong = bz;
+    wrong[0] ^= 1;
+    assert!(session.verify_share(&bob, &wrong).is_err());
+    assert!(
+        session
+            .sign_after_peer(
+                &keys[&alice],
+                Nonce::generate(&keys[&alice], &mut OsRng).0,
+                &alice,
+                &bz
+            )
+            .is_err()
+    );
+    let az = session
+        .sign_after_peer(&keys[&alice], an, &bob, &bz)
+        .unwrap();
+    let pre = session
+        .aggregate(&BTreeMap::from([(alice, az), (bob, bz)]))
+        .unwrap();
+    let signature = pre.adapt(&t.to_repr()).unwrap();
+    assert_eq!(pre.extract(&signature).unwrap(), t.to_repr());
+}

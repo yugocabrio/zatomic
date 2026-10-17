@@ -43,17 +43,22 @@ oracle deciding the exchange outcome or custodial exchange account.
 - [Evidence by guarantee level](evidence-index.md)
 - [Exact reproduction commands](reproduce.md)
 - [Protocol and transaction order](protocol.md)
-- [Security review and assumptions](security.md)
+- [Security review and assumptions](security.md) and the
+  [second review with its fixed signing-order flaw](review-2026-10-17.md)
 - [Repository](https://github.com/yugocabrio/zeceth)
 
-The browser uses fixed demonstration amounts; the CLI supports signed
-peer-selected amounts. There is no market feed, order book or counterparty
-discovery service. Full setup/proving can take minutes: a two-minute presentation
-uses a clearly labeled edited sequence of actual screen checkpoints.
+The browser and the CLI both use exact peer-selected amounts. Alice signs the
+quote, Bob reviews and signs his acceptance, and funding is a separate approval.
+There is no market feed, order book or counterparty discovery service. A local
+run takes about two and a half minutes on this machine, most of it proving.
+The earlier two-minute presentation is a clearly labeled edit of actual screen
+checkpoints.
 
 ## Honest limits
 
-All executed swaps use isolated chains. Public-testnet wallet/observation and
+All executed swaps use isolated chains. A second internal review found and fixed
+a release-order flaw in the custom adaptor signing (see the review above). It is
+not an external audit. Public-testnet wallet/observation and
 recovery preparation and explicit sender entry points are implemented, but the
 complete positive path has not run with funded public inputs. Independently administered hosts have not
 been demonstrated. The custom adaptor composition is unaudited; the arithmetic

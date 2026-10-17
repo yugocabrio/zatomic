@@ -2,6 +2,8 @@
 
 **P2P OTC swaps of shielded ZEC for ETH, with recovery prepared before funding.**
 
+![Latch: swap shielded ZEC for ETH without a bridge](docs/images/ui-hero.png)
+
 Latch is an independent ZECATHON Cross-chain prototype. Two participants prepare
 native shielded claim and refund transactions using a custom RedPallas adaptor
 signature. A scalar revealed to an immutable ETH escrow completes the Zcash
@@ -37,12 +39,15 @@ make doctor
 make demo
 ```
 
-Open **http://127.0.0.1:8787**. Enter exact ZEC/ETH amounts, have Alice sign and
-Bob accept the offer, then separately prepare exits and fund. The demo creates
-disposable local test funds (up to 1 ZEC / 10 ETH per quote). Choose a scenario
-and use **Restart & recover** after an intentional stop. Setup uses
-pinned dependencies and an isolated, ownership-labeled node. It never touches
-another project's wallet or chain.
+Open **http://127.0.0.1:8787**. Enter exact amounts and click **Sign quote as
+Alice**. Bob reviews the signed terms (amounts, price, fees, ETH recipient) and
+clicks **Accept as Bob**. **Authorize and fund** then prepares both exits, collects
+both owners' full-term signatures and funds. The demo creates disposable local
+test funds (up to 1 ZEC / 10 ETH per quote). Pick a demo outcome to stop after
+or before the reveal, then use **Restart and recover**. A run takes about two and
+a half minutes here, mostly proving. Setup uses pinned dependencies and an
+isolated, ownership-labeled node. It never touches another project's wallet or
+chain.
 
 For peer-selected amounts, use the [OTC offer/accept CLI](docs/otc-offers.md).
 It supports exact decimal amounts and signed quotes between separately pinned
@@ -64,6 +69,7 @@ python3 scripts/demo_server.py
 ## Inspect the work
 
 - [Start here: evidence by guarantee level](docs/evidence-index.md)
+- [Second review (2026-10-17): fixed adaptor share-release flaw, UI redesign, re-verification](docs/review-2026-10-17.md)
 - [Submission draft](docs/submission.md) and [two-minute presentation](docs/demo-walkthrough.md#two-minute-presentation)
 - [Reproduction and CLI gates](docs/reproduce.md)
 - [Protocol, assumptions and recovery graph](docs/protocol.md)
@@ -111,7 +117,9 @@ unrevealed scalar. Browser recovery restarts the same owner clients. Older saved
 runs retain their original recovery driver. Independent-host wallet operation
 is not demonstrated. A separate operator gate enforces private-root file access
 denials on the same host; this is not a hardened machine sandbox or independent
-administration. The custom adaptor extension is unaudited.
+administration. The custom adaptor extension is unaudited. A second internal review
+fixed a share-release-order flaw: Alice's signer now verifies Bob's share before
+releasing hers ([details](docs/review-2026-10-17.md)).
 The swap requires monitoring and bounded inclusion/reorg assumptions; it is not
 safe against an arbitrarily long outage. Local controlled heights/times are not
 public-network timing defaults. Mainnet is unsupported.

@@ -157,7 +157,13 @@ pub fn serve(dir: &Path) -> Result<()> {
                     public.clone(),
                     BTreeMap::from([(mine, ours), (peer_id, theirs)]),
                 )?;
-                json!({"share":hex::encode(session.sign(&key,nonce)?)})
+                // The witness owner releases only after the peer share verifies.
+                let share = if id == 1 {
+                    session.sign_after_peer(&key, nonce, &peer_id, &decode(&req, "peer_share")?)?
+                } else {
+                    session.sign(&key, nonce)?
+                };
+                json!({"share":hex::encode(share)})
             }
             _ => return Err("unsupported public signer request".into()),
         };

@@ -31,9 +31,16 @@ def describe(directory):
     # floating point. The immutable accepted record survives moving owner roots.
     checked=native('otc-verify-acceptance' if accepted else 'otc-verify-offer',directory/('accepted.json' if accepted else 'offer.json'))
     summary=otc_offer.summary(packet,checked)
+    payload=packet['offer']['payload']
+    # Only public quote fields: amounts, fixed fees, chain domain and the two
+    # signers' ETH identities that Bob must recognize before accepting.
     return {'zec_amount':summary['zec_received_by_bob'],'eth_amount':summary['eth_received_by_alice'],
         'quote_digest':summary['quote_digest'],'alice_signed':True,'bob_accepted':accepted,
-        'funding_authorized':False}
+        'funding_authorized':False,'indicative_eth_per_zec':summary['indicative_eth_per_zec'],
+        'claim_fee_zec':otc_offer.decimal_amount(payload['claim_fee_zatoshi'],8),
+        'refund_aux_fee_zec':otc_offer.decimal_amount(payload['refund_aux_fee_zatoshi'],8),
+        'alice_address':payload['owners']['alice']['address'],'bob_address':payload['owners']['bob']['address'],
+        'eth_chain_id':payload['eth_chain_id']}
 
 
 def accept(directory):

@@ -463,7 +463,15 @@ pub fn serve(dir: &Path, id: u16) -> Result<()> {
                     public.as_ref().ok_or("DKG incomplete")?.clone(),
                     BTreeMap::from([(my_id, ours), (peer_id, theirs)]),
                 )?;
-                let share = session.sign(key.as_ref().ok_or("DKG incomplete")?, n)?;
+                let key = key.as_ref().ok_or("DKG incomplete")?;
+                // Alice holds the claim witness. She releases her share only
+                // after Bob's verifies, so no coordinator can hand Bob a share
+                // that completes C without t (see sign_after_peer).
+                let share = if id == 1 {
+                    session.sign_after_peer(key, n, &peer_id, &decode(&request, "peer_share")?)?
+                } else {
+                    session.sign(key, n)?
+                };
                 json!({"share":hex::encode(share)})
             }
             Some("accept_bundle") => {
@@ -662,16 +670,21 @@ impl Pair {
             self.public.clone(),
             BTreeMap::from([(ia, ac), (ib, bc)]),
         )?;
-        let az = self
-            .alice
-            .request(json!({"command":"sign","ours":a["commitment"],"theirs":b["commitment"]}))?;
+        // Bob first. Alice's signer independently verifies his share before
+        // releasing hers; the coordinator check here only fails earlier.
         let bz = self
             .bob
             .request(json!({"command":"sign","ours":b["commitment"],"theirs":a["commitment"]}))?;
+        let bob_share = decode(&bz, "share")?;
+        session.verify_share(&ib, &bob_share)?;
+        let az = self
+            .alice
+            .request(json!({"command":"sign","ours":a["commitment"],
+            "theirs":b["commitment"],"peer_share":hex::encode(bob_share)}))?;
         Ok((
             session.aggregate(&BTreeMap::from([
                 (ia, decode(&az, "share")?),
-                (ib, decode(&bz, "share")?),
+                (ib, bob_share),
             ]))?,
             a["index"].as_u64().ok_or("sign index")? as usize,
         ))

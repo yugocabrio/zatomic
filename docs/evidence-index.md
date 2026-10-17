@@ -9,6 +9,13 @@ not an auditor's attestation or a self-contained blockchain proof. Local txids
 will not resolve in a public block explorer. Reproduction requires fresh private
 test wallets; the original keys, notes and journals are deliberately excluded.
 
+**Second review, 2026-10-17:** [report](review-2026-10-17.md) and
+[record](../evidence/2026-10-17-second-review.json). It fixed an adaptor
+share-release flaw (Alice now verifies Bob's share first) and redesigned the
+browser. It re-ran success, stop-after-reveal and stop-before-reveal runs on the
+rebuilt signer; every replay sent zero new transactions. Same host, isolated
+chains; not an external audit.
+
 Latest additions after the original local release:
 [actual browser OTC success/refund](../evidence/2026-10-15-browser-otc.json),
 [isolated pinned deployment](../evidence/2026-10-15-public-deployment-integration.json),

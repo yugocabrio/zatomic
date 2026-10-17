@@ -1,0 +1,263 @@
+{
+ "date": "2026-10-17",
+ "scope": "Second internal review on one host, isolated Zebra NU7 regtest + Anvil. Not an external audit, formal proof or public-network result.",
+ "base_commit": "43a0f69 plus the uncommitted demo_server.py/demo_otc.py changes found in the tree",
+ "versions": {
+  "rustc": "1.93.0",
+  "forge_anvil": "1.3.1-stable",
+  "python": "3.14.6",
+  "node": "24.12.0",
+  "zebra_container_image": "ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55"
+ },
+ "native_binary_sha256": {
+  "rebuilt": "0feb35f4a356127fc4462e8c7b83a648f28a7862d4feb68f92f52be936b2fcb2",
+  "pre_review": "ca563800afec54fe5b26205e80a4d76f587ab05bb27dc2500178f0d8d7cdb758"
+ },
+ "finding_s1": {
+  "severity": "high for a coordinator not run by Alice; not exploitable in the shipped Alice-coordinated browser flow",
+  "summary": "The adaptor-witness holder released her claim share without verifying the peer share. A -T shifted peer hiding commitment then yields a native-valid claim signature without t; a later honest session can supply Alice a valid bundle.",
+  "fix": "SigningSession::verify_share/sign_after_peer; Bob signs first; both Alice signers require a verifying peer_share",
+  "regression": {
+   "unit": [
+    "shifted_peer_nonce_cannot_obtain_witness_free_signature",
+    "peer_first_release_order_signs_honest_sessions"
+   ],
+   "process": {
+    "command": "python3 scripts/check_share_release.py .local/share-release-NEW .local/public-review-002 [binary]",
+    "rebuilt_binary": {
+     "missing_peer_share_refused": true,
+     "invalid_peer_share_refused": true,
+     "valid_peer_first_share_released": true,
+     "consumed_attempts": {
+      "alice": 3,
+      "bob": 3
+     }
+    },
+    "pre_review_binary": "FAILED: Alice released a claim share without a peer share"
+   }
+  }
+ },
+ "commands": {
+  "cargo fmt --all -- --check": "pass",
+  "cargo clippy --workspace --all-targets --locked -j 4 -- -D warnings": "pass",
+  "cargo test --workspace --locked -j 4": "pass: crypto 5/5, native 2 passed 2 ignored",
+  "forge test": "22 passed",
+  "audit_transcript + scripts/verify_crypto_transcript.py": {
+   "transcripts": 3,
+   "signature_and_share_equations": true,
+   "binding_factor_context_verified": true,
+   "witness_extraction_verified": true,
+   "solidity_vectors_cross_checked": 15
+  },
+  "python3 scripts/check_swap_model.py": {
+   "safe_cases": 84
+  },
+  "python3 scripts/check_public_presign.py .local/public-presign-review-1017 .local/public-review-002": "pass on rebuilt binary (both adaptor presignatures verified, SIGKILL nonce burn, saved replay)",
+  "python3 scripts/check_demo_boundary.py": "20/20 rejected; private state not exposed",
+  "python3 scripts/prefunding_swap.py recover RUN (completed runs)": {
+   "1792255564106-08c0a573": {
+    "new_native_transactions": 0,
+    "new_evm_transactions": 0
+   },
+   "1792254607021-1d83a40e": {
+    "new_native_transactions": 0,
+    "new_evm_transactions": 0
+   },
+   "1792255821266-e2586289": {
+    "new_native_transactions": 0,
+    "new_evm_transactions": 0
+   },
+   "1792256547015-956475c2": {
+    "new_native_transactions": 0,
+    "new_evm_transactions": 0
+   }
+  }
+ },
+ "browser_runs": {
+  "old_ui_success": {
+   "browser_run": "1792254415797-ee5b53e8",
+   "signer_binary": "pre-review",
+   "scenario": "success",
+   "signed_quote": {
+    "zec_amount": "0.042",
+    "eth_amount": "0.0777",
+    "quote_digest": "cd25ca8ab21752d14dfd345e56fd6cb6d27fe5303a049b1a30c44ca149c14aff"
+   },
+   "stage_records": [
+    "00-funding-preview-rejected",
+    "01-authorized",
+    "01-consented",
+    "01-prepared",
+    "02-funded",
+    "04-eth-locked",
+    "05-eth-claimed",
+    "06-zec-claimed",
+    "08-complete"
+   ],
+   "txids": {
+    "02-funded": "cfc4514cdfc8ec3566248743976c9bf0ea9fddfa021b5083f0a1e24e44dc3052",
+    "04-eth-locked": "0x06672077ec2cc635c51bc5cf2e13db1d64c49e37abc31e35fa6e184985753687",
+    "05-eth-claimed": "0x4c76afae4c6759c8fe4da063f37b264b2d133d5d9f9d7066e4257f50226a9ef1",
+    "06-zec-claimed": "bdc4868017f325d21eb6ea04b5b1975123d12c40387b73e7c10d252f31549aea"
+   },
+   "eth_withdraw_tx": "0xb7c1fb8179813f68c07df5771882f41b881b15baf12ce983895ac2d4f339401f",
+   "mode": "success",
+   "native_amount_zatoshi": 4200000,
+   "eth_wei_received": 77700000000000000,
+   "elapsed_seconds": 144
+  },
+  "old_ui_stop_after_reveal_recovered_in_new_ui": {
+   "browser_run": "1792254607021-1d83a40e",
+   "signer_binary": "pre-review (run); recovery needs no signing session",
+   "scenario": "claim-stop",
+   "signed_quote": {
+    "zec_amount": "0.031",
+    "eth_amount": "0.05",
+    "quote_digest": "e3ce45110944fac99993048ce7625b645e0e1630c67fc5416e4dc5a0acf6f195"
+   },
+   "stage_records": [
+    "00-funding-preview-rejected",
+    "01-authorized",
+    "01-consented",
+    "01-prepared",
+    "02-funded",
+    "04-eth-locked",
+    "05-eth-claimed",
+    "06-zec-claimed",
+    "08-complete",
+    "09-recovered"
+   ],
+   "txids": {
+    "02-funded": "516cf29f91a175323f5d47ec7f2f3cca4d2a3f5e3ab7f8e71ee729e00abd6100",
+    "04-eth-locked": "0x7a9636ddc53dfc04a330e00f9a9e14847a57e60bb65bc2e628adfe65eb5e8241",
+    "05-eth-claimed": "0x8ef44c66978c633e4d2d293ff556494fbf127e343cdbc4e44508cc7dddd8b763",
+    "06-zec-claimed": "15283fc4c7cc020a7bc4d15d5ca5000478b7e8383a2c39dfef96c0d94ab0b829"
+   },
+   "eth_withdraw_tx": "0x1f265eecf48763f6f85ff11db524f35069273fdaaa77fa8d2a01a8a096654b6b",
+   "mode": "success",
+   "native_amount_zatoshi": 3100000,
+   "eth_wei_received": 50000000000000000
+  },
+  "new_ui_success": {
+   "browser_run": "1792255564106-08c0a573",
+   "signer_binary": "rebuilt",
+   "scenario": "success",
+   "signed_quote": {
+    "zec_amount": "0.07777777",
+    "eth_amount": "1.234567890123456789",
+    "quote_digest": "8c26d2476be52721f78b9e97e402fd90ceaa8e6b0453e74eb6620dfbbac7cb62"
+   },
+   "stage_records": [
+    "00-funding-preview-rejected",
+    "01-authorized",
+    "01-consented",
+    "01-prepared",
+    "02-funded",
+    "04-eth-locked",
+    "05-eth-claimed",
+    "06-zec-claimed",
+    "08-complete",
+    "09-recovered"
+   ],
+   "txids": {
+    "02-funded": "15035be94dbd9e59fd965577b2d3e4ba58f27f9706f2d14c6fd4592d68ff01df",
+    "04-eth-locked": "0xc0ed10093803d8b05524818a494be53b2e4240e66e013fe87d63d5b3f65f3937",
+    "05-eth-claimed": "0xe13795938e39f3a7636133465496f6ed5dcbeb65a63dc898a6335bc2a52b13b6",
+    "06-zec-claimed": "c17c867eb5638bef3c207fd0934fe74d806a2998a1e987db9fc6b64bcad9f204"
+   },
+   "eth_withdraw_tx": "0x4bfafa50a51a375d1c2228d1a08fbd08aa4c461183296bdceff97c8ab5a6c63c",
+   "mode": "success",
+   "native_amount_zatoshi": 7777777,
+   "eth_wei_received": 1234567890123456789,
+   "elapsed_seconds": 150
+  },
+  "new_ui_stop_before_reveal_refund": {
+   "browser_run": "1792255821266-e2586289",
+   "signer_binary": "rebuilt",
+   "scenario": "refund-stop",
+   "signed_quote": {
+    "zec_amount": "0.05",
+    "eth_amount": "0.0333",
+    "quote_digest": "dc4dcfa4a3cbf21395e2689da193cf970c3659c4b2d43f0033e6e1000e0af6f6"
+   },
+   "stage_records": [
+    "00-funding-preview-rejected",
+    "01-authorized",
+    "01-consented",
+    "01-prepared",
+    "02-funded",
+    "04-eth-locked",
+    "05-eth-refunded",
+    "06-zec-refunded",
+    "08-complete",
+    "09-recovered"
+   ],
+   "txids": {
+    "02-funded": "e0d249b33e61b45d57ec44eef13676c4dddbd588f574ac864efae0fbd88dd19b",
+    "04-eth-locked": "0x8b85c2422e3f0d94576a4337ef5defb0aa4bcf6312b2360539a51ea9029b056c",
+    "05-eth-refunded": "0x99e91578b4b19d1cfd3d412ca42bf8b12324e6c61a6d69fabe48927e2f209e08",
+    "06-zec-refunded": "408e528126b79e2c20d250072ff573802c928009549da8059ea511747282d3b3"
+   },
+   "eth_withdraw_tx": "0x4851931f70ebad78d813bb5b7ca605ba8e90777bb02788cfc0f45cff04f6117a",
+   "mode": "refund",
+   "native_amount_zatoshi": 5000000,
+   "eth_wei_received": 33300000000000000
+  },
+  "new_ui_stop_after_reveal_claim": {
+   "browser_run": "1792256547015-956475c2",
+   "signer_binary": "rebuilt",
+   "scenario": "claim-stop",
+   "signed_quote": {
+    "zec_amount": "0.02",
+    "eth_amount": "0.04321",
+    "quote_digest": "37659ccdaf47bd6a09001bc6c6b2a1cf9239715c88d425b3d6f6bab2f2d6aebe"
+   },
+   "stage_records": [
+    "00-funding-preview-rejected",
+    "01-authorized",
+    "01-consented",
+    "01-prepared",
+    "02-funded",
+    "04-eth-locked",
+    "05-eth-claimed",
+    "06-zec-claimed",
+    "08-complete",
+    "09-recovered"
+   ],
+   "txids": {
+    "02-funded": "fd3f047de845fba397d1fdb23a6857eff4945128f2514d4f5d75ab890e680ab4",
+    "04-eth-locked": "0x8bcde6fe21998168e1ffc672b5cfff9604389f9fc919e64ce6f9299e3bf323eb",
+    "05-eth-claimed": "0x807822d9b1231045d5926b8cda6db74883da966357370f68946228ce24825222",
+    "06-zec-claimed": "23c133fc0a51b0ef272d7ff5226006824aa76db583d6c1a8927abd6fbd0f9a2b"
+   },
+   "eth_withdraw_tx": "0xf6524284fc519474fcdcd59425b0e9b7550f9a93c1f1c44bcb101d5df5c49f1d",
+   "mode": "success",
+   "native_amount_zatoshi": 2000000,
+   "eth_wei_received": 43210000000000000
+  }
+ },
+ "browser_render_only_states": [
+  "cancellable setup",
+  "unrecoverable error without committed state",
+  "cancelled offer",
+  "funding-only refund",
+  "server offline"
+ ],
+ "browser_render_only_note": "Rendered by overriding fetch in the page console with a synthetic snapshot; no run, no files written.",
+ "screenshots": [
+  "docs/images/ui-hero.png",
+  "docs/images/ui-review.png",
+  "docs/images/ui-stopped-after-reveal.png",
+  "docs/images/ui-refund-recovered.png"
+ ],
+ "not_reproduced": [
+  "EVM and native fork/reorg suites",
+  "SIGKILL suites",
+  "clean-checkout build",
+  "independent-operator sandbox gate",
+  "public read-only probes",
+  "any public-testnet transaction"
+ ],
+ "private_material_committed": false,
+ "public_testnet": false
+}

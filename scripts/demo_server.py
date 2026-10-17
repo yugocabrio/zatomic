@@ -25,6 +25,17 @@ STAGES = ('00-funding-preview-rejected', '01-prepared', '01-consented', '01-auth
           '05-eth-claimed', '05-eth-refunded', '06-zec-claimed', '06-zec-refunded',
           '07-conflicting-refund-rejected', '08-complete', '09-recovered')
 PUBLIC_EVIDENCE = {p.name: p for p in (ROOT / 'evidence').glob('*.json')}
+# Any of these means funds or a source reservation may exist: such a run must be
+# recovered (or cancelled) before either chain advances for a new offer.
+COMMITTED = ('source-setup.json', 'swap/terms.json', '02-funded.json', 'owner-flow.json')
+# Fields stored in job.json. Everything else in a snapshot is derived from the
+# run directory on every read, so stale derived flags are never persisted.
+PERSISTED = ('id', 'state', 'quote', 'driver', 'scenario', 'started_at', 'recovery_started_at', 'updated_at', 'exit_code')
+QUOTE_BINDING = ('zec_amount', 'eth_amount', 'quote_digest', 'alice_signed', 'bob_accepted')
+
+
+def persisted(job):
+    return {key: job[key] for key in PERSISTED if key in job}
 
 
 def atomic(path, value):
@@ -107,7 +118,18 @@ class Manager:
             checkpoint |= (run / 'source-release.json').exists()
         checkpoint |= job['cancellable_setup']
         job['recoverable'] = checkpoint and job['state'] not in ('running', 'recovering')
+        job['blocks_new_offer'] = job['state'] != 'complete' and any((run / name).exists() for name in COMMITTED)
         job['eth_setup_started'] = (run / 'agreement.json').exists()
+        # Existence-only progress inside the long first stage. No file content,
+        # names of private artifacts or paths leave the server.
+        # The intent flags tell the browser which recovery route applies: a
+        # claim intent means the witness may be public, so no refund fallback.
+        job['milestones'] = {'setup_started': (run / 'setup.json').exists(),
+            'dkg_complete': any((run / d / 'joint-fvk.bin').exists() for d in ('swap', 'coordinator-native-offline')),
+            'escrow_deployed': (run / 'agreement.json').exists(),
+            'source_released': (run / 'source-release.json').exists(),
+            'lock_intent': (run / 'owners/bob/eth-intent-lock.json').exists(),
+            'claim_intent': (run / 'owners/alice/eth-intent-claim.json').exists()}
         complete = next((e['value'] for e in job['events'] if e['stage'] == '08-complete'), {})
         if 'native_amount_zatoshi' in complete and 'eth_wei_received' in complete:
             job['settled_amounts'] = {'zec': decimal_amount(complete['native_amount_zatoshi'], 8),
@@ -119,8 +141,11 @@ class Manager:
             self.check_node()
             jobs = [self.one(p) for p in self.records()[:30]]
             ready = self.node['available'] and (ROOT / 'target/release/shielded-swap-native').is_file() and (ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json').is_file() and bool(shutil.which('anvil')) and bool(shutil.which('cast'))
+            # Probing takes the driver flock for an instant; never do it while our
+            # own runner may be acquiring it, or that runner could fail to start.
+            busy = (self.worker is not None and self.worker.is_alive()) or driver_busy()
             return {'token': self.token, 'node': self.node, 'ready': ready,
-                    'busy': driver_busy(), 'jobs': jobs,
+                    'busy': busy, 'jobs': jobs,
                     'evidence': sorted(PUBLIC_EVIDENCE),
                     'scope': 'Real transactions on isolated local chains. No mainnet or public-testnet claim.'}
 
@@ -135,11 +160,8 @@ class Manager:
         with self.lock:
             if self.worker is not None and self.worker.is_alive() or driver_busy():
                 raise ValueError('A chain operation is active.')
-            for old in self.records():
-                recorded = self.one(old); old_run = old.parent / 'run'
-                if recorded['state'] != 'complete' and any((old_run / name).exists() for name in
-                        ('source-setup.json', 'swap/terms.json', '02-funded.json', 'owner-flow.json')):
-                    raise ValueError('Recover the existing run before creating another offer.')
+            if any(self.one(old)['blocks_new_offer'] for old in self.records()):
+                raise ValueError('Recover the existing run before creating another offer.')
             # Canonical parser rejects floats, exponents and excess precision.
             demo_otc.otc_offer.units(body.get('zec_amount'), 8, 100_000_000)
             demo_otc.otc_offer.units(body.get('eth_amount'), 18, 10*10**18)
@@ -156,8 +178,8 @@ class Manager:
             if job['state'] not in ('offered', 'accepted'):
                 raise ValueError('Only an unfunded offer can be accepted.')
             job['quote'] = demo_otc.accept(path.parent / 'quote')
-            job['state'] = 'accepted'; job.pop('events', None)
-            atomic(path, job)
+            job['state'] = 'accepted'
+            atomic(path, persisted(job))
             return identifier
 
     def start(self, scenario, recovery_id=None, quote_id=None):
@@ -173,9 +195,7 @@ class Manager:
                 job = self.one(path)
                 if not job['recoverable']:
                     raise ValueError('No supported recovery checkpoint. See the local recovery guide.')
-                job.pop('events', None)
-                job.pop('recoverable', None)
-                job['state'] = 'recovering'
+                job.update(state='recovering', recovery_started_at=int(time.time()))
                 if job.get('driver') in ('owner-consent-v2','owner-consent-v3'):
                     args = ['python3', str(ROOT / 'scripts/prefunding_swap.py'), 'recover', str(path.parent / 'run')]
                 elif job.get('driver') == 'owner-clients-v1':
@@ -187,23 +207,20 @@ class Manager:
                     raise ValueError('Choose one of the three supported scenarios.')
                 if not self.snapshot()['ready']:
                     raise ValueError('Local dependencies are not ready. Follow docs/reproduce.md.')
-                for old in self.records():
-                    recorded = self.one(old)
-                    old_run = old.parent / 'run'
-                    funded = any((old_run / name).exists() for name in
-                        ('source-setup.json', 'swap/terms.json', '02-funded.json', 'owner-flow.json'))
-                    if recorded['state'] != 'complete' and funded:
-                        raise ValueError('Recover the existing funded run before advancing either chain.')
+                if any(self.one(old)['blocks_new_offer'] for old in self.records()):
+                    raise ValueError('Recover the existing funded run before advancing either chain.')
                 path = self.quote_path(quote_id)
                 job = self.one(path)
                 if job['state'] != 'accepted' or not job.get('quote', {}).get('bob_accepted'):
                     raise ValueError('Bob must review and accept the signed offer before funding.')
                 folder = path.parent
                 summary = demo_otc.describe(folder / 'quote')
-                if summary != job['quote'] or not summary['bob_accepted']:
+                if (any(summary.get(k) != job['quote'].get(k) for k in QUOTE_BINDING)
+                        or not summary['bob_accepted']):
                     raise ValueError('Accepted offer changed; no funding authorized.')
                 job.update(scenario=scenario, state='running', started_at=int(time.time()))
-                job.pop('events', None)
+                job.pop('updated_at', None)
+                job.pop('recovery_started_at', None)
                 mode, fault = SCENARIOS[scenario]
                 args = ['python3', str(ROOT / 'scripts/prefunding_swap.py'), mode, str(folder / 'run'),
                         '--accepted-quote', str(folder / 'quote')]
@@ -222,6 +239,7 @@ class Manager:
                                 break
                 if fault:
                     args += ['--fault-after', fault]
+            job = persisted(job)
             atomic(path, job)
             self.worker = threading.Thread(target=self.execute, args=(path, job, args), daemon=True)
             self.worker.start()

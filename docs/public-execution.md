@@ -11,6 +11,13 @@ human's explicit authorization.** No public broadcast was performed while
 preparing this milestone. Read-only observations are permitted. Do not execute
 commands with `--broadcast-testnet` until that authorization exists.
 
+**Signer version (2026-10-17):** both owners must run a native binary that
+includes the share-release fix ([review S1](review-2026-10-17.md)). Rebuild with
+`cargo build --locked --release -p shielded-swap-native` and run
+`scripts/check_share_release.py` on a synthetic review fixture before presigning.
+The new coordinator asks Bob first and passes his share to Alice. A new Alice
+signer refuses coordinators that skip this step.
+
 ## Funding and exact deployment
 
 The current private manifest is `.local/public-launch-001/launch-plan.json` and

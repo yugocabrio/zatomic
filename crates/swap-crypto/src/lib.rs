@@ -149,25 +149,59 @@ impl SigningSession {
         Ok(z.to_repr())
     }
 
+    /// Release order for the adaptor-witness holder. A peer whose hiding
+    /// commitment is shifted by -T makes Rhat's discrete log known to itself,
+    /// so the holder's raw share would complete the native signature WITHOUT
+    /// the witness. Such a peer cannot produce a share that verifies here.
+    /// The holder therefore checks the peer's share before releasing its own.
+    /// Consumes the nonce even on error.
+    pub fn sign_after_peer(
+        &self,
+        key: &keys::KeyPackage,
+        nonce: Nonce,
+        peer: &Identifier,
+        peer_share: &[u8; 32],
+    ) -> Result<[u8; 32]> {
+        if peer == key.identifier() {
+            return Err("peer share must come from the other participant".into());
+        }
+        self.verify_share(peer, peer_share)?;
+        self.sign(key, nonce)
+    }
+
+    /// `z G == D + rho E + lambda c (Y + alpha G)` for one participant.
+    pub fn verify_share(&self, id: &Identifier, share: &[u8; 32]) -> Result<pallas::Scalar> {
+        let z = scalar(share)?;
+        let alpha = scalar(&self.context.randomizer)?;
+        let rho = self.factors.get(id).ok_or("missing binding factor")?;
+        let r = self
+            .package
+            .signing_commitments()
+            .get(id)
+            .ok_or("unknown participant")?
+            .to_group_commitment_share(rho)
+            .to_element();
+        let lambda = frost_core::derive_interpolating_value(id, &self.package).map_err(error)?;
+        let y = self
+            .public
+            .verifying_shares()
+            .get(id)
+            .ok_or("unknown participant")?
+            .to_element()
+            + generator() * alpha;
+        if generator() * z != r + y * (lambda * self.challenge) {
+            return Err("invalid signature share".into());
+        }
+        Ok(z)
+    }
+
     pub fn aggregate(&self, shares: &BTreeMap<Identifier, [u8; 32]>) -> Result<PreSignature> {
         if shares.len() != 2 || !shares.keys().eq(self.public.verifying_shares().keys()) {
             return Err("both signature shares are required".into());
         }
-        let alpha = scalar(&self.context.randomizer)?;
         let mut total = pallas::Scalar::zero();
         for (id, bytes) in shares {
-            let z = scalar(bytes)?;
-            let rho = self.factors.get(id).ok_or("missing binding factor")?;
-            let r = self.package.signing_commitments()[id]
-                .to_group_commitment_share(rho)
-                .to_element();
-            let lambda =
-                frost_core::derive_interpolating_value(id, &self.package).map_err(error)?;
-            let y = self.public.verifying_shares()[id].to_element() + generator() * alpha;
-            if generator() * z != r + y * (lambda * self.challenge) {
-                return Err("invalid signature share".into());
-            }
-            total += z;
+            total += self.verify_share(id, bytes)?;
         }
         let pre = PreSignature {
             r_hat: self.r_hat.to_bytes(),
