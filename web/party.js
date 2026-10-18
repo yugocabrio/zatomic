@@ -104,7 +104,7 @@ function render() {
   document.body.dataset.role = view.role;
   setText('#role-chip', NAMES[view.role]);
   setText('#holds', `This app holds only ${view.role === 'alice' ? 'Alice' : 'Bob'}’s keys`);
-  document.title = `Latch — ${view.role === 'alice' ? 'Alice' : 'Bob'}`;
+  document.title = `Zatomic — ${view.role === 'alice' ? 'Alice' : 'Bob'}`;
   $('#network-dot').className = view.offline ? 'offline' : 'online';
   setText('#network-status', view.offline ? 'Network unreachable' : `ZEC #${view.chain.zcash_height} · relay ${view.relay_count} msgs`);
   if (view.offline) return;

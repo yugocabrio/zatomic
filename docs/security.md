@@ -164,7 +164,7 @@ preparer inside Alice's privileged source-wallet boundary. It does not resolve
 the public timing or deeper source-conflict limitations above.
 
 Subsequent OTC amount extension: Alice signs the canonical quote under
-`Latch OTC offer v1`, and Bob signs its digest under `Latch OTC acceptance v1`.
+`Latch OTC offer v1`, and Bob signs its digest under `Latch OTC acceptance v1` (the project’s earlier name, Latch, stays in these protocol strings because signatures commit to them).
 Both operators compare the quoted owners with their authenticated local pins.
 Native signers require the exact locally accepted quote before producing a
 nonce commitment. Native input/output checks, decrypted payouts, recovery-bundle

@@ -1,8 +1,10 @@
-# Latch evidence: start here
+# Zatomic evidence: start here
 
-**The strongest completed result is a real isolated-chain OTC exchange and
-refund, with separately held participant state on one host.** Public-network
-settlement and independently administered hosts have not been demonstrated.
+**The strongest results are one funded exchange on the public Zcash testnet and
+Sepolia (2026-10-18, success path), and real isolated-chain exchanges, refunds
+and crash recoveries with separately held participant state on one host.** The
+refund path has not run on the public networks, and independently administered
+hosts have not been demonstrated.
 
 These are development-run records committed with the implementation. They are
 not an auditor's attestation or a self-contained blockchain proof. Local txids
@@ -61,12 +63,13 @@ budget. **No funded public swap is demonstrated by these additions.**
 | Private source authorization for the public profile | Actual owner consents and a real native F signature; release-before-raw SIGKILL, exact-byte restart and inherited source-lock retention. | [Source release](../evidence/2026-10-15-public-source-release.json) | Funded public inputs, positive live preflight, node acceptance or a broadcast. Inputs are explicitly synthetic. |
 | Public-profile ETH preparation and recovery decisions | Actual Sepolia-domain lock/claim signatures survive decision-before-signing interruption; native recovery policy retains exposure and checks refund prerequisites. | [ETH journal](../evidence/2026-10-15-public-eth-outgoing.json), [recovery decision](../evidence/2026-10-15-public-recovery-decision.json) | Public inclusion/withdrawal, funded live integration or permission to send. Reserves and chain states are explicit transcripts. |
 | Public-profile ETH delivery primitives on an isolated EVM | Real signed lock/claim/refund/withdrawal, post-submit SIGKILL and exact receipt recovery; both recipients' balance changes equal credit minus gas. | [ETH delivery](../evidence/2026-10-15-public-eth-delivery.json) | Public deployment/settlement or a complete sender. Native inputs are synthetic, runtime is installed locally, finality labels are modeled. |
-| Public settlement / independent-host operation | **Not executed.** | [Remaining gates](public-testnet.md#gates-before-a-funded-public-demonstration) | Do not present any earlier row as this result. |
+| Public settlement, success path | **Executed 2026-10-18:** deploy, F, lock, claim, C, withdraw on Zcash testnet and Sepolia; final verify passed; F and C fully shielded; refund auxiliary never broadcast. | [Public swap](../evidence/2026-10-18-public-testnet-swap.json) | The refund path on public networks; independent hosts; local consensus verification (trusted RPC providers). |
+| Independent-host operation | **Not executed.** Both owners ran on one host. | [Hosting](hosting.md) | Do not present any row as separately administered. |
 
 The latest [explicit sender candidate checks](../evidence/2026-10-15-public-execution.json)
 add actual cap-priced isolated ETH settlement, retained native F/C/R validation,
-crash/lock retention and modeled native transport/observation boundaries. The
-new entry points do not turn the earlier rows into a funded public demonstration.
+crash/lock retention and modeled native transport/observation boundaries. These
+2026-10-15 rows are not the funded public run; that is the 2026-10-18 record.
 
 The [fresh browser release demonstration](../evidence/2026-10-15-release-demo.json)
 reran all three scenarios on `c6e03b0`, checked zero-new-payment replay, and

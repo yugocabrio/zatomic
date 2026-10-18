@@ -1,4 +1,4 @@
-# Latch architecture
+# Zatomic architecture
 
 Alice exchanges native shielded ZEC for Bob's ETH. The exchanged ZEC stays in
 Ironwood. A point-lock ETH escrow verifies the scalar that completes a prepared

@@ -1,6 +1,6 @@
 # What each observer can see
 
-Latch keeps the ZEC principal, the Zcash recipients and the Zcash amounts
+Zatomic keeps the ZEC principal, the Zcash recipients and the Zcash amounts
 shielded. Ethereum is a public chain, so the ETH leg is public. This page states
 what each party or observer can and cannot learn. It is meant to be checked
 against the code, not taken on trust.

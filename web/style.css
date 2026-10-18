@@ -1,4 +1,4 @@
-/* Latch local control panel. System fonts only; no external assets (CSP: self). */
+/* Zatomic local control panel. System fonts only; no external assets (CSP: self). */
 :root {
   --paper: #f3f2ea;
   --surface: #fffef8;

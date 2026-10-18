@@ -1,6 +1,6 @@
 # Dependencies and attribution
 
-Original Latch code is MIT licensed. No third-party implementation is claimed as
+Original Zatomic code is MIT licensed. No third-party implementation is claimed as
 our invention. Cargo.lock and package-lock.json pin the resolved dependencies.
 The recorded Rust metadata inventory contains 213 packages with declared license
 metadata: `evidence/dependency-licenses.json`. This is an inventory, not legal

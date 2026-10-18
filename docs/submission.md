@@ -1,17 +1,17 @@
-# Latch — Cross-chain submission draft
+# Zatomic — Cross-chain submission draft
 
-Draft only. No contest submission, public deployment or announcement has been
-made. The claims below describe the working isolated-chain release;
-they must not be relabeled as a public-testnet demonstration.
+Draft only. No contest submission or announcement has been made. One funded
+exchange settled on the public Zcash testnet and Sepolia on 2026-10-18 (success
+path); everything else below ran on isolated local chains and is labelled so.
 
 ## One sentence
 
-Latch lets two people exchange shielded ZEC for ETH, with recovery paths verified
+Zatomic lets two people exchange shielded ZEC for ETH, with recovery paths verified
 before funding and no custodian choosing where the money goes.
 
 ## What we built
 
-Latch is a P2P OTC atomic-swap prototype for native Ironwood ZEC and ETH. Alice
+Zatomic is a P2P OTC atomic-swap prototype for native Ironwood ZEC and ETH. Alice
 sets exact amounts, Bob accepts her signed quote, and both approve the complete
 exchange after verifying their prepared claim and refund transactions. ZEC stays
 on Zcash and ETH stays on Ethereum; there is no wrapped asset or bridge minting.
@@ -41,13 +41,26 @@ property is that the ZEC principal and recipients stay shielded while the owners
 hold prepared recovery paths. It is a focused swap, with no bridge committee,
 oracle deciding the exchange outcome or custodial exchange account.
 
+**Compared with the existing route.** NEAR Intents can already pay ZEC out to an
+Orchard receiver ([LI.FI docs](https://docs.li.fi/introduction/zcash-ecosystem)).
+Its Zcash bridge contract funds that payout from a transparent input, so the
+amount is public, and checks it by recovering the output with an all-zero
+outgoing viewing key
+([code](https://github.com/Near-One/btc-bridge/blob/0b02818d47/contracts/satoshi-bridge/src/zcash_utils/orchard_policy.rs#L11-L13)).
+That key is public, so anyone can recover the payout's recipient too. Zatomic's
+two Zcash transactions have no transparent input or output, and their outputs
+are built with no outgoing viewing key, so nobody can recover them that way.
+What Zatomic leaves public is under Honest limits: the ETH side, timing, and on
+a refund one transparent coin. NEAR's Confidential Intents hide order flow on
+NEAR; they are a different layer from the Zcash transactions compared here.
+
 ## Demonstration and verification
 
 - Live demo: `make two-party`, then open http://127.0.0.1:8790. The front page
   explains the swap and links its evidence; **Try the live demo** opens both
   owner apps side by side with Autoplay, Refund path, Stop/Restart Bob and New
   trade ([two-party mode](two-party.md))
-- [Two-minute captioned video](demo/latch-2min.mp4) — real screen checkpoints, waits omitted
+- [Earlier two-minute captioned video](demo/latch-2min.mp4) — the single-window demo before the rename from Latch; real screen checkpoints, waits omitted
 - [Two-minute walkthrough](demo-walkthrough.md#two-minute-presentation)
 - [What each observer can see](privacy.md)
 - [Evidence by guarantee level](evidence-index.md)

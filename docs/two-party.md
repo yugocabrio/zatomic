@@ -8,7 +8,7 @@ Start at **http://127.0.0.1:8790**. That one address is the whole demo:
 
 | Page | What it is |
 |---|---|
-| `/` | What Latch does, the public testnet swap, what each observer sees, the recovery cases and the evidence records. |
+| `/` | What Zatomic does, the public testnet swap, what each observer sees, the recovery cases and the evidence records. |
 | `/stage` | The live demo: both owner apps side by side, the public wire between them, and the demo controls. |
 | `/network` | Behind the scenes: the chains, the sandbox check and every record the relay holds. |
 

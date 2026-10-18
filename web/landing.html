@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Latch — shielded ZEC ⇄ ETH swaps</title>
+  <title>Zatomic — shielded ZEC ⇄ ETH swaps</title>
   <meta name="description" content="Peer-to-peer swaps of native shielded ZEC for ETH, with no bridge and no wrapped ZEC. Live two-app demo and a settled public testnet swap.">
   <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"><script src="/landing.js" defer></script>
 </head>
@@ -10,7 +10,7 @@
 <a class="skip" href="#try">Skip to the demo guide</a>
 <header class="topbar">
   <div class="wrap topbar-inner">
-    <a class="brand" href="/" aria-label="Latch home"><img src="/favicon.svg" alt="" width="28" height="28"><span>latch</span></a>
+    <a class="brand" href="/" aria-label="Zatomic home"><img src="/favicon.svg" alt="" width="28" height="28"><span>zatomic</span></a>
     <nav aria-label="Sections"><a href="/stage"><b>Live demo</b></a><a href="#public">Public run</a><a href="#how">How it works</a><a href="#privacy">Privacy</a><a href="#recovery-matrix">Recovery</a><a href="#evidence">Evidence</a></nav>
     <div class="network" role="status" aria-live="polite"><i id="network-dot" aria-hidden="true"></i><span id="network-status">Checking the demo…</span></div>
   </div>
@@ -90,7 +90,7 @@
     <table class="matrix-table">
       <thead><tr><th scope="col">Observer</th><th scope="col">Learns</th><th scope="col">Does not learn</th></tr></thead>
       <tbody>
-        <tr><th scope="row">Anyone watching Zcash</th><td>That two shielded transactions happened, with their fees and timing. On a refund only: one transparent coin.</td><td>Amounts, senders, recipients, which note is the swap’s.</td></tr>
+        <tr><th scope="row">Anyone watching Zcash</th><td>That two shielded transactions happened, with their fees and timing. On a refund only: one transparent coin.</td><td>Exact amounts (the public ETH amount hints at the size via the market price), senders, recipients, which note is the swap’s.</td></tr>
         <tr><th scope="row">Anyone watching Ethereum</th><td>Both ETH addresses, the ETH amount, the expiry, the point T and, after the claim, the secret t.</td><td>Any Zcash address, viewing key, note or amount. t cannot be linked to a Zcash transaction.</td></tr>
         <tr><th scope="row">The message relay</th><td>Each owner’s public keys; who sent a message to whom, when, and its size.</td><td>The quote, amounts, terms or funding transaction: every message is sealed to its recipient.</td></tr>
         <tr><th scope="row">The other party</th><td>The agreed amounts and your one-time Zcash receive address.</td><td>Your viewing keys, your wallet, or where your ZEC goes next.</td></tr>
@@ -134,5 +134,5 @@
     </aside>
   </section>
 </main>
-<footer class="site-foot"><div class="wrap"><span class="brand brand-small">latch</span><span>ZECATHON · Cross-chain · MIT licensed prototype · <a href="/network">Behind the scenes</a></span></div></footer>
+<footer class="site-foot"><div class="wrap"><span class="brand brand-small">zatomic</span><span>ZECATHON · Cross-chain · MIT licensed prototype · <a href="/network">Behind the scenes</a></span></div></footer>
 </body></html>

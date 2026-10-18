@@ -120,12 +120,12 @@ and has a short validity, while possible delivery is durable before transport.
 F replay keeps the same source/anchor/bytes and requires the original wallet.
 ETH actions sign at the agreed gas ceiling; no automatic fee/nonce replacement
 is performed. Actual cap-priced isolated ETH transactions and native proof,
-crash/lock checks pass, but the complete funded public positive path is untested.
-The private source signer is an offline native primitive behind the live
-preflight wrapper, not an independent verifier of live chain observations. The integrated
-positive public path has not run with funded public inputs.
-Default invocation checks only; the explicit testnet broadcast flag has never
-been used on public funds. See
+crash/lock checks pass. The funded public positive path ran once on 2026-10-18
+([record](../evidence/2026-10-18-public-testnet-swap.json)); the funded public
+refund path has not run. The private source signer is an offline native
+primitive behind the live preflight wrapper, not an independent verifier of live
+chain observations. Default invocation checks only; sending needs the explicit
+testnet broadcast flag. See
 [public preflight and its tested scope](public-testnet.md#agreement-bound-read-only-preflight).
 
 ## Transaction order

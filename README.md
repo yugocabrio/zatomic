@@ -1,16 +1,16 @@
-# Latch
+# Zatomic
 
 **P2P OTC swaps of shielded ZEC for ETH, with recovery prepared before funding.**
 
-![Latch: swap shielded ZEC for ETH without a bridge](docs/images/ui-hero.png)
+![Zatomic: swap shielded ZEC for ETH without a bridge](docs/images/ui-hero.png)
 
-Latch is an independent ZECATHON Cross-chain prototype. Two participants prepare
+Zatomic is an independent ZECATHON Cross-chain prototype. Two participants prepare
 native shielded claim and refund transactions using a custom RedPallas adaptor
 signature. A scalar revealed to an immutable ETH escrow completes the Zcash
 claim. No Zcash receiver, viewing key or note opening goes into the EVM claim.
 Alice sets the amounts, Bob accepts the signed quote, and both authorize the
 complete exchange after checking their recovery paths. ZEC stays on Zcash and
-ETH stays on Ethereum; Latch exchanges ownership without minting wrapped assets.
+ETH stays on Ethereum; Zatomic exchanges ownership without minting wrapped assets.
 
 The local demo runs **real Zebra NU7 and Anvil transactions**. It includes a
 successful exchange, interruption after secret reveal, and interruption before
@@ -19,7 +19,8 @@ payment. This is a working isolated-chain prototype, not a public-testnet releas
 or an audited protocol.
 
 [Previous local-release walkthrough](docs/demo/latch-2min.mp4) — recorded before
-the browser OTC update; waits omitted. The user will produce the final video.
+the browser OTC update and the rename from Latch; waits omitted. The user will
+produce the final video.
 
 [Fresh-checkout verification](evidence/2026-10-15-clean-reproduction.json) rebuilt
 `9b978e3` and completed exchange/refund/replay with new wallets and node state.
@@ -149,4 +150,5 @@ filesystem browsing.
 
 Original code is MIT licensed; upstream components retain their licenses.
 Source repository: [yugocabrio/zeceth](https://github.com/yugocabrio/zeceth).
-No public deployment or contest submission has been made.
+The public testnet run used a test contract on Sepolia; no contest submission
+has been made.
