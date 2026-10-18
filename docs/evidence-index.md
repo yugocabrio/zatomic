@@ -39,6 +39,12 @@ state; the planned public deployment and lock would have run out of gas. Limits
 were re-measured by simulation and raised (fee profile v2).
 [Record](../evidence/2026-10-18-sepolia-gas.json).
 
+**Hosted judge demo, 2026-10-18:** https://162-55-186-88.sslip.io on a
+rented x86_64 server. Each owner app runs as its own Linux user, and the network
+proves the denial at every trade. The three scenarios ran from a browser over
+HTTPS (1:46, 1:55, 1:59). One operator runs all roles.
+[Record](../evidence/2026-10-18-hosted-demo.json).
+
 **Judge stage on real local chains, 2026-10-18:** the three one-click
 scenarios ran from the browser, each on a fresh trade: swap (3:32, 3:42), Bob's
 app killed and restarted after the claim (3:47), both refund (3:37). Two defects

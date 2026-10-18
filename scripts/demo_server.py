@@ -282,7 +282,8 @@ class Handler(BaseHTTPRequestHandler):
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'application/javascript'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8'),
-                 '/favicon.svg': ('favicon.svg', 'image/svg+xml')}
+                 '/favicon.svg': ('favicon.svg', 'image/svg+xml'),
+                 '/mark.svg': ('mark.svg', 'image/svg+xml')}
         if path in files:
             name, kind = files[path]
             return self.send(200, (WEB / name).read_bytes(), kind)

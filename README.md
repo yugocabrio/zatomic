@@ -1,3 +1,5 @@
+<img src="docs/images/zatomic-mark.svg" width="72" height="72" alt="Zatomic mark: a Z inside an orbit with two nodes">
+
 # Zatomic
 
 **P2P OTC swaps of shielded ZEC for ETH, with recovery prepared before funding.**
@@ -66,6 +68,9 @@ Ironwood compact blocks, decrypts locally and resumes persisted note witnesses.
 Public synchronization has been exercised with an unfunded wallet. The public
 sender entry points ran the funded success path on 2026-10-18; the public
 refund path has not run.
+
+**Live demo:** https://162-55-186-88.sslip.io (hosted on one server; regtest
+and a local Anvil, no real value; one visitor drives at a time).
 
 **Two-party mode:** `make two-party` gives Alice and Bob separate apps (ports
 8791 and 8792). Each holds only its own keys, and the OS sandbox denies it the

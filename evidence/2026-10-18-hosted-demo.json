@@ -1,0 +1,268 @@
+{
+  "date": "2026-10-18",
+  "scope": "The judge demo hosted on a rented server: public HTTPS, each owner app as its own Linux user, one driver at a time, and the three stage scenarios run from a browser over the internet.",
+  "server": {
+    "provider": "Hetzner Cloud CPX32, Nuremberg (rented by the user)",
+    "cpu": "x86_64, 4 vCPU AMD EPYC Genoa",
+    "memory": "8 GB",
+    "os": "Ubuntu 24.04.4 LTS",
+    "python": "3.12.3",
+    "rust": "1.93.0",
+    "foundry": "1.3.1 (pinned SHA-256)",
+    "zebrad": "7.0.0-rc.0 x86_64 (pinned from the release SHA256SUMS), own service user",
+    "caddy": "2.6.2 (Ubuntu package)"
+  },
+  "url": "https://162-55-186-88.sslip.io",
+  "setup": {
+    "command": "rsync of commit 0c03308 to /opt/latch, then LATCH_HOST=162-55-186-88.sslip.io bash deploy/setup.sh",
+    "rust_release_build": "1 min 01 s",
+    "first_run": "about 2.5 minutes, then stopped: /usr/local/libexec did not exist (fixed in 0c03308)",
+    "second_run": "completed",
+    "certificates": "Let's Encrypt for all three names"
+  },
+  "checks": [
+    "https://HOST/, https://alice.HOST/, https://bob.HOST/ and /stage return 200 with valid certificates and HSTS.",
+    "CSP: an owner app may be framed only by https://HOST; the site frames only the two app origins and may not be framed.",
+    "Without the driver lease: a stage control is refused (\"Take the controls first.\"), and so is a press in an owner app.",
+    "A control from another Origin is refused.",
+    "Isolation proven by Unix users at every trade: each owner reads its own identity file; the other owner gets a permission error, and so does the network process.",
+    "Processes: zebrad as latch-zebra, the network and Anvil as latch, the apps as latch-alice and latch-bob; per-trade roots under 0700 bases.",
+    "After the crash scenario only the restarted Bob app runs as latch-bob (its old app and signer were killed with the user).",
+    "Firewall: only 22, 80 and 443 reach the host; every demo service listens on loopback."
+  ],
+  "runs": [
+    {
+      "scenario": "success",
+      "seconds": 106,
+      "interrupted": [],
+      "isolation": {
+        "proven": true,
+        "by": "users"
+      },
+      "zcash_height_after": 107,
+      "relay": {
+        "messages": 8,
+        "sealed": 6,
+        "manifests": 2
+      },
+      "zcash": [
+        {
+          "txid": "22966043c65e6db9adf44c3cc29b1f377ccbc2d6cb6f71ab23e63c4bd864959e",
+          "height": 104,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        },
+        {
+          "txid": "d4744e1a41dec33d330a5a489d2a2e5f9d73bc0f2b8cb160158a3e5e4956cfa1",
+          "height": 106,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        }
+      ],
+      "ethereum": [
+        {
+          "event": "locked",
+          "tx": "0x719cb882b0e9437e59f3346b892e9b39e6c8425ad2be65d4525473c83f194a60",
+          "block": 2,
+          "amount_wei": "29300000000000000"
+        },
+        {
+          "event": "claimed",
+          "tx": "0x5cbaa1308b213bfea892d32bc35900293d586865c1f2cf403e558db24c974897",
+          "block": 3
+        },
+        {
+          "event": "withdrawn",
+          "tx": "0xe988da89e09c12cce1c2bb9e4113b2c71547c59a9a85f2c263774645716281bf",
+          "block": 4,
+          "amount_wei": "29300000000000000"
+        }
+      ],
+      "network_notes": [
+        "Alice app started (as its own Unix user)",
+        "Bob app started (as its own Unix user)",
+        "Unix users checked: neither app, nor the network, can read an owner's files",
+        "Autoplay: Alice pressed “Fingerprints match: trust Bob”",
+        "Autoplay: Alice pressed “Sign quote”",
+        "Autoplay: Bob pressed “Fingerprints match: trust Alice”",
+        "Autoplay: Bob pressed “Accept quote”",
+        "Autoplay: Alice pressed “Prepare exits”",
+        "Autoplay: Bob pressed “Sign the full terms”",
+        "Autoplay: Alice pressed “Sign full terms and fund ZEC”",
+        "Autoplay: Bob pressed “Lock ETH”",
+        "Autoplay: Alice pressed “Claim ETH (reveals the secret)”",
+        "Autoplay: Alice pressed “Withdraw ETH”",
+        "Autoplay: Bob pressed “Claim my ZEC”",
+        "Autoplay: both owners finished"
+      ]
+    },
+    {
+      "scenario": "crash",
+      "seconds": 115,
+      "interrupted": [
+        "bob"
+      ],
+      "isolation": {
+        "proven": true,
+        "by": "users"
+      },
+      "zcash_height_after": 212,
+      "relay": {
+        "messages": 8,
+        "sealed": 6,
+        "manifests": 2
+      },
+      "zcash": [
+        {
+          "txid": "50fc4229ae4105cdda9aaccf311c528d3acd3eef3e8ce8da78628bb30a5e028c",
+          "height": 209,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        },
+        {
+          "txid": "49f614c07c39845ade0d1974e98efc24c81d18568ea66305fbc733e17e057307",
+          "height": 211,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        }
+      ],
+      "ethereum": [
+        {
+          "event": "locked",
+          "tx": "0xd7e54e8bb2f9b3ed59a5852cd42eba8f29f320319d0ab365ae1b65592935406e",
+          "block": 2,
+          "amount_wei": "29300000000000000"
+        },
+        {
+          "event": "claimed",
+          "tx": "0xee361ab5427568ecd9b96d8417d0f01a575def55627a9cad63c4e7f090ccb1f0",
+          "block": 3
+        },
+        {
+          "event": "withdrawn",
+          "tx": "0xac50c1fef3f3320964ae1c45831755b921741df92d85dc8bb416990c0133d5c0",
+          "block": 4,
+          "amount_wei": "29300000000000000"
+        }
+      ],
+      "network_notes": [
+        "Alice app started (as its own Unix user)",
+        "Bob app started (as its own Unix user)",
+        "Unix users checked: neither app, nor the network, can read an owner's files",
+        "Autoplay: Alice pressed “Fingerprints match: trust Bob”",
+        "Autoplay: Alice pressed “Sign quote”",
+        "Autoplay: Bob pressed “Fingerprints match: trust Alice”",
+        "Autoplay: Bob pressed “Accept quote”",
+        "Autoplay: Alice pressed “Prepare exits”",
+        "Autoplay: Bob pressed “Sign the full terms”",
+        "Autoplay: Alice pressed “Sign full terms and fund ZEC”",
+        "Autoplay: Bob pressed “Lock ETH”",
+        "Autoplay: Alice pressed “Claim ETH (reveals the secret)”",
+        "Bob app killed (SIGKILL): scenario: right after Alice’s claim",
+        "Bob app started (as its own Unix user)",
+        "Autoplay: Alice pressed “Withdraw ETH”",
+        "Autoplay: Bob pressed “Claim my ZEC”",
+        "Autoplay: both owners finished"
+      ]
+    },
+    {
+      "scenario": "refund",
+      "seconds": 119,
+      "interrupted": [],
+      "isolation": {
+        "proven": true,
+        "by": "users"
+      },
+      "zcash_height_after": 343,
+      "relay": {
+        "messages": 8,
+        "sealed": 6,
+        "manifests": 2
+      },
+      "zcash": [
+        {
+          "txid": "70ca43e5b3144c68f48181a4594a95fa6a14dda83ca52644217a287144bfa4d5",
+          "height": 314,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        },
+        {
+          "txid": "4cf40e49f4d897c213aadf2983fedfd6d6f4054e563ca6202fa100a9caefbd64",
+          "height": 340,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": [
+            20000
+          ]
+        },
+        {
+          "txid": "60a4f5f7b73bfb0666f054150d1be3fba3abfa84aee525c3eaa58f18fd6357ae",
+          "height": 342,
+          "actions": 2,
+          "transparent_inputs": 1,
+          "transparent_outputs": [
+            15000
+          ]
+        }
+      ],
+      "ethereum": [
+        {
+          "event": "locked",
+          "tx": "0xcabbf975972b046a1dec42cf4a6942764b1d213995df4a108bf34488922b4a94",
+          "block": 2,
+          "amount_wei": "29300000000000000"
+        },
+        {
+          "event": "refunded",
+          "tx": "0x1ceb61780ba857b0f5fd9ff5c8468bab332fc14e6081149a6f2199c82239acf5",
+          "block": 4
+        },
+        {
+          "event": "withdrawn",
+          "tx": "0x4011e7553e65d708298a92db0530674664e99e68b246a355cc1df3cec03fa9e4",
+          "block": 5,
+          "amount_wei": "29300000000000000"
+        }
+      ],
+      "network_notes": [
+        "Alice app started (as its own Unix user)",
+        "Bob app started (as its own Unix user)",
+        "Unix users checked: neither app, nor the network, can read an owner's files",
+        "Autoplay: Alice pressed “Fingerprints match: trust Bob”",
+        "Autoplay: Alice pressed “Sign quote”",
+        "Autoplay: Bob pressed “Fingerprints match: trust Alice”",
+        "Autoplay: Bob pressed “Accept quote”",
+        "Autoplay: Alice pressed “Prepare exits”",
+        "Autoplay: Bob pressed “Sign the full terms”",
+        "Autoplay: Alice pressed “Sign full terms and fund ZEC”",
+        "Autoplay: Bob pressed “Lock ETH”",
+        "Control: Ethereum time advanced 61 minutes",
+        "Control: Zcash advanced 24 blocks",
+        "Autoplay: Bob pressed “Refund my ETH”",
+        "Autoplay: Alice pressed “Refund my ZEC”",
+        "Autoplay: Bob pressed “Withdraw refunded ETH”",
+        "Autoplay: both owners finished"
+      ]
+    }
+  ],
+  "results": [
+    "Swap 1:46, Bob’s app killed and restarted 1:55, both refund 1:59, each from a fresh trade, driven from a browser over HTTPS.",
+    "Zcash: swaps put only two shielded transactions on chain; the refund adds A (20,000-zatoshi transparent output) and R (spends it, 15,000-zatoshi change)."
+  ],
+  "defects_found_and_fixed": [
+    "setup.sh assumed /usr/local/libexec exists; Ubuntu does not create it.",
+    "A checkout copied with rsync kept the copier’s numeric owner; setup.sh now resets /opt/latch to root (except the network’s .local).",
+    "The Foundry version check expected \"-stable\" but the Linux build reports \"1.3.1-v1.3.1\", so re-runs would re-download Foundry.",
+    "The Hetzner Cloud Firewall allowed only SSH at first; the user opened 80 and 443."
+  ],
+  "limits": [
+    "One operator runs all three roles on one server; not independent administration.",
+    "Isolated regtest chain and local Anvil; no real value."
+  ],
+  "private_material_committed": false
+}

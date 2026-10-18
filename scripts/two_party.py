@@ -337,7 +337,7 @@ class Network:
                             advanced['eth'] += 1
                             self.advance_eth()
                         continue
-                    if path == 'refund' and r == 'alice' and (a.get('wait') or '').startswith('ETH order expired'):
+                    if path == 'refund' and r == 'alice' and (a.get('wait') or '').startswith(('ETH order expired', 'Bob never locked')):
                         if advanced['zec'] < 3:
                             advanced['zec'] += 1
                             self.advance_zec()
@@ -507,7 +507,7 @@ class Network:
                 block = evm.rpc('eth_getBlockByNumber', ['latest', False])
                 return {'token': self.page_token, 'zcash': {'height': tip['blocks'], 'mempool': len(zrpc('getrawmempool'))},
                     'ethereum': {'block': int(block['number'], 16), 'timestamp': int(block['timestamp'], 16)},
-                    'escrow': self.escrow, 'isolation_proven': getattr(self, 'isolation', False), 'isolation_by': 'users' if USERS else 'sandbox', 'apps': {r: {'running': p.poll() is None, 'port': PORTS[r]} for r, p in self.apps.items()},
+                    'escrow': self.escrow, 'isolation_proven': getattr(self, 'isolation', False), 'isolation_by': 'users' if USERS else 'sandbox', 'apps': {r: {'running': p.poll() is None, 'port': PORTS[r], 'url': self.app_url(r)} for r, p in self.apps.items()},
                     'relay': [{k: m.get(k) for k in ('seq', 'from', 'to', 'topic', 'at', 'bytes', 'sha256')} for m in self.relay()],
                     'events': self.events[::-1]}
         if path == '/api/relay':

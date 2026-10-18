@@ -1,4 +1,4 @@
-# Zatomic — Cross-chain submission draft
+# Zatomic — atomic swaps of shielded ZEC for ETH (Cross-chain submission draft)
 
 Draft only. No contest submission or announcement has been made. One funded
 exchange settled on the public Zcash testnet and Sepolia on 2026-10-18 (success
@@ -6,8 +6,9 @@ path); everything else below ran on isolated local chains and is labelled so.
 
 ## One sentence
 
-Zatomic lets two people exchange shielded ZEC for ETH, with recovery paths verified
-before funding and no custodian choosing where the money goes.
+Zatomic is an atomic swap of shielded ZEC for ETH between two people: it settles,
+or each takes their own asset back, with both exits verified before funding and no
+bridge, custodian or solver in between.
 
 ## What we built
 
@@ -41,8 +42,8 @@ property is that the ZEC principal and recipients stay shielded while the owners
 hold prepared recovery paths. It is a focused swap, with no bridge committee,
 oracle deciding the exchange outcome or custodial exchange account.
 
-**Compared with the existing route.** NEAR Intents can already pay ZEC out to an
-Orchard receiver ([LI.FI docs](https://docs.li.fi/introduction/zcash-ecosystem)).
+**Compared with existing routes.** NEAR Intents accepts shielded ZEC and can pay
+ZEC out to an Orchard receiver ([LI.FI docs](https://docs.li.fi/introduction/zcash-ecosystem)).
 Its Zcash bridge contract funds that payout from a transparent input, so the
 amount is public, and checks it by recovering the output with an all-zero
 outgoing viewing key
@@ -55,13 +56,19 @@ What Zatomic leaves public is under Honest limits: the ETH side, timing, and on
 a refund two small transparent outputs (Alice's 20,000-zatoshi refund coin and
 its 15,000-zatoshi change). NEAR's Confidential Intents hide order flow on
 NEAR; they are a different layer from the Zcash transactions compared here.
+THORChain has offered native ZEC through its vaults since October 2026; reports
+at launch say it uses transparent Zcash transactions
+([TokenPost](https://www.tokenpost.com/news/technology/27558)). Both find liquidity and a price;
+Zatomic settles a price two parties already agreed, with the ZEC leg shielded.
 
 ## Demonstration and verification
 
-- Live demo: `make two-party`, then open http://127.0.0.1:8790. The front page
-  explains the swap and links its evidence; **Try the live demo** opens both
-  owner apps side by side with Autoplay, Refund path, Stop/Restart Bob and New
-  trade ([two-party mode](two-party.md))
+- **Live demo: https://162-55-186-88.sslip.io** (hosted; regtest and a local
+  Anvil, no real value). The front page explains the swap and links its
+  evidence; **Try the live demo** opens both owner apps side by side with three
+  one-click scenarios. One visitor drives at a time; others watch the same trade
+  ([hosting](hosting.md)). Locally: `make two-party`, then
+  http://127.0.0.1:8790 ([two-party mode](two-party.md)).
 - [Earlier two-minute captioned video](demo/latch-2min.mp4) — the single-window demo before the rename from Latch; real screen checkpoints, waits omitted
 - [Two-minute walkthrough](demo-walkthrough.md#two-minute-presentation)
 - [What each observer can see](privacy.md)
@@ -78,6 +85,12 @@ There is no market feed, order book or counterparty discovery service. A local
 run takes about two and a half minutes on this machine, most of it proving.
 The earlier two-minute presentation is a clearly labeled edit of actual screen
 checkpoints.
+
+Logo files for the video and slides: [mark](images/zatomic-mark-1024.png)
+(1024 px), [mark and wordmark on light backgrounds](images/zatomic-lockup-light.png)
+and [on dark backgrounds](images/zatomic-lockup-dark.png), all with transparent
+backgrounds; [SVG](images/zatomic-mark.svg). The mark is a Z inside an orbit with
+two nodes: two parties, one atomic swap.
 
 ## Honest limits
 

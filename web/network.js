@@ -24,8 +24,10 @@ function render() {
   if (!state) return;
   update($('#apps'), JSON.stringify(state.apps), () => Object.entries(state.apps).map(([role, app]) => {
     const card = el('div', 'n-app');
-    const link = el('a', 'n-link', `${role === 'alice' ? 'Alice' : 'Bob'} · 127.0.0.1:${app.port}`);
-    link.href = `http://127.0.0.1:${app.port}/`; link.target = '_blank'; link.rel = 'noopener';
+    // The app's own origin: loopback locally, its public https:// origin when hosted.
+    const url = app.url || `http://127.0.0.1:${app.port}`;
+    const link = el('a', 'n-link', `${role === 'alice' ? 'Alice' : 'Bob'} · ${url.replace(/^https?:\/\//, '')}`);
+    link.href = `${url}/`; link.target = '_blank'; link.rel = 'noopener';
     const status = el('span', `tag ${app.running ? 'tag-strong' : 'tag-limit'}`, app.running ? 'running' : 'stopped');
     const crash = el('button', 'btn btn-ghost', 'Kill app (SIGKILL)'); crash.disabled = !app.running;
     crash.addEventListener('click', () => control({action: 'crash', role}));

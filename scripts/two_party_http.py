@@ -20,6 +20,7 @@ CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' 
        "connect-src 'self'; frame-src {frames}; frame-ancestors {ancestors}; base-uri 'none'; form-action 'none'")
 STATIC = {'/style.css': ('style.css', 'text/css; charset=utf-8'),
           '/favicon.svg': ('favicon.svg', 'image/svg+xml'),
+          '/mark.svg': ('mark.svg', 'image/svg+xml'),
           '/party.js': ('party.js', 'application/javascript'),
           '/network.js': ('network.js', 'application/javascript'),
           '/stage.js': ('stage.js', 'application/javascript'),

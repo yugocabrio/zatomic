@@ -376,10 +376,15 @@ class App:
             step('fund', 'Both sign the full terms; ZEC funded', (seen.get('funding_confirmations') or 0) >= 2,
                 f'F {short(s["agreement"]["native"]["funding_txid"])} · {seen.get("funding_confirmations")} confirmations' if s.get('funding') else '')
             # The last two steps follow the path actually taken: reveal, or none.
-            refund_path = not s.get('claim') and (seen.get('order_state') == 3 or (seen.get('eth_expired') and seen.get('order_state') == 1))
+            # Expired after a lock, refunded, or never locked before the deadline.
+            refund_path = not s.get('claim') and s.get('funding') and (seen.get('order_state') == 3
+                or (seen.get('eth_expired') and seen.get('order_state') in (0, 1)))
             if refund_path:
                 refunded = s.get('native_refund', {}).get('state') == 'confirmed'
-                step('expired', 'No reveal: the ETH order expired', True, 'The secret t was never published.')
+                if seen.get('order_state') == 0:
+                    step('expired', 'Bob never locked: the ETH deadline passed', True, 'Nothing was locked, so there was nothing to claim.')
+                else:
+                    step('expired', 'No reveal: the ETH order expired', True, 'The secret t was never published.')
                 step('refund', 'My prepared ZEC refund confirmed', refunded,
                     f'Tx {short(s["native_refund"]["txid"])} · decrypted by my wallet' if refunded else '')
             else:
@@ -403,9 +408,10 @@ class App:
                     'note': 'Once sent, t is public: Bob can complete his ZEC claim with it.'}
             elif seen.get('order_state') == 2 and not s.get('withdraw'):
                 action = {'id': 'withdraw', 'label': 'Withdraw ETH'}
-            elif seen.get('order_state') in (1, 3) and seen.get('eth_expired') and not s.get('claim') and not s.get('native_refund', {}).get('state') == 'confirmed':
+            elif seen.get('order_state') in (0, 1, 3) and seen.get('eth_expired') and not s.get('claim') and not s.get('native_refund', {}).get('state') == 'confirmed':
                 action = {'id': 'native-refund', 'label': 'Refund my ZEC', 'note': 'No secret was revealed.'} if seen.get('native_refund_ready') else \
-                    {'wait': f'ETH order expired. Your ZEC refund unlocks after block #{s["agreement"]["native"]["refund_height"]}.'}
+                    {'wait': ('Bob never locked before the ETH deadline.' if seen.get('order_state') == 0 else 'ETH order expired.')
+                        + f' Your ZEC refund unlocks after block #{s["agreement"]["native"]["refund_height"]}.'}
             elif s.get('funding') and not seen.get('order_state'):
                 action = {'wait': 'Waiting for Bob to lock the ETH.'}
         else:
@@ -436,6 +442,8 @@ class App:
                 action = {'id': 'consent', 'label': 'Sign the full terms', 'terms': self.terms_text(s['agreement'])}
             elif (seen.get('funding_confirmations') or 0) < 2:
                 action = {'wait': 'Waiting for Alice’s ZEC funding to confirm.'}
+            elif not seen.get('order_state') and seen.get('eth_expired'):
+                action = {'wait': 'The ETH deadline passed before I locked. Nothing of mine moved; Alice refunds her ZEC.'}
             elif not seen.get('order_state'):
                 action = {'id': 'lock', 'label': 'Lock ETH', 'note': f'Locks {self.eth_text(s["agreement"])} for Alice, claimable only with t.'}
             elif seen.get('order_state') == 2 and not claimed:
@@ -500,6 +508,8 @@ class App:
             return {'title': 'Exchange complete', 'text': f'Received {decimal_amount(s["native_claim"]["received_zatoshi"], 8)} ZEC, decrypted by my wallet.'}
         elif s.get('withdraw') and seen.get('order_state') == 3:
             return {'title': 'ETH returned', 'text': 'Refunded at expiry and withdrawn.'}
+        elif s.get('consent') and seen.get('order_state') == 0 and seen.get('eth_expired'):
+            return {'title': 'Trade expired', 'text': 'I never locked ETH, so nothing of mine moved.'}
         return None
 
     def get(self, path, raw):
@@ -519,7 +529,7 @@ class App:
         lease = body.pop('lease', None)
         # Hosted: a press counts only from whoever holds the stage's controls.
         if ORIGINS and not call(self.network, '/api/lease', {'lease': lease or ''}, self.relay_token).get('ok'):
-            raise ValueError('Another visitor is driving this trade. Take the controls on the stage first.')
+            raise ValueError('Take the controls on the stage first; one visitor drives at a time.')
         with self.lock:
             if self.busy:
                 raise ValueError(f'{self.busy} is still running.')

@@ -42,8 +42,11 @@ function renderAction(action) {
     const peer = view.role === 'alice' ? 'Bob' : 'Alice';
     box.append(el('p', 'p-note', `Compare these with ${peer} over a channel you already trust (call, chat). Trust only if they match.`));
     const list = el('dl', 'review');
-    list.append(el('dt', '', `${peer}'s fingerprint`), el('dd', 'p-mono', action.fingerprint));
-    if (action.source_fingerprint) list.append(el('dt', '', 'Alice’s source operator'), el('dd', 'p-mono', action.source_fingerprint));
+    // Inside the stage the fingerprints are shortened (full on hover); the
+    // standalone app shows them in full, as a real owner should compare them.
+    const fp = (value) => { const dd = el('dd', 'p-mono', EMBED ? `${value.slice(0, 16)}…${value.slice(-12)}` : value); dd.title = value; return dd; };
+    list.append(el('dt', '', `${peer}'s fingerprint`), fp(action.fingerprint));
+    if (action.source_fingerprint) list.append(el('dt', '', 'Alice’s source operator'), fp(action.source_fingerprint));
     box.append(list);
   }
   if (action.review) {

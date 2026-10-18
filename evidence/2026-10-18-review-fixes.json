@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-18",
+  "scope": "Fixes for three issues an external review found in the two-party client and the judge stage, with synthetic checks and real local runs.",
+  "issues": [
+    {
+      "id": "P1",
+      "finding": "If Bob never locked ETH, Alice could not refund from the two-party app: it kept waiting for the lock, and the owner refund rejected a never-created order.",
+      "fix": "After the ETH deadline, an agreed order that was never locked counts as state 0 for Alice's native refund (the contract cannot create it any more: lock() requires refundAt at least MIN_LOCK_SECONDS ahead). Only the agreed order ID qualifies; Alice's own claim history still forbids the refund. Alice's app offers the refund; Bob's app reports the trade expired with nothing of his moved.",
+      "files": [
+        "scripts/evm_participant.py",
+        "scripts/party_app.py",
+        "scripts/two_party.py"
+      ]
+    },
+    {
+      "id": "P2a",
+      "finding": "The stage could say Settled without Bob's Zcash claim: it matched Zcash transactions to the ETH claim by observation time, which a restart can make identical.",
+      "fix": "Bob's claim is the second shielded transaction at a later block height than the funding; observation time is no longer used.",
+      "files": [
+        "web/stage.js"
+      ]
+    },
+    {
+      "id": "P2b",
+      "finding": "The stage said both refunded before Bob withdrew; refund() only credits the escrow balance.",
+      "fix": "The refund path now requires the withdrawal, and a never-locked branch covers P1.",
+      "files": [
+        "web/stage.js"
+      ]
+    }
+  ],
+  "checks": {
+    "synthetic_narration": "6/6: success without a Zcash claim (not settled), with a later-height claim (settled), refund before and after withdrawal, never locked before and after the refund; all events observed at the same moment.",
+    "real_never_locked_run": {
+      "what": "Local chains: the apps ran to Bob's lock step, Bob's app was stopped, ETH time passed the deadline and Zcash passed the refund height.",
+      "result": "Alice's app offered \"Refund my ZEC\"; A then R confirmed and her wallet decrypted the refund (ZEC returned). Bob's restarted app reported \"Trade expired\". The stage reached \"Refunded · both sides\" through the never-locked branch.",
+      "public_zcash": [
+        [
+          6538,
+          0,
+          []
+        ],
+        [
+          6564,
+          0,
+          [
+            20000
+          ]
+        ],
+        [
+          6566,
+          1,
+          [
+            15000
+          ]
+        ]
+      ],
+      "ethereum_events": [],
+      "first_attempt": "The first refund attempt exposed that order_state rejects an empty slot as \"differs from committed agreement\"; fixed by the agreed-order check above, then the same trade refunded."
+    },
+    "regression": "Autoplay refund (Bob locks, nobody reveals) on a fresh trade: 3:53, locked → refunded → withdrawn → A → R, stage \"Refunded · both sides\"."
+  },
+  "limits": [
+    "Local chains; the public networks were not re-run.",
+    "Same host for both owners."
+  ],
+  "private_material_committed": false
+}

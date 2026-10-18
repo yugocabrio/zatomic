@@ -44,7 +44,7 @@ if [ ! -x /root/.cargo/bin/rustup ]; then
 fi
 export PATH=/root/.cargo/bin:$PATH
 rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"/\1/p' "$APP/rust-toolchain.toml")" --profile minimal
-if [ "$(anvil --version 2>/dev/null | head -1)" != "anvil Version: ${FOUNDRY#v}-stable" ]; then
+if ! anvil --version 2>/dev/null | head -1 | grep -q "^anvil Version: ${FOUNDRY#v}-"; then
   archive=foundry_${FOUNDRY}_linux_${FOUNDRY_ARCH}.tar.gz
   work=$(mktemp -d)
   curl -fsSL -o "$work/$archive" "https://github.com/foundry-rs/foundry/releases/download/$FOUNDRY/$archive"
@@ -54,7 +54,7 @@ if [ "$(anvil --version 2>/dev/null | head -1)" != "anvil Version: ${FOUNDRY#v}-
   rm -rf "$work"
 fi
 
-echo "== build (Rust release build: about 15 minutes the first time)"
+echo "== build (the first Rust release build took about a minute on 4 vCPU)"
 cd "$APP"
 install -d -m 0755 "$APP/.local"
 npm ci --ignore-scripts --no-audit --no-fund
@@ -63,7 +63,9 @@ forge build
 LATCH_NODE=external python3 -c 'import sys; sys.path.insert(0, "scripts"); import regtest_node; regtest_node.prepare()'
 python3 -m compileall -q scripts
 # Everything under /opt/latch stays root-owned and world-readable; the network
-# user may only create its lock and process list in .local.
+# user may only create its lock and process list in .local. (A copied checkout
+# keeps the copier's numeric owner, so set it explicitly.)
+find "$APP" -path "$APP/.local" -prune -o -exec chown -h root:root {} +
 chmod -R go+rX "$APP"
 chown latch:latch "$APP/.local"
 chmod 0755 "$APP/.local"

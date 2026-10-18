@@ -296,8 +296,20 @@ def withdraw(directory, agreement, identity, order, state, fault_after_send):
         'new_transaction':pending is None,'locally_signed':True}
 
 
+def agreed_order_never_locked(agreement, order):
+    """True only for the agreed order ID (maker and salt) with an empty slot."""
+    agreed = evm.rpc('eth_call', [{'to': agreement['contract'], 'data': evm.calldata(
+        'orderId(address,bytes32)', agreement['maker'], agreement['eth_salt'])}, 'latest'])
+    slot = evm.rpc('eth_call', [{'to': agreement['contract'], 'data': evm.calldata('orders(bytes32)', order)}, 'latest'])
+    return order == agreed and set(slot[2:]) == {'0'}
+
+
 def native_recovery(directory, agreement, terms, role, order, action, fault_after_send):
-    state = pin_order(directory, agreement, terms, order)
+    if action == 'native-refund' and agreed_order_never_locked(agreement, order):
+        save(directory / 'eth-order.json', {'order': order})
+        state = 0  # Checked against the expiry below; order_state rejects an empty slot.
+    else:
+        state = pin_order(directory, agreement, terms, order)
     mode = 'claim' if action == 'native-claim' else 'refund'
     witness = None
     if mode == 'claim':
@@ -312,8 +324,11 @@ def native_recovery(directory, agreement, terms, role, order, action, fault_afte
         if intent.exists() or intent.is_symlink():
             raise RuntimeError('own possible secret exposure; no native refund fallback')
         now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
-        if state not in (1, 3) or now < agreement['eth_expiry']:
-            raise RuntimeError('native refund requires an expired unclaimed ETH order')
+        # State 0: the maker never locked. lock() requires refundAt to be at
+        # least MIN_LOCK_SECONDS ahead, so past the agreed expiry the agreed
+        # order can no longer be created, and nothing can make Alice reveal t.
+        if state not in (0, 1, 3) or now < agreement['eth_expiry']:
+            raise RuntimeError('native refund requires an expired or never-locked unclaimed ETH order')
         if state == 3:
             canonical_settlement(agreement, order, 'refund')
     root = native_owner.workspace(directory, role, terms,

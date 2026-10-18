@@ -45,35 +45,44 @@ function describe(e, names) {
   return ['eth', `Ethereum: ${eth(e.amount_wei)} withdrawn by ${who(e.owner)}`, ''];
 }
 
-// The step is inferred from public events only, in protocol order.
+// The step is inferred from public events only, in protocol order. Zcash
+// transactions are ordered by block height, never by when they were observed:
+// a restarted page or network can observe several at the same moment.
 function narrate(events) {
   const relay = events.filter(e => e.chain === 'relay');
-  const zcash = events.filter(e => e.chain === 'zcash');
+  const zcash = events.filter(e => e.chain === 'zcash').sort((a, b) => a.height - b.height);
   const find = (kind) => events.find(e => e.chain === 'ethereum' && e.event === kind);
-  const claimed = find('claimed'), refunded = find('refunded');
+  const locked = find('locked'), claimed = find('claimed'), refunded = find('refunded'), withdrawn = find('withdrawn');
   const shielded = zcash.filter(e => !e.transparent_outputs.length && !e.transparent_inputs);
-  const steps = refunded || zcash.some(e => e.transparent_outputs.length) ? [
+  const coin = zcash.find(e => e.transparent_outputs.length && !e.transparent_inputs);  // Alice's refund coin A
+  const back = zcash.find(e => e.transparent_inputs);  // Her refund R, which spends A
+  const refund = Boolean(refunded || coin || back);
+  const opening = [
     [relay.some(e => e.kind === 'manifest'), 'Owners exchange identities', 'Each app posts its public keys; the owners compare fingerprints out of band.'],
     [relay.some(e => e.kind === 'sealed'), 'Quote, terms and both exits', 'Sealed messages only. Both exits are signed before any money moves.'],
     [shielded.length > 0, 'Alice funds the shared note', 'A shielded Zcash transaction: no amount or address is visible.'],
-    [Boolean(find('locked')), 'Bob locks ETH', 'Public on Ethereum: amount, both addresses and the point T.'],
-    [Boolean(refunded), 'No reveal: Bob takes his ETH back', 'Alice never published t, so Bob refunds after the expiry.'],
-    [zcash.some(e => e.transparent_outputs.length), 'Alice creates her refund coin', 'Her private auxiliary transaction appears only now, on the refund path.'],
-    [zcash.some(e => e.transparent_inputs), 'Alice’s ZEC comes back', 'Her pre-signed refund is valid only after the refund time.'],
-  ] : [
-    [relay.some(e => e.kind === 'manifest'), 'Owners exchange identities', 'Each app posts its public keys; the owners compare fingerprints out of band.'],
-    [relay.some(e => e.kind === 'sealed'), 'Quote, terms and both exits', 'Sealed messages only. Both exits are signed before any money moves.'],
-    [shielded.length > 0, 'Alice funds the shared note', 'A shielded Zcash transaction: no amount or address is visible.'],
-    [Boolean(find('locked')), 'Bob locks ETH', 'Public on Ethereum: amount, both addresses and the point T.'],
-    [Boolean(claimed), 'Alice claims the ETH and reveals t', 'The same t completes Bob’s pre-signed Zcash claim. Nobody else can link t to it.'],
-    [Boolean(claimed) && shielded.some(e => e.at >= claimed.at), 'Bob claims his ZEC', 'Another shielded transaction; Bob’s own wallet decrypts it.'],
-    [Boolean(find('withdrawn')), 'Alice withdraws the ETH', 'Settled. No transparent output ever appeared on Zcash.'],
   ];
-  const refund = Boolean(refunded || zcash.some(e => e.transparent_outputs.length));
-  const done = steps.filter(s => s[0]).length === steps.length;
-  if (done) return {done, refund, step: refund ? 'Refunded · both sides' : `Settled · ${steps.length} of ${steps.length}`, caption: steps[steps.length - 1][2]};
+  const steps = refund ? [...opening,
+    ...(locked ? [
+      [true, 'Bob locks ETH', 'Public on Ethereum: amount, both addresses and the point T.'],
+      [Boolean(refunded), 'No reveal: Bob takes his ETH back', 'Alice never published t, so Bob refunds after the expiry.'],
+      [Boolean(refunded && withdrawn), 'Bob withdraws his ETH', 'The refund only credits him in the escrow; the withdrawal pays it out.'],
+    ] : [
+      [true, 'Bob never locks: the ETH deadline passes', 'Nothing moved on Ethereum, so there is nothing to claim.'],
+    ]),
+    [Boolean(coin), 'Alice creates her refund coin', 'Her private auxiliary transaction appears only now, on the refund path.'],
+    [Boolean(back), 'Alice’s ZEC comes back', 'Her pre-signed refund is valid only after the refund time.'],
+  ] : [...opening,
+    [Boolean(locked), 'Bob locks ETH', 'Public on Ethereum: amount, both addresses and the point T.'],
+    [Boolean(claimed), 'Alice claims the ETH and reveals t', 'The same t completes Bob’s pre-signed Zcash claim; t itself does not point to that transaction.'],
+    // Bob's claim is the second shielded transaction, later in the chain than the funding.
+    [Boolean(claimed) && shielded.length >= 2 && shielded[1].height > shielded[0].height, 'Bob claims his ZEC', 'Another shielded transaction; Bob’s own wallet decrypts it.'],
+    [Boolean(withdrawn), 'Alice withdraws the ETH', 'Settled. No transparent output ever appeared on Zcash.'],
+  ];
+  const done = steps.every(s => s[0]);
+  if (done) return {done, refund, locked: Boolean(locked), step: refund ? 'Refunded · both sides' : `Settled · ${steps.length} of ${steps.length}`, caption: steps[steps.length - 1][2]};
   const next = steps.findIndex(s => !s[0]);
-  return {done, refund, step: `Step ${next + 1} of ${steps.length} · ${steps[next][1]}`, caption: steps[next][2]};
+  return {done, refund, locked: Boolean(locked), step: `Step ${next + 1} of ${steps.length} · ${steps[next][1]}`, caption: steps[next][2]};
 }
 
 const SCENARIOS = {success: 'The swap', crash: 'Bob’s app crashes', refund: 'Both refund'};
@@ -92,7 +101,8 @@ function summary(state, story) {
   const s = state.scenario;
   const took = s && s.ended && s.ended >= s.started ? ` in ${clock(s.ended - s.started)}` : '';
   const lines = story.refund ? [
-    `Ethereum: ${locked ? eth(locked.amount_wei) : 'the ETH'} locked, then refunded to Bob after the expiry. t was never revealed.`,
+    locked ? `Ethereum: ${eth(locked.amount_wei)} locked, then refunded to Bob after the expiry and withdrawn. t was never revealed.`
+      : 'Ethereum: Bob never locked, so nothing moved there and t was never revealed.',
     'Zcash: Alice’s pre-signed refund returned her ZEC. Only on this path do transparent outputs appear: her 20,000-zatoshi refund coin and 15,000 zatoshi returned to the same address.',
   ] : [
     `Ethereum: ${locked ? eth(locked.amount_wei) : 'the ETH'} locked by Bob, claimed with t, withdrawn by Alice.`,
