@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sets up the hosted Latch demo on a fresh Ubuntu 24.04 arm64 server.
+# Sets up the hosted Zatomic demo on a fresh Ubuntu 24.04 server (arm64 or x86_64).
 #
 #   git clone https://github.com/yugocabrio/zeceth /opt/latch
 #   LATCH_HOST=203-0-113-7.sslip.io bash /opt/latch/deploy/setup.sh
@@ -15,7 +15,12 @@ HOST=${LATCH_HOST:?set LATCH_HOST to the site host name}
 [[ $HOST =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || { echo "LATCH_HOST: lowercase host name only" >&2; exit 1; }
 APP=/opt/latch
 [ "$(id -u)" = 0 ] || { echo "run as root" >&2; exit 1; }
-[ "$(uname -m)" = aarch64 ] || { echo "the pinned zebrad is aarch64 Linux: use an arm64 server" >&2; exit 1; }
+# Pinned official Foundry builds (SHA-256 from the v1.3.1 release).
+case "$(uname -m)" in
+  aarch64) FOUNDRY_ARCH=arm64; FOUNDRY_SHA256=ac5f88c0f6c1e5ed09c035a9f4405f74b996ea8a701d7150dc0184c18dd09f11 ;;
+  x86_64) FOUNDRY_ARCH=amd64; FOUNDRY_SHA256=baad3e1b06d6f310d210c93e95258a03d923fe610f8d0742138f2245f94abd7c ;;
+  *) echo "use an arm64 or x86_64 server" >&2; exit 1 ;;
+esac
 [ -f "$APP/scripts/two_party.py" ] || { echo "clone the repository to $APP first" >&2; exit 1; }
 FOUNDRY=v1.3.1
 DEPLOY=$APP/deploy
@@ -40,10 +45,10 @@ fi
 export PATH=/root/.cargo/bin:$PATH
 rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"/\1/p' "$APP/rust-toolchain.toml")" --profile minimal
 if [ "$(anvil --version 2>/dev/null | head -1)" != "anvil Version: ${FOUNDRY#v}-stable" ]; then
-  archive=foundry_${FOUNDRY}_linux_arm64.tar.gz
+  archive=foundry_${FOUNDRY}_linux_${FOUNDRY_ARCH}.tar.gz
   work=$(mktemp -d)
   curl -fsSL -o "$work/$archive" "https://github.com/foundry-rs/foundry/releases/download/$FOUNDRY/$archive"
-  sha256sum "$work/$archive" | tee /root/foundry-$FOUNDRY.sha256
+  echo "$FOUNDRY_SHA256  $work/$archive" | sha256sum -c -
   tar -xzf "$work/$archive" -C "$work" anvil cast forge
   install -m 0755 "$work/anvil" "$work/cast" "$work/forge" /usr/local/bin/
   rm -rf "$work"
@@ -55,7 +60,7 @@ install -d -m 0755 "$APP/.local"
 npm ci --ignore-scripts --no-audit --no-fund
 CARGO_BUILD_JOBS=4 cargo build --locked --release -p shielded-swap-native
 forge build
-python3 -c 'import sys; sys.path.insert(0, "scripts"); import regtest_node; regtest_node.prepare()'
+LATCH_NODE=external python3 -c 'import sys; sys.path.insert(0, "scripts"); import regtest_node; regtest_node.prepare()'
 python3 -m compileall -q scripts
 # Everything under /opt/latch stays root-owned and world-readable; the network
 # user may only create its lock and process list in .local.

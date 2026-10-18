@@ -49,9 +49,11 @@ outgoing viewing key
 ([code](https://github.com/Near-One/btc-bridge/blob/0b02818d47/contracts/satoshi-bridge/src/zcash_utils/orchard_policy.rs#L11-L13)).
 That key is public, so anyone can recover the payout's recipient too. Zatomic's
 two Zcash transactions have no transparent input or output, and their outputs
-are built with no outgoing viewing key, so nobody can recover them that way.
+carry no outgoing viewing key: their outgoing ciphertext cannot be used to
+recover them, and only each recipient's own viewing key decrypts an output.
 What Zatomic leaves public is under Honest limits: the ETH side, timing, and on
-a refund one transparent coin. NEAR's Confidential Intents hide order flow on
+a refund two small transparent outputs (Alice's 20,000-zatoshi refund coin and
+its 15,000-zatoshi change). NEAR's Confidential Intents hide order flow on
 NEAR; they are a different layer from the Zcash transactions compared here.
 
 ## Demonstration and verification
@@ -91,8 +93,8 @@ cross-check is not an external audit or a security proof.
 The swap requires bounded monitoring, inclusion and reorg assumptions. Arbitrary
 outages or source-conflicting deep forks are outside its demonstrated guarantees.
 ETH addresses, amounts, witness and timing are public. A settled swap is fully
-shielded on Zcash; only a refund creates and spends a transparent auxiliary
-coin. The ZEC exchange principal remains shielded either way. This is not a claim that the entire exchange is anonymous or mainnet
+shielded on Zcash; only a refund creates a transparent auxiliary coin, which R
+spends, returning 15,000 zatoshi of change to the same address. The ZEC exchange principal remains shielded either way. This is not a claim that the entire exchange is anonymous or mainnet
 ready.
 
 ## Before submitting

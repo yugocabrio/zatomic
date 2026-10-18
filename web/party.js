@@ -63,7 +63,8 @@ function renderAction(action) {
   let fields = null;
   if (action.fields) {
     fields = el('div', 'p-fields');
-    for (const [id, label, value] of [['zec', 'Bob receives (ZEC)', '0.02'], ['eth', 'Alice receives (ETH)', '0.04']]) {
+    const d = action.defaults || {zec: '0.015', eth: '0.0293'};
+    for (const [id, label, value] of [['zec', 'Bob receives (ZEC)', d.zec], ['eth', 'Alice receives (ETH)', d.eth]]) {
       const wrap = el('label', 'field'); const span = el('span', '', label);
       const input = el('input'); input.id = `p-${id}`; input.value = value; input.inputMode = 'decimal'; input.autocomplete = 'off';
       wrap.append(span, input); fields.append(wrap);

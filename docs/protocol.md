@@ -241,7 +241,8 @@ the exact preparation thresholds and evidence limits in
 
 - Zcash observers: normal shielded funding/claim metadata, no public principal
   or shielded address. Only a refund exposes the auxiliary transaction A (a
-  20,000-zatoshi transparent output from Alice's change) and links it to R.
+  20,000-zatoshi transparent output from Alice's change) and links it to R,
+  which returns 15,000 zatoshi to the same transparent address.
 - EVM observers: ETH amount, maker/recipient, T, t after reveal, deadlines,
   terms commitment and timing. ETH-side privacy is not claimed.
 - Counterparty: agreed amounts, the peer's one-time receive **address** (never

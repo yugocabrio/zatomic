@@ -4,7 +4,7 @@
 // events. Its narration is inferred from that public data alone.
 const $ = (s) => document.querySelector(s);
 let latest = null;
-const shown = {generation: null, running: {}, lease: {}};
+const shown = {generation: null, ready: {}, lease: {}};
 // Hosted demo: one visitor drives at a time. The lease is a per-browser
 // convenience; the server decides who holds the controls.
 const lease = {
@@ -34,8 +34,9 @@ function describe(e, names) {
     return ['relay', `${who(e.from)} → ${who(e.to)}: sealed message`, `${(e.bytes || 0).toLocaleString()} bytes · the relay cannot open it`];
   }
   if (e.chain === 'zcash') {
-    if (e.transparent_outputs.length) return ['zec warn', `Zcash: ${e.transparent_outputs.map(zec).join(', ')} to a transparent address`, 'Appears only on the refund path'];
-    if (e.transparent_inputs) return ['zec', 'Zcash: shielded refund, time-locked by a transparent input', `${e.actions} actions · amount and recipient hidden`];
+    if (e.transparent_inputs) return ['zec warn', 'Zcash: Alice’s refund, time-locked by spending her refund coin',
+      `Her ZEC returns shielded${e.transparent_outputs.length ? ` · ${e.transparent_outputs.map(zec).join(', ')} change back to the coin’s transparent address` : ''}`];
+    if (e.transparent_outputs.length) return ['zec warn', `Zcash: Alice’s refund coin, ${e.transparent_outputs.map(zec).join(', ')} to a transparent address`, 'Appears only on the refund path'];
     return ['zec', 'Zcash: shielded transaction', `${e.actions} actions · amount, sender and recipient hidden · block #${e.height}`];
   }
   if (e.event === 'locked') return ['eth', `Ethereum: ${who(e.maker)} locks ${eth(e.amount_wei)} for ${who(e.recipient)}`, 'Claimable only with the secret t'];
@@ -92,7 +93,7 @@ function summary(state, story) {
   const took = s && s.ended && s.ended >= s.started ? ` in ${clock(s.ended - s.started)}` : '';
   const lines = story.refund ? [
     `Ethereum: ${locked ? eth(locked.amount_wei) : 'the ETH'} locked, then refunded to Bob after the expiry. t was never revealed.`,
-    'Zcash: Alice’s pre-signed refund returned her ZEC. Only on this path does one transparent coin appear.',
+    'Zcash: Alice’s pre-signed refund returned her ZEC. Only on this path do transparent outputs appear: her 20,000-zatoshi refund coin and 15,000 zatoshi returned to the same address.',
   ] : [
     `Ethereum: ${locked ? eth(locked.amount_wei) : 'the ETH'} locked by Bob, claimed with t, withdrawn by Alice.`,
     `Zcash: ${zcash.length} shielded transactions. No amount, no address, nothing transparent.`,
@@ -181,17 +182,19 @@ function render(state) {
   const status = $('#ctl-status');
   if (state.autoplay) status.textContent = `Autoplay running: ${SCENARIOS[state.autoplay]}`;
   else if (status.textContent.startsWith('Autoplay running')) status.textContent = 'Autoplay finished';
-  // A stopped app shows a notice; a restarted app or a new trade reloads its frame.
+  // A stopped app shows a notice. A frame (re)loads only once its app's server
+  // answers: after a restart or a new trade, and when the driver's lease changes.
   for (const role of ['alice', 'bob']) {
     const up = !state.running || state.running[role] !== false;
+    const ready = state.ready ? state.ready[role] : up;
     const frame = $(`#${role}-frame`);
     const key = driver && driver.mine ? lease.get() : '';
     frame.closest('.stage-app').classList.toggle('is-down', !up);
-    if (up && (shown.generation !== state.generation || shown.running[role] === false || shown.lease[role] !== key)) {
+    if (ready && (shown.generation !== state.generation || !shown.ready[role] || shown.lease[role] !== key)) {
       frame.src = `${state.apps[role]}/?embed=1${key ? '&lease=' + encodeURIComponent(key) : ''}`;
       shown.lease[role] = key;
     }
-    shown.running[role] = up;
+    shown.ready[role] = ready;
   }
   shown.generation = state.generation;
   const names = {};
@@ -201,11 +204,14 @@ function render(state) {
   $('#network-status').textContent = `ZEC #${state.zcash_height}`;
   const story = narrate(state.events);
   state.finished = story.done;
-  if ($('#stage-step').textContent !== story.step) $('#stage-step').textContent = story.step;
-  if ($('#stage-caption').textContent !== story.caption) $('#stage-caption').textContent = story.caption;
+  const begun = state.events.some(e => e.chain === 'relay' && e.kind === 'sealed');
+  const ready = !begun && !story.done && !state.autoplay;
+  const step = ready ? 'Both apps are ready' : story.step;
+  const caption = ready ? 'Each has posted its public keys. Nothing else has crossed between them yet.' : story.caption;
+  if ($('#stage-step').textContent !== step) $('#stage-step').textContent = step;
+  if ($('#stage-caption').textContent !== caption) $('#stage-caption').textContent = caption;
   // What the middle column offers: a scenario to start, a running clock, a
   // nudge for a trade left part-way, or the result.
-  const begun = state.events.some(e => e.chain === 'relay' && e.kind === 'sealed');
   const last = state.events.length ? state.events[state.events.length - 1].at : state.now;
   const s = state.scenario;
   $('#start').hidden = watching || Boolean(state.autoplay) || begun || story.done;
@@ -251,7 +257,7 @@ function render(state) {
   const sealed = state.events.filter(e => e.chain === 'relay' && e.kind === 'sealed').length;
   const transparent = zcash.filter(e => e.transparent_outputs.length).length;
   $('#obs-zec').textContent = `${zcash.length} transaction${zcash.length === 1 ? '' : 's'}`;
-  $('#obs-zec-note').textContent = transparent ? 'refund path: one transparent coin appeared' : 'all shielded: no amount, address or transparent output';
+  $('#obs-zec-note').textContent = transparent ? `refund path: ${transparent} transparent output${transparent === 1 ? '' : 's'} so far` : 'all shielded: no amount, address or transparent output';
   const locked = ethEvents.find(e => e.event === 'locked');
   $('#obs-eth').textContent = locked ? eth(locked.amount_wei) : 'nothing yet';
   $('#obs-eth-note').textContent = ethEvents.map(e => e.event).join(' → ') || 'public by design';

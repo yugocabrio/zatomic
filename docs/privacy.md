@@ -9,7 +9,7 @@ against the code, not taken on trust.
 
 | Observer | Learns | Does not learn |
 |---|---|---|
-| **Zcash chain observer** | That shielded transactions occurred, their fee and timing. A settled swap has no transparent component. On the refund path only: Alice's auxiliary transaction (one 20,000-zatoshi transparent output) and the refund that spends it. | Amounts, senders, recipients, memos. Which note F created. That claim C spends that note. |
+| **Zcash chain observer** | That shielded transactions occurred, their fee and timing. A settled swap has no transparent component. On the refund path only: Alice's auxiliary transaction A (one 20,000-zatoshi transparent output) and the refund R, which spends that coin and returns 15,000 zatoshi (the coin less a 5,000-zatoshi fee) to the same transparent address. | Amounts, senders, recipients, memos. Which note F created. That claim C spends that note. |
 | **Ethereum chain observer** | Bob's and Alice's ETH addresses, the ETH amount, the expiry, the point `T`, a hash of the agreed terms, the revealed `t`, and who relayed the claim. | Any Zcash address, viewing key, note or ZEC amount. The terms appear only as a hash commitment. |
 | **Your counterparty** | The agreed amounts, both ETH addresses, your **one-time** Zcash receive address, the funding txid, the shared one-time joint note, and the refund auxiliary outpoint (a txid that reaches the chain only if Alice refunds). | Your viewing keys, your source wallet, or where your received ZEC goes next. |
 | **Relay** (two-party mode) | Each owner's identity: public keys and ETH address. For every other message: sender, recipient, size and time. | The quote, amounts, terms, funding txid, note commitment, consents or order ID. These are sealed to the recipient. |
@@ -57,7 +57,9 @@ wallet signs a private auxiliary transaction A at setup: it spends her own F
 change and creates the coin. A is never sent unless Alice refunds, and only her
 own participant holds it. A settled swap puts only F and C on chain, both fully
 shielded. On a refund, A shows 20,000 zatoshi leaving the shielded pool to a
-transparent address, and R spends it. Locally that address is fresh per swap;
+transparent address, and R spends it and returns the remaining 15,000 zatoshi to
+that same address, where it stays until Alice sweeps it. Locally that address is
+fresh per swap;
 on the public testnet it is the source wallet's dedicated auxiliary address,
 which the provider first sees only on a refund. The public path does the same
 since 2026-10-17: its source reservation holds only the shielded note, and the

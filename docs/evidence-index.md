@@ -39,6 +39,13 @@ state; the planned public deployment and lock would have run out of gas. Limits
 were re-measured by simulation and raised (fee profile v2).
 [Record](../evidence/2026-10-18-sepolia-gas.json).
 
+**Judge stage on real local chains, 2026-10-18:** the three one-click
+scenarios ran from the browser, each on a fresh trade: swap (3:32, 3:42), Bob's
+app killed and restarted after the claim (3:47), both refund (3:37). Two defects
+were found and fixed (blank app frames after New trade; quotes too large for one
+regtest coinbase after the reward halved).
+[Record](../evidence/2026-10-18-stage-scenarios.json).
+
 **Public testnet swap, 2026-10-18:** the first funded exchange on the public
 Zcash testnet and Sepolia settled and passed the final verify. F and C are fully
 shielded; the refund auxiliary was never broadcast. Success path only, one host.

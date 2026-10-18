@@ -22,6 +22,7 @@ import run_native_evm_gate as evm
 import fee_policy
 from latch_operator import manifest_digest
 from regtest_node import rpc as zrpc, status
+from regtest_wallet import demo_amounts
 from otc_offer import decimal_amount
 from two_party_http import ROOT, Handler, atomic, call, public_origins
 
@@ -387,7 +388,8 @@ class App:
             if not trusted:
                 action = self.trust_action(peer, manifests)
             elif not s.get('offer'):
-                action = {'id': 'offer', 'label': 'Sign quote', 'fields': True}
+                zec, eth = demo_amounts()
+                action = {'id': 'offer', 'label': 'Sign quote', 'fields': True, 'defaults': {'zec': zec, 'eth': eth}}
             elif not (self.me / 'accepted-trade.json').exists():
                 action = {'wait': 'Waiting for Bob to review and accept the quote.'}
             elif not s.get('agreement'):

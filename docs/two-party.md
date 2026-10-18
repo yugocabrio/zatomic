@@ -91,6 +91,12 @@ over. The bar above the apps has the same scenarios, plus **Stop / Restart Bob's
 app**, **ETH +61 min** and **Zcash +24 blocks** (stand-ins for time passing on a
 public chain) and **New trade**.
 
+Measured on an Apple M1 with 16 GiB, each from a fresh trade: the swap took
+3:32 and 3:42, Bob's app crashing 3:47, both refund 3:37, mostly proving
+([record](../evidence/2026-10-18-stage-scenarios.json)).
+
+![The stage before a trade: both apps ready, three scenarios in the middle](images/stage-start.png)
+
 For recording, open **/stage?record**. It hides the control bar and page links,
 enlarges the narration, and is driven by keys: `1` `2` `3` scenarios, `N` new
 trade, `S` / `R` stop and restart Bob's app, `E` ETH time, `Z` Zcash blocks. The
@@ -100,8 +106,10 @@ without scrolling.
 To run this for judges on a rented server, see [hosting](hosting.md): each app
 then runs as its own Linux user, and one visitor at a time holds the controls.
 
-Autoplay types the agreed amounts (0.019 ZEC for 0.0371 ETH) and accepts the
-fingerprints shown on screen. A real owner compares fingerprints over a channel
+Autoplay types the agreed amounts and accepts the fingerprints shown on screen.
+The amounts are 0.015 ZEC for 0.0293 ETH, or proportionally smaller once the
+regtest block reward (one coinbase note funds Alice) can no longer cover that;
+the reward halves every 864 blocks. A real owner compares fingerprints over a channel
 they already trust.
 
 ## A trade, step by step
@@ -124,16 +132,18 @@ they already trust.
 
 ## Recovery that you can show
 
-- **Crash after the reveal.** After Alice claims, click *Kill app (SIGKILL)* for
-  Bob on the network page, then *Start*. Bob's app rebuilds its state from its
+Scenarios 2 and 3 on the stage do both of these by themselves. By hand:
+
+- **Crash after the reveal.** After Alice claims, click *Stop Bob's app* on the
+  stage (or *Kill app (SIGKILL)* on the network page), then *Restart*. Bob's app rebuilds its state from its
   own files and the chains, and offers *Claim my ZEC* again. Alice can withdraw
   meanwhile; she never needs Bob online.
-- **No reveal.** Let Bob lock and Alice not claim. The network page's *Advance
-  ETH time 61 min* stands in for waiting. Bob refunds and withdraws. *Mine 24
-  Zcash blocks* passes the native refund height, and Alice's prepared refund
+- **No reveal.** Let Bob lock and Alice not claim. *ETH +61 min* stands in for
+  waiting. Bob refunds and withdraws. *Zcash +24
+  blocks* passes the native refund height, and Alice's prepared refund
   returns her ZEC.
 
-![Alice's app after a no-reveal refund](images/two-party-alice-refund.png)
+![Both refunded: Bob's ETH returned, Alice's ZEC returned, and the two transparent outputs the refund path adds](images/stage-refund.png)
 
 ## What this does and does not show
 

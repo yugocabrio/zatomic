@@ -3,7 +3,7 @@
 # local wallet scan stops at height 10,002). Run daily by latch-reset.timer, or
 # by hand with --force. Deletes every demo trade: regtest data only.
 set -euo pipefail
-limit=7000
+limit=6800  # Below the 6,905 halving, so demo quotes stay 0.015 ZEC.
 height=$(curl -fsS -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"getblockcount","params":[]}' http://127.0.0.1:30342 |
   python3 -c 'import json, sys; print(json.load(sys.stdin)["result"])')

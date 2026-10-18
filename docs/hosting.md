@@ -26,11 +26,16 @@ user and nothing else ([`deploy/sudoers`](../deploy/sudoers)).
 
 ## Server
 
-- **arm64**, because the pinned `zebrad` release is aarch64 Linux. Ubuntu 24.04.
+- Ubuntu 24.04 on **arm64 or x86_64**. The setup picks the matching official
+  `zebrad` and Foundry builds and checks each against its pinned SHA-256.
 - 4 vCPU and 8 GB RAM is enough; 8 vCPU and 16 GB proves and builds faster.
-  The first Rust release build takes roughly 15 to 30 minutes (an estimate; not
-  yet timed on such a server). Disk: 40 GB.
-- For example, Hetzner Cloud CAX21 (4 vCPU, 8 GB) or CAX31 (8 vCPU, 16 GB).
+  Avoid 4 GB. The first Rust release build takes roughly 15 to 30 minutes (an
+  estimate; not yet timed on such a server). Disk: 40 GB.
+- For example, Hetzner Cloud CPX32 (x86, 4 vCPU, 8 GB), CAX21 or CAX31 (arm64,
+  when available), or netcup VPS 2000 ARM (8 vCore, 16 GB).
+- Not yet run on either kind of server. The x86_64 `zebrad` archive is pinned
+  from the release's SHA256SUMS; its layout is assumed to match the arm64 one,
+  and the setup stops with a clear error if it does not.
 
 The site needs three names that point at the server: `HOST`, `alice.HOST` and
 `bob.HOST`. Each owner app gets its own origin, so the browser keeps them apart
@@ -70,11 +75,19 @@ device.
 
 ## Chain capacity
 
-The budget is 400 regtest blocks per trade, a generous bound: Alice's faucet
-mines 101, and the refund path advances 72 more. The local wallet scan stops at height 10,002. New trade is refused when
-fewer than 400 blocks remain. Every day at 04:00 UTC `latch-reset.timer` checks
-the height, and above 7,000 it starts a fresh chain. That deletes every demo
-trade, all regtest data. To reset by hand: `/usr/local/sbin/latch-reset --force`.
+A swap uses about 105 regtest blocks and a refund about 180: Alice's faucet
+mines 101, and the refund path advances 72 more. The budget is a generous 400
+per trade. The local wallet scan stops at height 10,002, so New trade is refused
+when fewer than 400 blocks remain.
+
+The faucet funds Alice with one coinbase note, and the regtest block reward
+halves every 864 blocks (0.0326 ZEC from height 5,177, 0.0163 from 6,041,
+0.0081 from 6,905). Demo quotes are 0.015 ZEC for 0.0293 ETH while one reward
+covers that, and proportionally smaller after that, so trades keep working, just
+with smaller amounts. Every day at 04:00 UTC `latch-reset.timer` checks the
+height; at 6,800 or above it starts a fresh chain, before the amounts shrink. That
+deletes every demo trade, all regtest data. To reset by hand:
+`/usr/local/sbin/latch-reset --force`.
 
 ## Operating
 

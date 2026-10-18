@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import re
 from pathlib import Path
 import subprocess
@@ -38,8 +39,18 @@ RPC = f'http://127.0.0.1:{PORT}'
 GENESIS = '029f11d80ef9765602235e1bc9727e3eb6ba20839319f761fee920d63401e327'
 BRANCH = '77190ad9'
 IMAGE = 'ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55'
-ARCHIVE = 'zebrad-7.0.0-rc.0-aarch64-unknown-linux-gnu.tar.gz'
-DIGEST = '59adbb7d3e19c0fb7370eeca628787973ee347e421700a36e3b8dbde5c0b86c4'
+# Official v7.0.0-rc.0 builds, checked against the release's SHA256SUMS. The
+# local node runs the arm64 build in Docker; a hosted node runs its host's build.
+ARCHIVES = {
+    'aarch64': ('zebrad-7.0.0-rc.0-aarch64-unknown-linux-gnu.tar.gz',
+                '59adbb7d3e19c0fb7370eeca628787973ee347e421700a36e3b8dbde5c0b86c4'),
+    'x86_64': ('zebrad-7.0.0-rc.0-x86_64-unknown-linux-gnu.tar.gz',
+               '7486dcd91c18d9b8778c632a0cd8e5639d6313ae4d88bc8fd09b1bb7eb12c1f2'),
+}
+MACHINE = {'arm64': 'aarch64', 'amd64': 'x86_64'}.get(platform.machine().lower(), platform.machine().lower())
+if EXTERNAL and MACHINE not in ARCHIVES:
+    raise RuntimeError('no pinned zebrad build for this CPU; use an arm64 or x86_64 host')
+ARCHIVE, DIGEST = ARCHIVES[MACHINE if EXTERNAL else 'aarch64']
 URL = 'https://github.com/ZcashFoundation/zebra/releases/download/v7.0.0-rc.0/' + ARCHIVE
 CONFIG = '''[network]
 network = "Regtest"

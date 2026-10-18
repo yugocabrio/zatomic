@@ -14,6 +14,7 @@ from pathlib import Path
 import ssl
 import subprocess
 import sys
+import time
 import evm_wallet
 import native_funding
 import otc_offer
@@ -234,6 +235,14 @@ if __name__ == '__main__':
                     raise RuntimeError('operator message object required')
             result = execute(directory, a.action, packet)
         print(json.dumps(result))
-    except (OSError, RuntimeError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
+        # The caller learns only that the action was refused. The cause goes to
+        # this operator's own private directory, for its owner to diagnose.
+        detail = exc.stderr if isinstance(exc, subprocess.CalledProcessError) and exc.stderr else ''
+        try:
+            with (a.directory / 'operator-errors.log').open('a') as log:
+                log.write(f'{time.strftime("%H:%M:%S")} {a.action}: {type(exc).__name__}: {exc} {str(detail)[-600:]}'.rstrip() + '\n')
+        except OSError:
+            pass
         print('Operator action rejected; private state retained.', file=sys.stderr)
         sys.exit(1)

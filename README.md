@@ -2,7 +2,7 @@
 
 **P2P OTC swaps of shielded ZEC for ETH, with recovery prepared before funding.**
 
-![Zatomic: swap shielded ZEC for ETH without a bridge](docs/images/ui-hero.png)
+![Zatomic stage after a settled swap: Alice’s and Bob’s apps, and between them only what an outside observer saw](docs/images/stage-swap.png)
 
 Zatomic is an independent ZECATHON Cross-chain prototype. Two participants prepare
 native shielded claim and refund transactions using a custom RedPallas adaptor

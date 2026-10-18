@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Obtain actual matured local notes and trusted node captures; no public RPC."""
 import argparse
+from decimal import Decimal, ROUND_DOWN
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,26 @@ NATIVE = ROOT / 'target/release/shielded-swap-native'
 INITIAL_HEIGHT = 2
 MAX_CAPTURE_HEIGHT = INITIAL_HEIGHT + 10_000  # Matches native wallet.rs; JSON remains capped at 50 MB.
 FUNDING_ANCHOR_LAG = 6  # Local fixture policy, not a public-network finality guarantee.
+
+
+# Demo amounts: 0.015 ZEC for 0.0293 ETH. The faucet funds Alice with one
+# coinbase note, and the regtest block reward halves every 864 blocks (0.0163 ZEC
+# from height 6,041, 0.0081 from 6,905), so the payout shrinks to fit that note:
+# the stage needs one note above payout + 55,000 zatoshi (two fees, the refund
+# coin and its fee).
+DEMO_PAYOUT_ZATOSHI, DEMO_ETH = 1_500_000, Decimal('0.0293')
+FUNDING_OVERHEAD = 60_000
+
+
+def demo_amounts(margin_blocks=20):
+    """(zec, eth) decimal strings for a demo quote funded within margin_blocks."""
+    height = status()['blocks'] + margin_blocks  # The reward never grows with height.
+    reward = round(rpc('getblocksubsidy', [height])['miner'] * 100_000_000)
+    payout = min(DEMO_PAYOUT_ZATOSHI, (reward - FUNDING_OVERHEAD) // 10_000 * 10_000)
+    if payout <= 0:
+        raise RuntimeError('the regtest block reward is too small to fund a demo trade')
+    eth = (DEMO_ETH * payout / DEMO_PAYOUT_ZATOSHI).quantize(Decimal('0.0001'), ROUND_DOWN)
+    return str(Decimal(payout) / 100_000_000).rstrip('0'), str(eth)
 
 
 def require_capacity(additional_blocks):

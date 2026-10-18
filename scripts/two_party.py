@@ -34,7 +34,7 @@ from http.server import ThreadingHTTPServer
 import run_native_evm_gate as evm
 import evm_wallet
 from regtest_node import rpc as zrpc, status
-from regtest_wallet import MAX_CAPTURE_HEIGHT, native
+from regtest_wallet import MAX_CAPTURE_HEIGHT, demo_amounts, native
 from two_party_http import ROOT, Handler, atomic, call, public_origins
 
 PORTS = {'network': 8790, 'alice': 8791, 'bob': 8792}
@@ -51,6 +51,13 @@ APP_BASE = Path(os.environ.get('LATCH_APP_BASE', '/var/lib/latch'))
 LIBEXEC = Path('/usr/local/libexec')
 LEASE_IDLE, LEASE_AUTOPLAY = 300, 120  # Seconds a driver keeps the controls.
 TRADE_BLOCKS = 400  # Generous bound per trade: funding mines 101 blocks, a refund 72 more.
+
+
+def listening(port):
+    """An app's page loads only once its server accepts connections."""
+    with socket.socket() as probe:
+        probe.settimeout(.2)
+        return probe.connect_ex(('127.0.0.1', port)) == 0
 
 
 def as_user(role, *command, **options):
@@ -303,6 +310,7 @@ class Network:
     def play(self, path, root):
         urls = {r: f'http://127.0.0.1:{PORTS[r]}' for r in PRIVATE}
         advanced = {'eth': 0, 'zec': 0}
+        presses = {}  # A press that succeeds moves the app on; one that keeps reappearing failed.
         try:
             for _ in range(900):
                 if self.root != root:
@@ -336,13 +344,16 @@ class Network:
                         continue
                     if not a.get('id'):
                         continue
+                    presses[r, a['id']] = presses.get((r, a['id']), 0) + 1
+                    if presses[r, a['id']] > 4:
+                        raise RuntimeError(f'{r.capitalize()}’s “{a["label"]}” keeps failing; that app shows why')
                     body = {'action': a['id'], 'lease': self.internal}
                     if a['id'] == 'trust':
                         body['fingerprint'] = a['fingerprint']
                         if a.get('source_fingerprint'):
                             body['source_fingerprint'] = a['source_fingerprint']
                     if a['id'] == 'offer':
-                        body.update(zec_amount='0.019', eth_amount='0.0371')
+                        body['zec_amount'], body['eth_amount'] = demo_amounts()
                     try:
                         call(urls[r], '/api/act', body, v['token'])
                     except urllib.error.HTTPError:
@@ -518,6 +529,7 @@ class Network:
             return {'events': self.public.snapshot(self.escrow['address'], relay), 'owners': owners,
                 'zcash_height': tip['blocks'], 'apps': {r: self.app_url(r) for r in PRIVATE},
                 'running': {r: p.poll() is None for r, p in self.apps.items()},
+                'ready': {r: r in self.apps and self.apps[r].poll() is None and listening(PORTS[r]) for r in PRIVATE},
                 'token': self.page_token, 'autoplay': self.autoplaying, 'generation': self.generation,
                 'scenario': self.scenario, 'interrupted': sorted(set(self.interrupted)), 'now': int(time.time()),
                 'public': bool(ORIGINS), 'driver': self.driver_view(lease),

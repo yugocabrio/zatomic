@@ -1,0 +1,331 @@
+{
+  "date": "2026-10-18",
+  "scope": "Judge stage on the real local chains: the three one-click scenarios driven from the browser, each from a fresh trade.",
+  "environment": {
+    "host": "Apple M1, 16 GiB, macOS",
+    "zcash": "Zebra 7.0.0-rc.0 NU7 regtest in Docker (heights 5,889 to 6,436)",
+    "ethereum": "Anvil 1.3.1, fresh state per trade",
+    "isolation": "macOS sandbox-exec per owner app; proven at the start of every trade"
+  },
+  "command": "python3 scripts/two_party.py .local/two-party-20261018-judge, then the stage buttons (scenario 1, Try: Bob’s app crashes, Try: Both refund, Try: The swap)",
+  "runs": [
+    {
+      "scenario": "success",
+      "seconds": 212,
+      "interrupted": [],
+      "isolation": {
+        "proven": true,
+        "by": "sandbox"
+      },
+      "zcash_height_after": 5994,
+      "relay": {
+        "messages": 8,
+        "sealed": 6,
+        "manifests": 2
+      },
+      "zcash": [
+        {
+          "txid": "7d81f573f9bd4430c0b6ee5801e20e6316aeb96d13a181efab9a6026034f340f",
+          "height": 5991,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        },
+        {
+          "txid": "e78a555471cf105ca0eb8d43521525342ce9cead4515e26d9b07467d650247ed",
+          "height": 5993,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        }
+      ],
+      "ethereum": [
+        {
+          "event": "locked",
+          "tx": "0x0c087f9e4fb7b35446cf62be71df3a7da3828f1a2f5e2fefa34ce3c4b0efe805",
+          "block": 2,
+          "amount_wei": "37100000000000000"
+        },
+        {
+          "event": "claimed",
+          "tx": "0x03bb3925722207530ef2a853f1207ba8c60742590a4552352f3735c0d9bdd44d",
+          "block": 3
+        },
+        {
+          "event": "withdrawn",
+          "tx": "0xd6bcef7e1a65036adb11c721387c4fd1686050b5ab56e2460bb6e6ae332dc04c",
+          "block": 4,
+          "amount_wei": "37100000000000000"
+        }
+      ],
+      "network_notes": [
+        "Alice app started (sandboxed)",
+        "Bob app started (sandboxed)",
+        "Sandbox checked: neither app can read the other owner's files",
+        "Autoplay: Alice pressed “Fingerprints match: trust Bob”",
+        "Autoplay: Alice pressed “Sign quote”",
+        "Autoplay: Bob pressed “Fingerprints match: trust Alice”",
+        "Autoplay: Bob pressed “Accept quote”",
+        "Autoplay: Alice pressed “Prepare exits”",
+        "Autoplay: Bob pressed “Sign the full terms”",
+        "Autoplay: Alice pressed “Sign full terms and fund ZEC”",
+        "Autoplay: Bob pressed “Lock ETH”",
+        "Autoplay: Alice pressed “Claim ETH (reveals the secret)”",
+        "Autoplay: Alice pressed “Withdraw ETH”",
+        "Autoplay: Bob pressed “Claim my ZEC”",
+        "Autoplay: both owners finished"
+      ],
+      "amounts": {
+        "zec": "0.019",
+        "eth": "0.0371"
+      }
+    },
+    {
+      "scenario": "crash",
+      "seconds": 227,
+      "interrupted": [
+        "bob"
+      ],
+      "isolation": {
+        "proven": true,
+        "by": "sandbox"
+      },
+      "zcash_height_after": 6099,
+      "relay": {
+        "messages": 8,
+        "sealed": 6,
+        "manifests": 2
+      },
+      "zcash": [
+        {
+          "txid": "cf184a03be8ebacdd57b0a28c81815897af783a22bab28680e601116d912bb8c",
+          "height": 6096,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        },
+        {
+          "txid": "a08a3d7adeae3638b29ddec803d0b704ac1d80ab3f2891db325f98e0bd8321ac",
+          "height": 6098,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        }
+      ],
+      "ethereum": [
+        {
+          "event": "locked",
+          "tx": "0x831fead59ec89f56b94a2b775055a2c9bae1901855b73ef87d2c94e69ddc220b",
+          "block": 2,
+          "amount_wei": "37100000000000000"
+        },
+        {
+          "event": "claimed",
+          "tx": "0x3b0f1e586cf63021ba95cfb96ec2c6ad62d9914d74bcf2fcbe4042d42f8f8863",
+          "block": 3
+        },
+        {
+          "event": "withdrawn",
+          "tx": "0x8e075f1dec993922d931dbba792bb2cfe931cd5ba79f63b2ee3c4751d9a75b50",
+          "block": 4,
+          "amount_wei": "37100000000000000"
+        }
+      ],
+      "network_notes": [
+        "Alice app started (sandboxed)",
+        "Bob app started (sandboxed)",
+        "Sandbox checked: neither app can read the other owner's files",
+        "Autoplay: Alice pressed “Fingerprints match: trust Bob”",
+        "Autoplay: Alice pressed “Sign quote”",
+        "Autoplay: Bob pressed “Fingerprints match: trust Alice”",
+        "Autoplay: Bob pressed “Accept quote”",
+        "Autoplay: Alice pressed “Prepare exits”",
+        "Autoplay: Bob pressed “Sign the full terms”",
+        "Autoplay: Alice pressed “Sign full terms and fund ZEC”",
+        "Autoplay: Bob pressed “Lock ETH”",
+        "Autoplay: Alice pressed “Claim ETH (reveals the secret)”",
+        "Bob app killed (SIGKILL): scenario: right after Alice’s claim",
+        "Bob app started (sandboxed)",
+        "Autoplay: Alice pressed “Withdraw ETH”",
+        "Autoplay: Bob pressed “Claim my ZEC”",
+        "Autoplay: both owners finished"
+      ],
+      "amounts": {
+        "zec": "0.019",
+        "eth": "0.0371"
+      }
+    },
+    {
+      "scenario": "refund",
+      "seconds": 217,
+      "interrupted": [],
+      "isolation": {
+        "proven": true,
+        "by": "sandbox"
+      },
+      "zcash_height_after": 6331,
+      "relay": {
+        "messages": 8,
+        "sealed": 6,
+        "manifests": 2
+      },
+      "zcash": [
+        {
+          "txid": "fe8588ac4ca8e6dd32da1b87495a485a9b387b820673d1b7f6f7e57b1549ad17",
+          "height": 6302,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        },
+        {
+          "txid": "449aae09bf462c073cf863025d2dc68060185c4846d8482fc957e4c88bcb4477",
+          "height": 6328,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": [
+            20000
+          ]
+        },
+        {
+          "txid": "21a36f6bc8ada477e2fe88e64d50c3f6809ad715b85177e67ac15a4b58a34c3d",
+          "height": 6330,
+          "actions": 2,
+          "transparent_inputs": 1,
+          "transparent_outputs": [
+            15000
+          ]
+        }
+      ],
+      "ethereum": [
+        {
+          "event": "locked",
+          "tx": "0x8bbf3084e711506eaec2bafc52e6e70ea978cff0835410a2ff5eab2573ab6026",
+          "block": 2,
+          "amount_wei": "29300000000000000"
+        },
+        {
+          "event": "refunded",
+          "tx": "0xdf4d7557ed4e27eec7fa025731bc09773cbb2d498495932bf574cc3ef77ee558",
+          "block": 4
+        },
+        {
+          "event": "withdrawn",
+          "tx": "0x622664f5d2e3d6232d62829b1d76aaaeb8375f3279b9e94e6fbc444d91079500",
+          "block": 5,
+          "amount_wei": "29300000000000000"
+        }
+      ],
+      "network_notes": [
+        "Alice app started (sandboxed)",
+        "Bob app started (sandboxed)",
+        "Sandbox checked: neither app can read the other owner's files",
+        "Autoplay: Alice pressed “Fingerprints match: trust Bob”",
+        "Autoplay: Alice pressed “Sign quote”",
+        "Autoplay: Bob pressed “Fingerprints match: trust Alice”",
+        "Autoplay: Bob pressed “Accept quote”",
+        "Autoplay: Alice pressed “Prepare exits”",
+        "Autoplay: Bob pressed “Sign the full terms”",
+        "Autoplay: Alice pressed “Sign full terms and fund ZEC”",
+        "Autoplay: Bob pressed “Lock ETH”",
+        "Control: Ethereum time advanced 61 minutes",
+        "Control: Zcash advanced 24 blocks",
+        "Autoplay: Bob pressed “Refund my ETH”",
+        "Autoplay: Alice pressed “Refund my ZEC”",
+        "Autoplay: Bob pressed “Withdraw refunded ETH”",
+        "Autoplay: both owners finished"
+      ],
+      "amounts": {
+        "zec": "0.015",
+        "eth": "0.0293"
+      }
+    },
+    {
+      "scenario": "success",
+      "seconds": 222,
+      "interrupted": [],
+      "isolation": {
+        "proven": true,
+        "by": "sandbox"
+      },
+      "zcash_height_after": 6436,
+      "relay": {
+        "messages": 8,
+        "sealed": 6,
+        "manifests": 2
+      },
+      "zcash": [
+        {
+          "txid": "21371819fd4bc7d3c0f3cdd72a5105e6b4b597359b68676863cdb677806225f7",
+          "height": 6433,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        },
+        {
+          "txid": "7fe0d9a2f9b5b3d39c776f1b3b90619698f40c614c478db2c53060052625d15c",
+          "height": 6435,
+          "actions": 2,
+          "transparent_inputs": 0,
+          "transparent_outputs": []
+        }
+      ],
+      "ethereum": [
+        {
+          "event": "locked",
+          "tx": "0x798c492a6742e7016b03a57c158b722085857765d937eda5e617dc3992e328f6",
+          "block": 2,
+          "amount_wei": "29300000000000000"
+        },
+        {
+          "event": "claimed",
+          "tx": "0xa2f9fdec8cd2c159ce42ed94303fa23bc684c183f98691ce68d95e23d0bde97c",
+          "block": 3
+        },
+        {
+          "event": "withdrawn",
+          "tx": "0x67eda7e05fc752cefb5566a4d65bd577a93dc6f9c19d54854187fa729c817747",
+          "block": 4,
+          "amount_wei": "29300000000000000"
+        }
+      ],
+      "network_notes": [
+        "Alice app started (sandboxed)",
+        "Bob app started (sandboxed)",
+        "Sandbox checked: neither app can read the other owner's files",
+        "Autoplay: Alice pressed “Fingerprints match: trust Bob”",
+        "Autoplay: Alice pressed “Sign quote”",
+        "Autoplay: Bob pressed “Fingerprints match: trust Alice”",
+        "Autoplay: Bob pressed “Accept quote”",
+        "Autoplay: Alice pressed “Prepare exits”",
+        "Autoplay: Bob pressed “Sign the full terms”",
+        "Autoplay: Alice pressed “Sign full terms and fund ZEC”",
+        "Autoplay: Bob pressed “Lock ETH”",
+        "Autoplay: Alice pressed “Claim ETH (reveals the secret)”",
+        "Autoplay: Alice pressed “Withdraw ETH”",
+        "Autoplay: Bob pressed “Claim my ZEC”",
+        "Autoplay: both owners finished"
+      ],
+      "amounts": {
+        "zec": "0.015",
+        "eth": "0.0293"
+      }
+    }
+  ],
+  "results": [
+    "Swap: 3:32 and 3:42. Zcash shows two shielded transactions with no transparent input or output; Ethereum shows lock, claim, withdraw.",
+    "Bob’s app crashes: 3:47. Bob’s app was SIGKILLed right after Alice’s claim and restarted eight seconds later; it claimed the ZEC from its journal and t on Ethereum. Zcash again showed only two shielded transactions.",
+    "Both refund: 3:37. Bob refunded and withdrew his ETH; Zcash shows F (shielded), then A with one 20,000-zatoshi transparent output, then R spending it with a 15,000-zatoshi transparent change output to the same address.",
+    "Relay: 8 messages per trade, 6 sealed, in every run."
+  ],
+  "defects_found_and_fixed": [
+    "After New trade the stage loaded both app frames before the restarted app servers listened, leaving them blank. /api/public now reports whether each app answers, and the stage loads a frame only then.",
+    "The regtest block reward halves every 864 blocks; from height 6,041 one coinbase (0.0163 ZEC) no longer funds a 0.019 ZEC quote, so the refund run’s Prepare exits kept failing and Autoplay kept retrying. Demo quotes are now 0.015 ZEC for 0.0293 ETH, scaled down when one reward cannot cover that; Autoplay stops after four failed presses of the same action; operator refusals now record their cause in the operator’s own private directory.",
+    "The refund R returns 15,000 zatoshi of change to the auxiliary transparent address. The site, stage, privacy doc and submission said \"one transparent coin\"; they now name both outputs."
+  ],
+  "limits": [
+    "Both owners and the network run on one machine; not separate administration.",
+    "Isolated local chains; durations are this machine’s, mostly proving.",
+    "The first two runs predate the amount change and used 0.019 ZEC for 0.0371 ETH."
+  ],
+  "private_material_committed": false
+}
