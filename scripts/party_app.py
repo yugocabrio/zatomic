@@ -23,11 +23,12 @@ import fee_policy
 from latch_operator import manifest_digest
 from regtest_node import rpc as zrpc, status
 from otc_offer import decimal_amount
-from two_party_http import ROOT, Handler, atomic, call
+from two_party_http import ROOT, Handler, atomic, call, public_origins
 
 SIGNER_PORT = {'alice': 18741, 'bob': 18742}
 OPERATOR = [sys.executable, str(ROOT / 'scripts/latch_operator.py')]
 NATIVE = ROOT / 'target/release/shielded-swap-native'
+ORIGINS = public_origins()
 
 
 def read(path):
@@ -44,6 +45,7 @@ class App:
         self.peer = 'bob' if role == 'alice' else 'alice'
         self.me, self.source = root / role, root / 'alice-source'
         self.home = root / f'{role}-app'
+        root.mkdir(mode=0o700, exist_ok=True)  # Hosted: this owner's own per-trade root.
         self.home.mkdir(mode=0o700, exist_ok=True)
         self.page_token = secrets.token_urlsafe(32)
         self.relay_token = os.environ['LATCH_RELAY_TOKEN']
@@ -448,7 +450,7 @@ class App:
             zec, eth = decimal_amount(p['payout_zatoshi'], 8), decimal_amount(p['eth_amount_wei'], 18)
             trade = {'give': f'{zec} ZEC' if self.role == 'alice' else f'{eth} ETH',
                 'get': f'{eth} ETH' if self.role == 'alice' else f'{zec} ZEC'}
-        return {'role': self.role, 'token': self.page_token, 'busy': self.busy, 'error': self.error, 'trade': trade,
+        return {'role': self.role, 'token': self.page_token, 'public': bool(ORIGINS), 'busy': self.busy, 'error': self.error, 'trade': trade,
             'me': {'fingerprint': manifest_digest(own), 'address': own['identity']['address']},
             'steps': steps, 'action': action, 'chain': seen, 'relay_count': self.relay_total,
             'shared': self.shared(), 'complete': self.complete(seen)}
@@ -512,6 +514,10 @@ class App:
     def post(self, path, body, token):
         if path != '/api/act':
             raise ValueError('Not found.')
+        lease = body.pop('lease', None)
+        # Hosted: a press counts only from whoever holds the stage's controls.
+        if ORIGINS and not call(self.network, '/api/lease', {'lease': lease or ''}, self.relay_token).get('ok'):
+            raise ValueError('Another visitor is driving this trade. Take the controls on the stage first.')
         with self.lock:
             if self.busy:
                 raise ValueError(f'{self.busy} is still running.')
@@ -533,7 +539,8 @@ def main():
 
     class Page(Handler):
         page = 'party.html'
-        frame_ancestors = f"{network} {network.replace('127.0.0.1', 'localhost')}"
+        frame_ancestors = ORIGINS['site'] if ORIGINS else f"{network} {network.replace('127.0.0.1', 'localhost')}"
+        public_origin = ORIGINS and ORIGINS[a.role]
     server = ThreadingHTTPServer(('127.0.0.1', a.port), Page)
     server.app = app
     server.serve_forever()

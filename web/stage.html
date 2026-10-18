@@ -14,11 +14,12 @@
   <div class="network" role="status"><i id="network-dot" aria-hidden="true"></i><span id="network-status">Connecting…</span></div>
 </header>
 <nav class="stage-controls" aria-label="Demo controls">
-  <span class="ctl-group"><span class="ctl-label">Run</span><button class="btn btn-primary btn-ctl" data-play="success">▶ Autoplay</button><button class="btn btn-ghost btn-ctl" data-play="refund">▶ Refund path</button></span>
+  <span class="ctl-group"><span class="ctl-label">Autoplay</span><button class="btn btn-primary btn-ctl" data-play="success">▶ Swap</button><button class="btn btn-ghost btn-ctl" data-play="crash">▶ Bob crashes</button><button class="btn btn-ghost btn-ctl" data-play="refund">▶ Both refund</button></span>
   <span class="ctl-group"><span class="ctl-label">Interrupt</span><button class="btn btn-ghost btn-ctl" data-control="crash" data-role="bob">Stop Bob’s app</button><button class="btn btn-ghost btn-ctl" data-control="restart" data-role="bob">Restart Bob’s app</button></span>
   <span class="ctl-group"><span class="ctl-label">Time</span><button class="btn btn-ghost btn-ctl" data-control="advance-eth">ETH +61 min</button><button class="btn btn-ghost btn-ctl" data-control="advance-zec">Zcash +24 blocks</button></span>
   <button class="btn btn-ghost btn-ctl ctl-new" data-control="new-trade">New trade</button>
   <span class="ctl-status" id="ctl-status" role="status" aria-live="polite"></span>
+  <span class="ctl-driver" id="ctl-driver" role="status" hidden></span>
 </nav>
 <main class="stage">
   <section class="stage-app" aria-label="Alice's app">
@@ -30,6 +31,28 @@
     <p class="kicker kicker-dark">Between them: only what anyone could see</p>
     <h1 id="stage-step" class="stage-step">Waiting for both apps</h1>
     <p id="stage-caption" class="stage-caption"></p>
+    <p id="stage-clock" class="stage-clock" role="status" hidden></p>
+    <div id="start" class="start" hidden>
+      <p class="start-lead">Pick what to see. Each runs by itself, and both apps show every step.</p>
+      <button class="scenario" data-scenario="success"><span class="scenario-n">1</span><span class="scenario-text"><strong>The swap, start to finish</strong><span>Alice’s ZEC for Bob’s ETH. A few minutes, mostly proving.</span></span></button>
+      <button class="scenario" data-scenario="crash"><span class="scenario-n">2</span><span class="scenario-text"><strong>Bob’s app crashes mid-swap</strong><span>Killed right after Alice claims the ETH, then restarted. It finds t on Ethereum and still claims the ZEC.</span></span></button>
+      <button class="scenario" data-scenario="refund"><span class="scenario-n">3</span><span class="scenario-text"><strong>Nobody reveals: both refund</strong><span>Alice never claims. Time passes; Bob takes back his ETH and Alice her ZEC.</span></span></button>
+      <p class="start-note">Or press the highlighted button in each app yourself.</p>
+    </div>
+    <div id="resume" class="resume" hidden>
+      <span>Paused part-way.</span>
+      <button class="btn btn-lime btn-ctl" data-resume="success">▶ Continue</button>
+      <button class="btn btn-dark btn-ctl" data-resume="new">Start over</button>
+    </div>
+    <div id="result" class="result" hidden>
+      <p class="result-title" id="result-title"></p>
+      <ul class="result-list" id="result-list"></ul>
+      <div class="result-actions">
+        <button class="btn btn-lime btn-ctl" data-again="">Run it again</button>
+        <button class="btn btn-dark btn-ctl" data-other="0"></button>
+        <button class="btn btn-dark btn-ctl" data-other="1"></button>
+      </div>
+    </div>
     <ol class="wire" id="wire" aria-live="polite"></ol>
     <div class="observer" aria-label="What an outside observer learns">
       <div class="obs obs-zec"><span class="obs-label">Zcash</span><strong id="obs-zec">—</strong><span id="obs-zec-note">amounts and addresses hidden</span></div>
@@ -44,7 +67,7 @@
   </section>
 </main>
 <footer class="stage-foot">
-  <span>Local Zebra NU7 regtest and Anvil. The same flow settled on the public Zcash testnet and Sepolia on 2026-10-18.</span>
+  <span><span id="iso" class="stage-iso"></span> Local Zebra NU7 regtest and Anvil; the same flow settled on the public Zcash testnet and Sepolia on 2026-10-18.</span>
   <a href="/network" class="stage-link">Relay log and sandbox check</a>
 </footer>
 </body></html>

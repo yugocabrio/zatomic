@@ -1,0 +1,20 @@
+[Unit]
+Description=Latch demo: isolated Zebra NU7 regtest node (loopback RPC only)
+After=network.target
+
+[Service]
+User=latch-zebra
+Group=latch-zebra
+Environment=RAYON_NUM_THREADS=2 TOKIO_WORKER_THREADS=2
+ExecStart=/opt/latch/.deps/zebra-7.0.0-rc.0/zebrad -c /etc/latch/zebra.toml --filters warn start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/latch-zebra
+MemoryMax=3G
+
+[Install]
+WantedBy=multi-user.target

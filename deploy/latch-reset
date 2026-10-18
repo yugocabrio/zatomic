@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Starts a fresh demo chain once most of the isolated history is used (the
+# local wallet scan stops at height 10,002). Run daily by latch-reset.timer, or
+# by hand with --force. Deletes every demo trade: regtest data only.
+set -euo pipefail
+limit=7000
+height=$(curl -fsS -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getblockcount","params":[]}' http://127.0.0.1:30342 |
+  python3 -c 'import json, sys; print(json.load(sys.stdin)["result"])')
+if [ "${1:-}" != --force ] && [ "$height" -lt "$limit" ]; then
+  echo "height $height is below $limit: no reset"
+  exit 0
+fi
+systemctl stop latch-network latch-zebra
+find /var/lib/latch-zebra/state /var/lib/latch/net /var/lib/latch/alice /var/lib/latch/bob \
+  -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+rm -f /opt/latch/.local/two-party-children.json
+systemctl start latch-zebra latch-network
+echo "reset from height $height"

@@ -66,12 +66,12 @@
   </section>
 
   <section id="try" class="try wrap" aria-labelledby="try-title">
-    <div class="section-head"><div><p class="kicker">Try it · about five minutes</p><h2 id="try-title">Two apps, one swap</h2></div><p class="section-note">Everything runs on a local Zcash regtest chain and a local Ethereum chain, with real transactions and real proofs. Nothing here touches real money.</p></div>
+    <div class="section-head"><div><p class="kicker">Try it · a few minutes per run</p><h2 id="try-title">Two apps, one swap</h2></div><p class="section-note">Everything runs on a local Zcash regtest chain and a local Ethereum chain, with real transactions and real proofs. Nothing here touches real money. On the hosted demo one visitor drives at a time; everyone else watches the same trade live.</p></div>
     <ol class="try-grid">
       <li><span class="how-n">01</span><h3>Open the live demo</h3><p>Alice’s app is on the left, Bob’s on the right. Each is a separate program that holds only its owner’s keys.</p></li>
-      <li><span class="how-n">02</span><h3>Run the trade</h3><p>Press <b>Autoplay</b>, or click the highlighted button in each app yourself. The middle column shows only what an outsider could see.</p></li>
-      <li><span class="how-n">03</span><h3>Break it on purpose</h3><p>After Alice claims the ETH, press <b>Stop Bob’s app</b>, then <b>Restart</b>: Bob still gets his ZEC. Or choose <b>Autoplay: refund</b> to see both sides take their assets back.</p></li>
-      <li><span class="how-n">04</span><h3>Start over</h3><p><b>New trade</b> gives both owners fresh keys, a fresh shared note and a fresh escrow order.</p></li>
+      <li><span class="how-n">02</span><h3>Pick a scenario</h3><p><b>1</b> the swap, <b>2</b> Bob’s app crashing right after Alice claims, or <b>3</b> nobody revealing, so both refund. Each runs by itself; you can also press the highlighted button in each app.</p></li>
+      <li><span class="how-n">03</span><h3>Watch the middle</h3><p>It shows only what an outsider could see: sealed relay messages, shielded Zcash transactions, and the public escrow events.</p></li>
+      <li><span class="how-n">04</span><h3>Read the result</h3><p>The stage sums up what each chain showed. Run it again or try another scenario: each run gets fresh keys, a fresh shared note and a fresh escrow order.</p></li>
     </ol>
   </section>
 
@@ -105,8 +105,8 @@
       <tbody>
         <tr><th scope="row">Setup stops before funding is released</th><td>Cancel the offer. No swap funds were locked.</td><td><a class="tag" href="/evidence/2026-10-15-setup-cancellation.json" target="_blank" rel="noopener">Evidence ↗</a></td></tr>
         <tr><th scope="row">Alice funds; Bob never locks ETH</th><td>Alice broadcasts her prepared refund after the native deadline.</td><td><a class="tag" href="/evidence/2026-10-15-funding-interruption.json" target="_blank" rel="noopener">Evidence ↗</a></td></tr>
-        <tr><th scope="row">Bob locks; Alice never reveals</th><td>Bob refunds ETH at expiry; Alice refunds ZEC after the native deadline.</td><td><span class="tag tag-strong">Live demo: Advance ETH time</span></td></tr>
-        <tr><th scope="row">Alice reveals, then everything stops</th><td>Bob finishes his ZEC claim from the public witness, with Alice offline.</td><td><span class="tag tag-strong">Live demo: Stop Bob’s app</span></td></tr>
+        <tr><th scope="row">Bob locks; Alice never reveals</th><td>Bob refunds ETH at expiry; Alice refunds ZEC after the native deadline.</td><td><span class="tag tag-strong">Live demo · scenario 3</span></td></tr>
+        <tr><th scope="row">Alice reveals, then everything stops</th><td>Bob finishes his ZEC claim from the public witness, with Alice offline.</td><td><span class="tag tag-strong">Live demo · scenario 2</span></td></tr>
         <tr><th scope="row">Recovery runs twice</th><td>It reconciles confirmed transactions; no second payment is sent.</td><td><a class="tag" href="/evidence/2026-10-15-browser-otc.json" target="_blank" rel="noopener">Evidence ↗</a></td></tr>
         <tr class="row-limit"><th scope="row">Outage or reorg beyond the window</th><td>Not covered. This is a monitored swap, not indefinite offline safety.</td><td><span class="tag tag-limit">Limit</span></td></tr>
       </tbody>

@@ -17,6 +17,8 @@ const NAMES = {alice: 'Alice · sells ZEC', bob: 'Bob · sells ETH'};
 // Inside the network's stage view the app drops its chrome and privacy panel.
 const EMBED = new URLSearchParams(location.search).has('embed');
 if (EMBED) document.documentElement.classList.add('embed');
+// Hosted demo: the stage passes the driver's lease; without it this page only watches.
+const LEASE = new URLSearchParams(location.search).get('lease') || '';
 const NOTES = {alice: ['shielded, from my own wallet', 'on Ethereum, after I reveal t'],
   bob: ['locked in the escrow on Ethereum', 'shielded, to a one-time address']};
 
@@ -73,12 +75,17 @@ function renderAction(action) {
   button.append(el('span', '', action.label), el('span', '', '→'));
   button.addEventListener('click', () => act(action, fields));
   box.append(button);
+  if (view.public && !LEASE) {
+    button.disabled = true;
+    box.append(el('p', 'p-note', 'Watching. To press this, take the controls on the stage page.'));
+  }
 }
 
 async function act(action, fields) {
   if (sending) return;
   sending = true;
   const body = {action: action.id};
+  if (LEASE) body.lease = LEASE;
   if (action.fingerprint) { body.fingerprint = action.fingerprint; body.source_fingerprint = action.source_fingerprint; }
   if (fields) { body.zec_amount = $('#p-zec').value.trim(); body.eth_amount = $('#p-eth').value.trim(); }
   try {

@@ -1,0 +1,19 @@
+#!/usr/bin/python3 -Es
+"""Can the calling user read this demo file? Exit 0 yes, 13 permission denied,
+2 missing, 1 anything else. Prints nothing, so it reveals no file content.
+Installed root-owned at /usr/local/libexec/latch-probe."""
+import sys
+
+path = sys.argv[1] if len(sys.argv) == 2 else ''
+if not path.startswith('/var/lib/latch/') or '/../' in path:
+    sys.exit(1)
+try:
+    with open(path, 'rb') as handle:
+        handle.read(1)
+except PermissionError:
+    sys.exit(13)
+except FileNotFoundError:
+    sys.exit(2)
+except OSError:
+    sys.exit(1)
+sys.exit(0)

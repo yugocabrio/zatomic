@@ -1,0 +1,6 @@
+[Unit]
+Description=Latch demo: fresh chain when the isolated history is mostly used
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/latch-reset

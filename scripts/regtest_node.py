@@ -26,6 +26,11 @@ if NAMESPACE:
 elif PORT_TEXT:
     raise RuntimeError('custom node port requires a namespace')
 PORT = int(PORT_TEXT) if NAMESPACE else 30342
+# A hosted demo runs zebrad as its own service user instead of a container, so
+# the owner apps need no Docker access. The RPC checks below still apply.
+EXTERNAL = os.environ.get('LATCH_NODE') == 'external'
+if EXTERNAL and NAMESPACE:
+    raise RuntimeError('an external node has no namespace')
 NAME = 'shielded-swap-zebra-nu7' + (('-' + NAMESPACE) if NAMESPACE else '')
 LABEL = 'shielded-swap.scope'
 OWNER = 'isolated-regtest-v1'
@@ -83,7 +88,15 @@ def rpc(method, params=None, timeout=30):
     return value['result']
 
 
+def hosted_config(state):
+    """The same node for a service-managed zebrad: RPC on loopback directly."""
+    text = CONFIG.replace('listen_addr = "0.0.0.0:19332"', f'listen_addr = "127.0.0.1:{PORT}"')
+    return text.replace('cache_dir = "/state"', f'cache_dir = {json.dumps(str(state))}')
+
+
 def inspect():
+    if EXTERNAL:
+        raise RuntimeError('the external node is managed by its service, not by this checkout')
     validate_scope()
     p = subprocess.run(['docker', 'container', 'inspect', NAME], capture_output=True, text=True)
     if p.returncode:
@@ -127,7 +140,7 @@ def validate_container(item):
 
 
 def status():
-    if inspect() is None: raise RuntimeError('owned checkout container required')
+    if not EXTERNAL and inspect() is None: raise RuntimeError('owned checkout container required')
     info = rpc('getblockchaininfo')
     if rpc('getblockhash', [0]) != GENESIS or info['chain'] not in ('test', 'regtest'):
         raise RuntimeError('wrong network; refuse any transaction or mining')
@@ -137,7 +150,7 @@ def status():
         raise RuntimeError('wrong branch')
     return {'scope': 'isolated NU7 regtest', 'blocks': info['blocks'],
             'tip': info['bestblockhash'], 'genesis': GENESIS, 'branch': BRANCH,
-            'rpc': RPC, 'container': NAME}
+            'rpc': RPC, 'container': None if EXTERNAL else NAME}
 
 
 def prepare():
@@ -228,9 +241,12 @@ def start():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['start', 'status', 'stop', 'mine'])
+    parser.add_argument('command', choices=['start', 'status', 'stop', 'mine', 'hosted-config'])
     parser.add_argument('blocks', type=int, nargs='?', default=1)
     args = parser.parse_args()
+    if args.command == 'hosted-config':
+        print(hosted_config(Path('/var/lib/latch-zebra/state')), end='')
+        raise SystemExit(0)
     if args.command == 'start':
         value = start()
     elif args.command == 'stop':

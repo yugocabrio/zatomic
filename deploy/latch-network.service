@@ -1,0 +1,21 @@
+[Unit]
+Description=Latch demo: network, relay and both owner apps
+After=network.target latch-zebra.service
+Requires=latch-zebra.service
+
+[Service]
+User=latch
+Group=latch
+WorkingDirectory=/opt/latch
+EnvironmentFile=/etc/latch/latch.env
+# Resumes the newest trade after a restart; New trade starts the next one.
+ExecStart=/usr/bin/python3 -E -s /opt/latch/scripts/two_party.py --latest-in /var/lib/latch/net
+Restart=on-failure
+RestartSec=10
+# The owner apps run through sudo as their own users, but stay in this unit,
+# so stopping it stops them too.
+KillMode=control-group
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

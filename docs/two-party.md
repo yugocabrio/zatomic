@@ -72,15 +72,33 @@ shielded Zcash transactions and nothing transparent; the refund path shows the
 auxiliary coin appearing only then. The owner apps allow framing only by this
 local network page.
 
-The bar above the apps drives a demo without touching either app's keys:
+The stage is built for a judge on their own and for screen recording. A fresh
+trade opens with three scenarios in the middle column. Each runs by itself
+through the apps' own page endpoints, never touching either app's keys:
 
-| Control | What it does |
+| Scenario | What it shows |
 |---|---|
-| **Autoplay** | Presses each app's highlighted button in turn, through that app's own page endpoint, until both owners finish. |
-| **Refund path** | The same, except Alice never claims: ETH time passes, Bob refunds his ETH, the native refund matures and Alice's refund coin appears. |
-| **Stop / Restart Bob's app** | Kills Bob's process (SIGKILL) and starts it again. It resumes from its own journal; stopped after Alice's claim, it still claims the ZEC. |
-| **ETH +61 min · Zcash +24 blocks** | Stand-ins for time passing on a public chain. |
-| **New trade** | Stops both apps and starts a fresh workspace: new keys, a new escrow and a new shared note. The previous trade stays on disk. |
+| **1 · The swap** | Every step to settlement: two shielded Zcash transactions, lock, claim and withdraw on Ethereum. |
+| **2 · Bob's app crashes** | The same, but Bob's app is killed (SIGKILL) right after Alice's claim and restarted eight seconds later. It resumes from its own journal, reads t from Ethereum and claims the ZEC. |
+| **3 · Both refund** | Alice never claims. ETH time passes, Bob refunds his ETH, the native refund matures, then Alice's refund coin and her refund appear on Zcash. |
+
+While a scenario runs, the column shows its clock. At the end a result card sums
+up what each chain and the relay showed, from public data only; the ZEC amount
+appears only inside the apps. **Run it again** and **Try:** buttons start a fresh
+trade (new keys, a new escrow order and a new shared note; the previous trade
+stays on disk). A trade left part-way for 90 seconds offers Continue or Start
+over. The bar above the apps has the same scenarios, plus **Stop / Restart Bob's
+app**, **ETH +61 min** and **Zcash +24 blocks** (stand-ins for time passing on a
+public chain) and **New trade**.
+
+For recording, open **/stage?record**. It hides the control bar and page links,
+enlarges the narration, and is driven by keys: `1` `2` `3` scenarios, `N` new
+trade, `S` / `R` stop and restart Bob's app, `E` ETH time, `Z` Zcash blocks. The
+same keys work on the normal stage. The layout fits 1920×1080 and 1280×720
+without scrolling.
+
+To run this for judges on a rented server, see [hosting](hosting.md): each app
+then runs as its own Linux user, and one visitor at a time holds the controls.
 
 Autoplay types the agreed amounts (0.019 ZEC for 0.0371 ETH) and accepts the
 fingerprints shown on screen. A real owner compares fingerprints over a channel

@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily check for a Latch demo chain reset
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

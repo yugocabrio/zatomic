@@ -2,11 +2,16 @@
 
 Same rules as demo_server.py: exact Host/Origin, a per-process token for every
 POST, JSON bodies only, no filesystem browsing and no-store responses.
+
+Public-host mode (a hosted demo behind an HTTPS reverse proxy) is on when all
+three LATCH_*_ORIGIN variables are set. Each server then also accepts its own
+public origin, and only the site may frame the owner apps.
 """
 import json
 import os
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
+import re
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +24,20 @@ STATIC = {'/style.css': ('style.css', 'text/css; charset=utf-8'),
           '/network.js': ('network.js', 'application/javascript'),
           '/stage.js': ('stage.js', 'application/javascript'),
           '/landing.js': ('landing.js', 'application/javascript')}
+
+
+def public_origins():
+    """{'site', 'alice', 'bob'} -> 'https://host', or None for loopback-only."""
+    names = {'site': 'LATCH_SITE_ORIGIN', 'alice': 'LATCH_ALICE_ORIGIN', 'bob': 'LATCH_BOB_ORIGIN'}
+    values = {k: os.environ.get(v, '') for k, v in names.items()}
+    if not any(values.values()):
+        return None
+    for key, value in values.items():
+        if not re.fullmatch(r'https://[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?', value):
+            raise RuntimeError(f'{names[key]} must be https://<lowercase host>, with no port or path')
+    if len(set(values.values())) != 3:
+        raise RuntimeError('the site and each owner app need distinct origins')
+    return values
 
 
 def atomic(path, value):
@@ -49,6 +68,7 @@ class Handler(BaseHTTPRequestHandler):
     # network page itself frames the two apps and is never framed.
     frame_ancestors = "'none'"
     frame_sources = "'none'"
+    public_origin = None  # This server's https:// origin in public-host mode.
 
     def log_message(self, fmt, *args):
         pass
@@ -68,8 +88,12 @@ class Handler(BaseHTTPRequestHandler):
     def domain_ok(self):
         port = self.server.server_address[1]
         allowed = {f'127.0.0.1:{port}', f'localhost:{port}'}
+        origins = {f'http://{h}' for h in allowed}
+        if self.public_origin:
+            allowed.add(self.public_origin.removeprefix('https://'))
+            origins.add(self.public_origin)
         origin = self.headers.get('Origin')
-        return self.headers.get('Host', '') in allowed and (origin is None or origin in {f'http://{h}' for h in allowed})
+        return self.headers.get('Host', '') in allowed and (origin is None or origin in origins)
 
     def do_GET(self):
         if not self.domain_ok():

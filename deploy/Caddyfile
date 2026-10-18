@@ -1,0 +1,15 @@
+# Written by deploy/setup.sh with the site host filled in. Caddy obtains the
+# certificates and keeps the original Host and Origin headers, which the demo
+# servers check against LATCH_*_ORIGIN.
+{$LATCH_HOST} {
+	reverse_proxy 127.0.0.1:8790
+	header Strict-Transport-Security "max-age=31536000"
+}
+alice.{$LATCH_HOST} {
+	reverse_proxy 127.0.0.1:8791
+	header Strict-Transport-Security "max-age=31536000"
+}
+bob.{$LATCH_HOST} {
+	reverse_proxy 127.0.0.1:8792
+	header Strict-Transport-Security "max-age=31536000"
+}

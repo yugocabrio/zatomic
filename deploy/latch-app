@@ -1,0 +1,8 @@
+#!/bin/sh
+# Starts one Latch owner app as the sudo target user (latch-alice or latch-bob).
+# Installed root-owned at /usr/local/libexec/latch-app; the network may run only
+# this, latch-probe and a pkill of that same user (see sudoers).
+set -eu
+umask 077
+cd /opt/latch
+exec /usr/bin/python3 -E -s /opt/latch/scripts/party_app.py "$@"

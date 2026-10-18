@@ -38,7 +38,8 @@ function render() {
   const rows = [['Zcash (Zebra NU7 regtest)', `height ${state.zcash.height} · mempool ${state.zcash.mempool}`],
     ['Ethereum (Anvil 31338)', `block ${state.ethereum.block} · ${new Date(state.ethereum.timestamp * 1000).toLocaleTimeString()}`],
     ['PointEscrow', state.escrow.address], ['Runtime code hash', `${state.escrow.code_hash.slice(0, 18)}…`],
-    ['App isolation', state.isolation_proven ? 'OS sandbox denial verified both ways' : 'checking…']];
+    ['App isolation', !state.isolation_proven ? 'checking…' : state.isolation_by === 'users'
+      ? 'Unix-user denial verified both ways' : 'OS sandbox denial verified both ways']];
   update($('#chains'), JSON.stringify(rows), () => rows.flatMap(([k, v]) => [el('dt', '', k), el('dd', 'p-mono', v)]));
   update($('#relay'), JSON.stringify(state.relay), () => state.relay.map(m => {
     const row = el('tr');
@@ -50,6 +51,8 @@ function render() {
 
 async function control(body) {
   try {
+    // Hosted demo: the stage's lease, if this browser holds the controls.
+    try { const held = localStorage.getItem('latch-lease'); if (held) body.lease = held; } catch {}
     const response = await fetch('/api/control', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Latch-Token': state.token}, body: JSON.stringify(body)});
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Refused.');

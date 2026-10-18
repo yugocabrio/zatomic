@@ -1,0 +1,6 @@
+# /etc/sudoers.d/latch (mode 0440). The demo network runs as `latch`. It may
+# start each owner app as that owner's own user, check which demo files that
+# user can read, and kill that user's processes. Nothing else.
+Defaults!/usr/local/libexec/latch-app env_keep += "LATCH_RELAY_TOKEN LATCH_SITE_ORIGIN LATCH_ALICE_ORIGIN LATCH_BOB_ORIGIN LATCH_NODE RAYON_NUM_THREADS"
+latch ALL=(latch-alice) NOPASSWD: /usr/local/libexec/latch-app, /usr/local/libexec/latch-probe, /usr/bin/pkill -KILL -u latch-alice
+latch ALL=(latch-bob) NOPASSWD: /usr/local/libexec/latch-app, /usr/local/libexec/latch-probe, /usr/bin/pkill -KILL -u latch-bob

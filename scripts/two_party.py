@@ -9,6 +9,11 @@ transaction is pending), a relay that sees identity manifests in the clear and
 every other message only as an envelope sealed to the recipient, and clearly
 labelled local controls that stand in for time passing. It never holds or reads
 a participant key and cannot open a sealed message.
+
+Hosted on Linux (LATCH_APP_USERS=1), each app runs as its own Unix user
+(latch-alice, latch-bob) under a private root that neither the other app nor
+this process can open; deploy/ holds the sudo rules that allow exactly that.
+With public origins set, one visitor at a time holds the demo controls.
 """
 import argparse
 import fcntl
@@ -24,12 +29,13 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 from http.server import ThreadingHTTPServer
 import run_native_evm_gate as evm
 import evm_wallet
 from regtest_node import rpc as zrpc, status
-from regtest_wallet import native
-from two_party_http import ROOT, Handler, atomic, call
+from regtest_wallet import MAX_CAPTURE_HEIGHT, native
+from two_party_http import ROOT, Handler, atomic, call, public_origins
 
 PORTS = {'network': 8790, 'alice': 8791, 'bob': 8792}
 TOPICS = ('manifest', 'sealed')
@@ -37,6 +43,19 @@ HEX = set('0123456789abcdef')
 PRIVATE = {'alice': ('alice', 'alice-source', 'alice-app'), 'bob': ('bob', 'bob-app')}
 EVIDENCE = {p.name: p for p in (ROOT / 'evidence').glob('*.json')}
 CHILDREN = ROOT / '.local/two-party-children.json'
+ORIGINS = public_origins()
+USERS = os.environ.get('LATCH_APP_USERS') == '1'
+if USERS and not sys.platform.startswith('linux'):
+    raise RuntimeError('per-user owner apps are the Linux hosting mode; macOS uses sandbox-exec')
+APP_BASE = Path(os.environ.get('LATCH_APP_BASE', '/var/lib/latch'))
+LIBEXEC = Path('/usr/local/libexec')
+LEASE_IDLE, LEASE_AUTOPLAY = 300, 120  # Seconds a driver keeps the controls.
+TRADE_BLOCKS = 400  # Generous bound per trade: funding mines 101 blocks, a refund 72 more.
+
+
+def as_user(role, *command, **options):
+    """Run a fixed helper as an owner's Unix user (sudo rules in deploy/)."""
+    return subprocess.run(['sudo', '-n', '-u', f'latch-{role}', *map(str, command)], timeout=30, **options)
 
 
 def reap_orphans():
@@ -153,6 +172,9 @@ class Network:
             (root / name).mkdir(mode=0o700, parents=True, exist_ok=True)
         self.public = None  # Created once the chains are up.
         self.mining, self.autoplaying, self.generation = False, None, 0
+        self.scenario, self.interrupted = None, []  # What this trade's Autoplay ran; apps killed.
+        self.driver = None  # Public-host mode: {'lease', 'until'} of the visitor driving.
+        self.internal = secrets.token_urlsafe(32)  # Autoplay's own presses.
 
     def tokens(self):
         return {self.page_token, *self.app_tokens.values()}
@@ -197,7 +219,9 @@ class Network:
             atomic(escrow, {'address': receipt['contractAddress'], 'block': int(receipt['blockNumber'], 16),
                 'code_hash': evm_wallet.keccak(bytes.fromhex(code[2:])).hex()})
         self.escrow = json.loads(escrow.read_text())
-        status()
+        tip = status()
+        if tip['blocks'] < 2:  # A brand-new chain (a hosted reset): activate NU7.
+            zrpc('generate', [2 - tip['blocks']], timeout=300)
         if not self.mining:
             self.mining = True
             threading.Thread(target=self.mine, daemon=True).start()
@@ -215,9 +239,19 @@ class Network:
         for _ in range(60):
             if self.root != root:
                 return
-            if all((root / r / 'operator-public.json').exists() for r in PRIVATE):
+            if all(self.identity_exists(r) for r in PRIVATE):
                 return self.prove_isolation()
             time.sleep(1)
+
+    def app_root(self, role):
+        return APP_BASE / role / self.root.name if USERS else self.root
+
+    def app_url(self, role):
+        return ORIGINS[role] if ORIGINS else f'http://127.0.0.1:{PORTS[role]}'
+
+    def identity_exists(self, role):
+        path = self.app_root(role) / role / 'operator-public.json'
+        return as_user(role, LIBEXEC / 'latch-probe', path).returncode == 0 if USERS else path.exists()
 
     def shutdown(self):
         for role in list(self.apps):
@@ -229,11 +263,15 @@ class Network:
     def new_trade(self):
         """Each workspace holds one trade: start a fresh one with new keys, a
         fresh escrow and fresh apps. The previous workspace stays on disk."""
+        if status()['blocks'] + TRADE_BLOCKS > MAX_CAPTURE_HEIGHT:
+            raise ValueError('The demo chain is nearly full. A fresh chain starts at the next daily reset.')
         self.shutdown()
         root = self.root.parent / time.strftime('two-party-%Y%m%d-%H%M%S')
         if root.exists():
             root = root.with_name(root.name + '-' + secrets.token_hex(2))
         self.root, self.apps, self.events, self.isolation = root, {}, [], False
+        # An Autoplay of the old trade notices the new root and stops by itself.
+        self.scenario, self.interrupted, self.autoplaying = None, [], None
         self.app_tokens = {r: secrets.token_urlsafe(32) for r in PRIVATE}
         for name in ('network', 'relay'):
             (root / name).mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -253,10 +291,13 @@ class Network:
     def autoplay(self, path):
         """Press each app's highlighted button in turn, at a watchable pace,
         through the apps' own page endpoints. 'refund' never reveals t: it lets
-        the ETH order expire and the native refund mature instead."""
+        the ETH order expire and the native refund mature instead. 'crash' kills
+        Bob's app right after Alice's claim and restarts it a few seconds later,
+        so Bob learns t only from Ethereum."""
         if self.autoplaying:
             raise ValueError('Autoplay is already running.')
         self.autoplaying = path
+        self.scenario = {'path': path, 'started': int(time.time()), 'ended': None}
         threading.Thread(target=self.play, args=(path, self.root), daemon=True).start()
 
     def play(self, path, root):
@@ -266,6 +307,8 @@ class Network:
             for _ in range(900):
                 if self.root != root:
                     return
+                if self.driver:
+                    self.driver['until'] = max(self.driver['until'], time.time() + LEASE_AUTOPLAY)
                 views = {}
                 for r in PRIVATE:
                     try:
@@ -293,7 +336,7 @@ class Network:
                         continue
                     if not a.get('id'):
                         continue
-                    body = {'action': a['id']}
+                    body = {'action': a['id'], 'lease': self.internal}
                     if a['id'] == 'trust':
                         body['fingerprint'] = a['fingerprint']
                         if a.get('source_fingerprint'):
@@ -307,13 +350,25 @@ class Network:
                     except OSError:
                         continue  # The app was stopped mid-press; try again once it is back.
                     self.note(f'Autoplay: {r.capitalize()} pressed “{a["label"]}”')
+                    if path == 'crash' and r == 'alice' and a['id'] == 'claim' and 'bob' not in self.interrupted:
+                        time.sleep(1)
+                        with self.lock:
+                            self.crash('bob', 'scenario: right after Alice’s claim')
+                        time.sleep(8)
+                        if self.root != root:
+                            return
+                        with self.lock:
+                            self.launch('bob')
                     acted = True
                     break  # One press per round keeps the pace watchable.
                 time.sleep(3 if acted else 2)
         except Exception as exc:  # Keep serving; the log says where it stopped.
             self.note(f'Autoplay stopped: {exc}')
         finally:
-            self.autoplaying = None
+            if self.root == root:
+                self.autoplaying = None
+                if self.scenario:
+                    self.scenario['ended'] = int(time.time())
 
     def mine(self):
         # A stand-in for block production: pending Zcash transactions get two
@@ -337,6 +392,8 @@ class Network:
     def prove_isolation(self):
         # Under each app's exact policy, reading the other owner's identity
         # file must fail with a permission error, not merely be unused.
+        if USERS:
+            return self.prove_user_isolation()
         for role, other in (('alice', 'bob'), ('bob', 'alice')):
             target = self.root / other / 'operator-public.json'
             probe = subprocess.run(['/usr/bin/sandbox-exec', '-p', self.policy(role), sys.executable, '-c',
@@ -347,25 +404,83 @@ class Network:
         self.isolation = True
         self.note("Sandbox checked: neither app can read the other owner's files")
 
+    def prove_user_isolation(self):
+        # Each owner can read its own identity file; the other owner's Unix
+        # user gets a permission error (exit 13), and so does this process.
+        for role, other in (('alice', 'bob'), ('bob', 'alice')):
+            target = self.app_root(other) / other / 'operator-public.json'
+            own = as_user(other, LIBEXEC / 'latch-probe', target).returncode
+            foreign = as_user(role, LIBEXEC / 'latch-probe', target).returncode
+            try:
+                target.read_bytes()
+                network = 'read'
+            except PermissionError:
+                network = 'denied'
+            if (own, foreign, network) != (0, 13, 'denied'):
+                raise RuntimeError('user isolation not proven')
+        self.isolation = True
+        self.note("Unix users checked: neither app, nor the network, can read an owner's files")
+
     def launch(self, role):
-        policy = self.policy(role)
         log = (self.root / 'network' / f'{role}-app.log').open('a')
-        process = subprocess.Popen(['/usr/bin/sandbox-exec', '-p', policy, sys.executable,
-            str(ROOT / 'scripts/party_app.py'), '--role', role, '--root', str(self.root),
-            '--port', str(PORTS[role]), '--network', f'http://127.0.0.1:{PORTS["network"]}'],
-            cwd=ROOT, stdout=log, stderr=log, start_new_session=True,
+        arguments = ['--role', role, '--root', str(self.app_root(role)), '--port', str(PORTS[role]),
+            '--network', f'http://127.0.0.1:{PORTS["network"]}']
+        if USERS:
+            # sudo passes only the variables its rule keeps (deploy/sudoers).
+            command = ['sudo', '-n', '-u', f'latch-{role}', str(LIBEXEC / 'latch-app'), *arguments]
+        else:
+            command = ['/usr/bin/sandbox-exec', '-p', self.policy(role), sys.executable,
+                str(ROOT / 'scripts/party_app.py'), *arguments]
+        process = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=log, start_new_session=True,
             env=dict(os.environ, LATCH_RELAY_TOKEN=self.app_tokens[role], RAYON_NUM_THREADS='2'))
         self.apps[role] = process
         self.record_children()
-        self.note(f'{role.capitalize()} app started (sandboxed)')
+        self.note(f'{role.capitalize()} app started (' + ('as its own Unix user)' if USERS else 'sandboxed)'))
 
     def crash(self, role, reason='demo interruption'):
         process = self.apps.get(role)
         if process and process.poll() is None:
-            os.killpg(process.pid, signal.SIGKILL)  # The app, its signer and any running command.
+            if USERS:  # Everything that user runs: the app, its signer and any command.
+                as_user(role, '/usr/bin/pkill', '-KILL', '-u', f'latch-{role}')
+            else:
+                os.killpg(process.pid, signal.SIGKILL)  # The app, its signer and any running command.
             process.wait()
             if reason:
+                self.interrupted.append(role)
                 self.note(f'{role.capitalize()} app killed (SIGKILL): {reason}')
+
+    # One driver at a time (public-host mode) --------------------------------
+    def lease_ok(self, lease):
+        if not ORIGINS:
+            return True
+        if not isinstance(lease, str) or not lease:
+            return False
+        if secrets.compare_digest(lease, self.internal):
+            return True
+        driver = self.driver
+        if driver and driver['until'] > time.time() and secrets.compare_digest(lease, driver['lease']):
+            driver['until'] = max(driver['until'], time.time() + LEASE_IDLE)
+            return True
+        return False
+
+    def drive(self, lease):
+        """Hand the controls to a visitor if nobody holds them (or renew)."""
+        if not ORIGINS:
+            return {'lease': None, 'until': None}
+        if not self.lease_ok(lease):
+            if self.driver and self.driver['until'] > time.time():
+                raise ValueError('Another visitor has the controls until '
+                    f'{time.strftime("%H:%M", time.gmtime(self.driver["until"]))} UTC. You can watch meanwhile.')
+            self.driver = {'lease': secrets.token_urlsafe(24), 'until': time.time() + LEASE_IDLE}
+        return {'lease': self.driver['lease'], 'until': int(self.driver['until'])}
+
+    def driver_view(self, lease):
+        # Polling only reads the lease; it never extends it.
+        driver = self.driver
+        if not (ORIGINS and driver and driver['until'] > time.time()):
+            return None
+        mine = isinstance(lease, str) and bool(lease) and secrets.compare_digest(lease, driver['lease'])
+        return {'until': int(driver['until']), 'mine': mine}
 
     # HTTP --------------------------------------------------------------------
     def relay(self):
@@ -381,7 +496,7 @@ class Network:
                 block = evm.rpc('eth_getBlockByNumber', ['latest', False])
                 return {'token': self.page_token, 'zcash': {'height': tip['blocks'], 'mempool': len(zrpc('getrawmempool'))},
                     'ethereum': {'block': int(block['number'], 16), 'timestamp': int(block['timestamp'], 16)},
-                    'escrow': self.escrow, 'isolation_proven': getattr(self, 'isolation', False), 'apps': {r: {'running': p.poll() is None, 'port': PORTS[r]} for r, p in self.apps.items()},
+                    'escrow': self.escrow, 'isolation_proven': getattr(self, 'isolation', False), 'isolation_by': 'users' if USERS else 'sandbox', 'apps': {r: {'running': p.poll() is None, 'port': PORTS[r]} for r, p in self.apps.items()},
                     'relay': [{k: m.get(k) for k in ('seq', 'from', 'to', 'topic', 'at', 'bytes', 'sha256')} for m in self.relay()],
                     'events': self.events[::-1]}
         if path == '/api/relay':
@@ -391,6 +506,7 @@ class Network:
             name = path.removeprefix('/evidence/')
             return json.loads(EVIDENCE[name].read_text()) if name in EVIDENCE else None
         if path == '/api/public':
+            lease = urllib.parse.parse_qs(urllib.parse.urlsplit(raw).query).get('lease', [''])[0]
             relay = self.relay()
             owners = {}
             for m in relay:
@@ -400,9 +516,13 @@ class Network:
                             owners[role] = m['body'][role]['identity']['address']
             tip = status()
             return {'events': self.public.snapshot(self.escrow['address'], relay), 'owners': owners,
-                'zcash_height': tip['blocks'], 'apps': {r: PORTS[r] for r in PRIVATE},
+                'zcash_height': tip['blocks'], 'apps': {r: self.app_url(r) for r in PRIVATE},
                 'running': {r: p.poll() is None for r, p in self.apps.items()},
-                'token': self.page_token, 'autoplay': self.autoplaying, 'generation': self.generation}
+                'token': self.page_token, 'autoplay': self.autoplaying, 'generation': self.generation,
+                'scenario': self.scenario, 'interrupted': sorted(set(self.interrupted)), 'now': int(time.time()),
+                'public': bool(ORIGINS), 'driver': self.driver_view(lease),
+                'isolation': {'proven': bool(getattr(self, 'isolation', False)), 'by': 'users' if USERS else 'sandbox'},
+                'trades_left': max(0, (MAX_CAPTURE_HEIGHT - tip['blocks']) // TRADE_BLOCKS)}
         return None
 
     def post(self, path, body, token):
@@ -424,6 +544,9 @@ class Network:
                 self.note(f'Relay: {role} → {content["to"]}, sealed ({len(encoded):,} bytes)' if topic == 'sealed'
                     else f'Relay: {role} posted its identity')
                 return {'seq': seq}
+            if path == '/api/lease' and role:
+                # An owner app asks whether a page press comes from the driver.
+                return {'ok': self.lease_ok(body.get('lease'))}
             if path == '/api/faucet' and role:
                 address = body.get('address', '')
                 if not (isinstance(address, str) and len(address) == 42 and address.startswith('0x')):
@@ -434,11 +557,21 @@ class Network:
             if token != self.page_token:
                 raise ValueError('Network controls belong to the network page.')
             action = body.get('action')
-            if action == 'advance-eth':
+            if action == 'drive':
+                return self.drive(body.get('lease'))
+            if not self.lease_ok(body.get('lease')):
+                raise ValueError('Take the controls first.')
+            if action == 'release':
+                self.driver = None
+            elif action == 'advance-eth':
                 self.advance_eth()
             elif action == 'advance-zec':
                 self.advance_zec()
-            elif action == 'autoplay' and body.get('path') in ('success', 'refund'):
+            elif action == 'autoplay' and body.get('path') in ('success', 'crash', 'refund'):
+                if body.get('fresh') is True:  # "Run again": a new trade first.
+                    if self.autoplaying:
+                        raise ValueError('Autoplay is already running.')
+                    self.new_trade()
                 self.autoplay(body['path'])
             elif action == 'new-trade':
                 self.new_trade()
@@ -455,23 +588,34 @@ class Network:
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('root', type=Path)
+    where = p.add_mutually_exclusive_group(required=True)
+    where.add_argument('root', type=Path, nargs='?', help='workspace for this trade')
+    where.add_argument('--latest-in', type=Path, metavar='DIR',
+        help='resume the newest trade in DIR, or start one there (for a service restart)')
     a = p.parse_args()
     os.umask(0o077)
-    root = a.root.resolve()
+    if a.latest_in:
+        trades = sorted(a.latest_in.resolve().glob('two-party-*'))
+        root = trades[-1] if trades else a.latest_in.resolve() / time.strftime('two-party-%Y%m%d-%H%M%S')
+    else:
+        root = a.root.resolve()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     # Exclusive for the lifetime of this network: the single-window demo and
     # chain checks cannot start their own Anvil or mine underneath it.
     lock = (ROOT / '.local/chain-driver.lock').open('a')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     reap_orphans()
+    if USERS:  # Apps left by an earlier network that did not shut down cleanly.
+        for role in PRIVATE:
+            as_user(role, '/usr/bin/pkill', '-KILL', '-u', f'latch-{role}')
     network = Network(root)
     network.boot()
 
     class Page(Handler):
         page = 'landing.html'
         pages = {'/stage': 'stage.html', '/network': 'network.html'}
-        frame_sources = ' '.join(f'http://127.0.0.1:{PORTS[r]}' for r in PRIVATE)
+        frame_sources = ' '.join(network.app_url(r) for r in PRIVATE)
+        public_origin = ORIGINS and ORIGINS['site']
     server = ThreadingHTTPServer(('127.0.0.1', PORTS['network']), Page)
     server.app = network
 

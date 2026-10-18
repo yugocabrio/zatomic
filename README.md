@@ -85,6 +85,7 @@ python3 scripts/demo_server.py
 - [Start here: evidence by guarantee level](docs/evidence-index.md)
 - [What each observer can see (privacy)](docs/privacy.md)
 - [Two-party mode: separate sandboxed apps for Alice and Bob](docs/two-party.md)
+- [Hosting the judge demo on one server](docs/hosting.md)
 - [Second review (2026-10-17): fixed adaptor share-release flaw, UI redesign, re-verification](docs/review-2026-10-17.md)
 - [Submission draft](docs/submission.md) and [two-minute presentation](docs/demo-walkthrough.md#two-minute-presentation)
 - [Reproduction and CLI gates](docs/reproduce.md)
