@@ -12,11 +12,13 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / 'web'
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-       "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+       "connect-src 'self'; frame-src {frames}; frame-ancestors {ancestors}; base-uri 'none'; form-action 'none'")
 STATIC = {'/style.css': ('style.css', 'text/css; charset=utf-8'),
           '/favicon.svg': ('favicon.svg', 'image/svg+xml'),
           '/party.js': ('party.js', 'application/javascript'),
-          '/network.js': ('network.js', 'application/javascript')}
+          '/network.js': ('network.js', 'application/javascript'),
+          '/stage.js': ('stage.js', 'application/javascript'),
+          '/landing.js': ('landing.js', 'application/javascript')}
 
 
 def atomic(path, value):
@@ -42,6 +44,11 @@ def call(url, path, body=None, token=None, timeout=20):
 class Handler(BaseHTTPRequestHandler):
     server_version = 'LatchLocal/0.2'
     page = 'party.html'
+    pages = {}
+    # Owner apps may be framed only by the local network's stage page; the
+    # network page itself frames the two apps and is never framed.
+    frame_ancestors = "'none'"
+    frame_sources = "'none'"
 
     def log_message(self, fmt, *args):
         pass
@@ -52,7 +59,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         for name, value in (('Content-Type', kind), ('Content-Length', str(len(data))),
                 ('Cache-Control', 'no-store'), ('X-Content-Type-Options', 'nosniff'),
-                ('Referrer-Policy', 'no-referrer'), ('Content-Security-Policy', CSP)):
+                ('Referrer-Policy', 'no-referrer'),
+                ('Content-Security-Policy', CSP.format(frames=self.frame_sources, ancestors=self.frame_ancestors))):
             self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
@@ -67,8 +75,9 @@ class Handler(BaseHTTPRequestHandler):
         if not self.domain_ok():
             return self.send(403, {'error': 'Local origin required.'})
         path = self.path.split('?', 1)[0]
-        if path == '/':
-            return self.send(200, (WEB / self.page).read_bytes(), 'text/html; charset=utf-8')
+        if path == '/' or path in self.pages:
+            page = self.page if path == '/' else self.pages[path]
+            return self.send(200, (WEB / page).read_bytes(), 'text/html; charset=utf-8')
         if path in STATIC:
             name, kind = STATIC[path]
             return self.send(200, (WEB / name).read_bytes(), kind)

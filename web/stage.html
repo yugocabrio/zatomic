@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Latch — stage</title>
+  <meta name="description" content="Both owner apps side by side, with everything that crosses between them as an outside observer sees it.">
+  <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"><script src="/stage.js" defer></script>
+</head>
+<body class="stage-body">
+<header class="stage-top">
+  <a class="brand brand-small" href="/"><img src="/favicon.svg" alt="" width="24" height="24"><span>latch</span></a>
+  <p class="stage-claim">Native shielded ZEC ⇄ ETH. Two independent apps, no bridge, no custodian.</p>
+  <nav class="stage-links" aria-label="Pages"><a href="/">How it works</a><a href="/network">Behind the scenes</a></nav>
+  <div class="network" role="status"><i id="network-dot" aria-hidden="true"></i><span id="network-status">Connecting…</span></div>
+</header>
+<nav class="stage-controls" aria-label="Demo controls">
+  <span class="ctl-group"><span class="ctl-label">Run</span><button class="btn btn-primary btn-ctl" data-play="success">▶ Autoplay</button><button class="btn btn-ghost btn-ctl" data-play="refund">▶ Refund path</button></span>
+  <span class="ctl-group"><span class="ctl-label">Interrupt</span><button class="btn btn-ghost btn-ctl" data-control="crash" data-role="bob">Stop Bob’s app</button><button class="btn btn-ghost btn-ctl" data-control="restart" data-role="bob">Restart Bob’s app</button></span>
+  <span class="ctl-group"><span class="ctl-label">Time</span><button class="btn btn-ghost btn-ctl" data-control="advance-eth">ETH +61 min</button><button class="btn btn-ghost btn-ctl" data-control="advance-zec">Zcash +24 blocks</button></span>
+  <button class="btn btn-ghost btn-ctl ctl-new" data-control="new-trade">New trade</button>
+  <span class="ctl-status" id="ctl-status" role="status" aria-live="polite"></span>
+</nav>
+<main class="stage">
+  <section class="stage-app" aria-label="Alice's app">
+    <p class="stage-label"><span class="stage-who">Alice</span> holds ZEC · her app holds only her keys</p>
+    <iframe id="alice-frame" title="Alice's app" referrerpolicy="no-referrer"></iframe>
+    <p class="stage-down" role="status"><strong>Alice’s app is stopped.</strong> Her keys and journal stay on disk; restart it to resume.</p>
+  </section>
+  <section class="stage-wire board" aria-labelledby="stage-step">
+    <p class="kicker kicker-dark">Between them: only what anyone could see</p>
+    <h1 id="stage-step" class="stage-step">Waiting for both apps</h1>
+    <p id="stage-caption" class="stage-caption"></p>
+    <ol class="wire" id="wire" aria-live="polite"></ol>
+    <div class="observer" aria-label="What an outside observer learns">
+      <div class="obs obs-zec"><span class="obs-label">Zcash</span><strong id="obs-zec">—</strong><span id="obs-zec-note">amounts and addresses hidden</span></div>
+      <div class="obs obs-eth"><span class="obs-label">Ethereum</span><strong id="obs-eth">—</strong><span id="obs-eth-note">public by design</span></div>
+      <div class="obs obs-relay"><span class="obs-label">Relay</span><strong id="obs-relay">—</strong><span>cannot read sealed messages</span></div>
+    </div>
+  </section>
+  <section class="stage-app" aria-label="Bob's app">
+    <p class="stage-label"><span class="stage-who">Bob</span> holds ETH · his app holds only his keys</p>
+    <iframe id="bob-frame" title="Bob's app" referrerpolicy="no-referrer"></iframe>
+    <p class="stage-down" role="status"><strong>Bob’s app is stopped.</strong> His keys and journal stay on disk. Restart it and the app resumes from its journal; if Alice claimed the ETH meanwhile, it reads t from Ethereum and claims the ZEC.</p>
+  </section>
+</main>
+<footer class="stage-foot">
+  <span>Local Zebra NU7 regtest and Anvil. The same flow settled on the public Zcash testnet and Sepolia on 2026-10-18.</span>
+  <a href="/network" class="stage-link">Relay log and sandbox check</a>
+</footer>
+</body></html>

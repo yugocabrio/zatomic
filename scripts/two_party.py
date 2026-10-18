@@ -23,16 +23,19 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 from http.server import ThreadingHTTPServer
 import run_native_evm_gate as evm
 import evm_wallet
 from regtest_node import rpc as zrpc, status
-from two_party_http import ROOT, Handler, atomic
+from regtest_wallet import native
+from two_party_http import ROOT, Handler, atomic, call
 
 PORTS = {'network': 8790, 'alice': 8791, 'bob': 8792}
 TOPICS = ('manifest', 'sealed')
 HEX = set('0123456789abcdef')
 PRIVATE = {'alice': ('alice', 'alice-source', 'alice-app'), 'bob': ('bob', 'bob-app')}
+EVIDENCE = {p.name: p for p in (ROOT / 'evidence').glob('*.json')}
 CHILDREN = ROOT / '.local/two-party-children.json'
 
 
@@ -69,6 +72,75 @@ def sealed(envelope, role):
         and hexed('epk', 66, 66) and hexed('nonce', 24, 24) and hexed('ct', 34, 400_000))
 
 
+def topic(signature):
+    return '0x' + evm_wallet.keccak(signature.encode()).hex()
+
+
+EVENTS = {topic('Locked(bytes32,address,address,uint256,uint64,uint256,uint256,bytes32)'): 'locked',
+          topic('Claimed(bytes32,uint256)'): 'claimed', topic('Refunded(bytes32)'): 'refunded',
+          topic('Withdrawn(address,address,uint256)'): 'withdrawn'}
+
+
+class PublicView:
+    """What an outside observer of the two chains and the relay can see.
+
+    Decodes only public transaction effects (action count, transparent inputs
+    and outputs) and escrow events. It never reads an owner's files."""
+
+    def __init__(self, root):
+        self.root, self.lock = root, threading.Lock()
+        start = root/'network/public-start.json'
+        if not start.exists():
+            atomic(start, {'height': status()['blocks']})
+        self.scanned = json.loads(start.read_text())['height']
+        self.zcash, self.seen = [], {}
+
+    def scan_zcash(self):
+        tip = status()['blocks']
+        for height in range(self.scanned + 1, tip + 1):
+            block = zrpc('getblock', [zrpc('getblockhash', [height]), 2])
+            for tx in block['tx'][1:]:  # Skip the coinbase.
+                path = self.root/'network'/f'inspect-{tx["txid"]}.hex'
+                path.write_text(tx['hex']); path.chmod(0o600)
+                try:
+                    info = native('inspect-transaction', path)
+                finally:
+                    path.unlink()
+                self.zcash.append({'chain': 'zcash', 'at': int(time.time()), 'height': height, 'txid': info['txid'],
+                    'actions': len(info['ironwood_actions']), 'transparent_inputs': len(info['transparent_inputs']),
+                    'transparent_outputs': [o['value_zatoshi'] for o in info['transparent_outputs']]})
+            self.scanned = height
+
+    def ethereum(self, escrow):
+        events = []
+        for log in evm.rpc('eth_getLogs', [{'address': escrow, 'fromBlock': '0x0', 'toBlock': 'latest'}]):
+            kind = EVENTS.get(log['topics'][0])
+            if kind is None:
+                continue
+            key = (log['transactionHash'], log['logIndex'])
+            at = self.seen.setdefault(key, int(time.time()))
+            words = [int(log['data'][2 + 64*i:66 + 64*i], 16) for i in range((len(log['data']) - 2) // 64)]
+            address = lambda t: '0x' + t[-40:]
+            event = {'chain': 'ethereum', 'at': at, 'event': kind, 'tx': log['transactionHash'],
+                'block': int(log['blockNumber'], 16)}
+            if kind == 'locked':
+                event.update(maker=address(log['topics'][2]), recipient=address(log['topics'][3]), amount_wei=str(words[0]))
+            elif kind == 'claimed':
+                event.update(witness=hex(words[0]))
+            elif kind == 'withdrawn':
+                event.update(owner=address(log['topics'][1]), amount_wei=str(words[0]))
+            events.append(event)
+        return events
+
+    def snapshot(self, escrow, relay):
+        with self.lock:
+            self.scan_zcash()
+            ethereum = self.ethereum(escrow)
+        messages = [{'chain': 'relay', 'at': m['at'], 'seq': m['seq'], 'from': m['from'], 'to': m.get('to'),
+            'kind': m['topic'], 'bytes': m.get('bytes')} for m in relay]
+        return sorted(messages + self.zcash + ethereum, key=lambda e: (e['at'], e.get('seq', 0), e.get('block', 0), e.get('height', 0)))
+
+
 class Network:
     def __init__(self, root):
         self.root = root
@@ -79,6 +151,8 @@ class Network:
         self.events = []
         for name in ('network', 'relay'):
             (root / name).mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.public = None  # Created once the chains are up.
+        self.mining, self.autoplaying, self.generation = False, None, 0
 
     def tokens(self):
         return {self.page_token, *self.app_tokens.values()}
@@ -124,7 +198,122 @@ class Network:
                 'code_hash': evm_wallet.keccak(bytes.fromhex(code[2:])).hex()})
         self.escrow = json.loads(escrow.read_text())
         status()
-        threading.Thread(target=self.mine, daemon=True).start()
+        if not self.mining:
+            self.mining = True
+            threading.Thread(target=self.mine, daemon=True).start()
+
+    def boot(self):
+        """Chains, the public view and both apps, for the current workspace."""
+        self.start_chains()
+        self.public = PublicView(self.root)
+        for role in PRIVATE:
+            self.launch(role)
+        threading.Thread(target=self.watch_isolation, args=(self.root,), daemon=True).start()
+
+    def watch_isolation(self, root):
+        # Apps create their roots on first start; prove the denial once both exist.
+        for _ in range(60):
+            if self.root != root:
+                return
+            if all((root / r / 'operator-public.json').exists() for r in PRIVATE):
+                return self.prove_isolation()
+            time.sleep(1)
+
+    def shutdown(self):
+        for role in list(self.apps):
+            self.crash(role, None)
+        if getattr(self, 'anvil', None) and self.anvil.poll() is None:
+            os.killpg(self.anvil.pid, signal.SIGTERM)  # Anvil writes its --state file on exit.
+            self.anvil.wait(timeout=20)
+
+    def new_trade(self):
+        """Each workspace holds one trade: start a fresh one with new keys, a
+        fresh escrow and fresh apps. The previous workspace stays on disk."""
+        self.shutdown()
+        root = self.root.parent / time.strftime('two-party-%Y%m%d-%H%M%S')
+        if root.exists():
+            root = root.with_name(root.name + '-' + secrets.token_hex(2))
+        self.root, self.apps, self.events, self.isolation = root, {}, [], False
+        self.app_tokens = {r: secrets.token_urlsafe(32) for r in PRIVATE}
+        for name in ('network', 'relay'):
+            (root / name).mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.generation += 1
+        self.note('New trade: fresh workspace, keys and escrow')
+        self.boot()
+
+    def advance_eth(self):
+        evm.rpc('evm_increaseTime', [3660])
+        evm.rpc('evm_mine')
+        self.note('Control: Ethereum time advanced 61 minutes')
+
+    def advance_zec(self):
+        zrpc('generate', [24], timeout=300)
+        self.note('Control: Zcash advanced 24 blocks')
+
+    def autoplay(self, path):
+        """Press each app's highlighted button in turn, at a watchable pace,
+        through the apps' own page endpoints. 'refund' never reveals t: it lets
+        the ETH order expire and the native refund mature instead."""
+        if self.autoplaying:
+            raise ValueError('Autoplay is already running.')
+        self.autoplaying = path
+        threading.Thread(target=self.play, args=(path, self.root), daemon=True).start()
+
+    def play(self, path, root):
+        urls = {r: f'http://127.0.0.1:{PORTS[r]}' for r in PRIVATE}
+        advanced = {'eth': 0, 'zec': 0}
+        try:
+            for _ in range(900):
+                if self.root != root:
+                    return
+                views = {}
+                for r in PRIVATE:
+                    try:
+                        views[r] = call(urls[r], '/api/state')
+                    except OSError:
+                        views[r] = None
+                if all(v and v.get('complete') for v in views.values()):
+                    self.note('Autoplay: both owners finished')
+                    return
+                acted = False
+                for r in PRIVATE:
+                    v = views[r]
+                    if not v or v.get('busy') or v.get('offline') or v.get('complete'):
+                        continue
+                    a = v.get('action') or {}
+                    if path == 'refund' and r == 'alice' and a.get('id') == 'claim':
+                        if not advanced['eth']:
+                            advanced['eth'] += 1
+                            self.advance_eth()
+                        continue
+                    if path == 'refund' and r == 'alice' and (a.get('wait') or '').startswith('ETH order expired'):
+                        if advanced['zec'] < 3:
+                            advanced['zec'] += 1
+                            self.advance_zec()
+                        continue
+                    if not a.get('id'):
+                        continue
+                    body = {'action': a['id']}
+                    if a['id'] == 'trust':
+                        body['fingerprint'] = a['fingerprint']
+                        if a.get('source_fingerprint'):
+                            body['source_fingerprint'] = a['source_fingerprint']
+                    if a['id'] == 'offer':
+                        body.update(zec_amount='0.019', eth_amount='0.0371')
+                    try:
+                        call(urls[r], '/api/act', body, v['token'])
+                    except urllib.error.HTTPError:
+                        raise
+                    except OSError:
+                        continue  # The app was stopped mid-press; try again once it is back.
+                    self.note(f'Autoplay: {r.capitalize()} pressed “{a["label"]}”')
+                    acted = True
+                    break  # One press per round keeps the pace watchable.
+                time.sleep(3 if acted else 2)
+        except Exception as exc:  # Keep serving; the log says where it stopped.
+            self.note(f'Autoplay stopped: {exc}')
+        finally:
+            self.autoplaying = None
 
     def mine(self):
         # A stand-in for block production: pending Zcash transactions get two
@@ -197,6 +386,23 @@ class Network:
                     'events': self.events[::-1]}
         if path == '/api/relay':
             return {'messages': self.relay(), 'escrow': self.escrow}
+        if path.startswith('/evidence/'):
+            # Only committed public evidence records, by exact file name.
+            name = path.removeprefix('/evidence/')
+            return json.loads(EVIDENCE[name].read_text()) if name in EVIDENCE else None
+        if path == '/api/public':
+            relay = self.relay()
+            owners = {}
+            for m in relay:
+                if m['topic'] == 'manifest':
+                    for role in ('alice', 'bob'):
+                        if role in m['body']:
+                            owners[role] = m['body'][role]['identity']['address']
+            tip = status()
+            return {'events': self.public.snapshot(self.escrow['address'], relay), 'owners': owners,
+                'zcash_height': tip['blocks'], 'apps': {r: PORTS[r] for r in PRIVATE},
+                'running': {r: p.poll() is None for r, p in self.apps.items()},
+                'token': self.page_token, 'autoplay': self.autoplaying, 'generation': self.generation}
         return None
 
     def post(self, path, body, token):
@@ -229,12 +435,13 @@ class Network:
                 raise ValueError('Network controls belong to the network page.')
             action = body.get('action')
             if action == 'advance-eth':
-                evm.rpc('evm_increaseTime', [3660])
-                evm.rpc('evm_mine')
-                self.note('Control: Ethereum time advanced 61 minutes')
+                self.advance_eth()
             elif action == 'advance-zec':
-                zrpc('generate', [24], timeout=300)
-                self.note('Control: Zcash advanced 24 blocks')
+                self.advance_zec()
+            elif action == 'autoplay' and body.get('path') in ('success', 'refund'):
+                self.autoplay(body['path'])
+            elif action == 'new-trade':
+                self.new_trade()
             elif action == 'prove-isolation':
                 self.prove_isolation()
             elif action in ('crash', 'restart') and body.get('role') in PRIVATE:
@@ -259,36 +466,26 @@ def main():
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     reap_orphans()
     network = Network(root)
-    network.start_chains()
-    for role in PRIVATE:
-        network.launch(role)
-    # Apps create their roots on first start; prove the denial once both exist.
-    def isolation():
-        for _ in range(60):
-            if all((root / r / 'operator-public.json').exists() for r in PRIVATE):
-                return network.prove_isolation()
-            time.sleep(1)
-    threading.Thread(target=isolation, daemon=True).start()
+    network.boot()
 
     class Page(Handler):
-        page = 'network.html'
+        page = 'landing.html'
+        pages = {'/stage': 'stage.html', '/network': 'network.html'}
+        frame_sources = ' '.join(f'http://127.0.0.1:{PORTS[r]}' for r in PRIVATE)
     server = ThreadingHTTPServer(('127.0.0.1', PORTS['network']), Page)
     server.app = network
 
     def stop(signum, frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, stop)  # Clean up the apps and Anvil on any stop.
-    print(json.dumps({'network': f'http://127.0.0.1:{PORTS["network"]}',
+    print(json.dumps({'network': f'http://127.0.0.1:{PORTS["network"]}', 'stage': f'http://127.0.0.1:{PORTS["network"]}/stage',
         'alice': f'http://127.0.0.1:{PORTS["alice"]}', 'bob': f'http://127.0.0.1:{PORTS["bob"]}'}), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        for role in list(network.apps):
-            network.crash(role, None)
-        os.killpg(network.anvil.pid, signal.SIGTERM)  # Anvil writes its --state file on exit.
-        network.anvil.wait(timeout=20)
+        network.shutdown()
         CHILDREN.unlink(missing_ok=True)
 
 

@@ -11,7 +11,7 @@
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a class="brand" href="/" aria-label="Latch home"><img src="/favicon.svg" alt="" width="28" height="28"><span>latch</span></a>
-    <nav aria-label="Sections"><a href="#swap">Swap</a><a href="#how">How it works</a><a href="#recovery-matrix">Recovery</a><a href="#evidence">Evidence</a></nav>
+    <nav aria-label="Sections"><a href="#public">Public run</a><a href="#swap">Swap</a><a href="#how">How it works</a><a href="#recovery-matrix">Recovery</a><a href="#evidence">Evidence</a></nav>
     <div class="network" role="status" aria-live="polite"><i id="network-dot" aria-hidden="true"></i><span id="network-status">Checking local chains…</span></div>
   </div>
 </header>
@@ -56,6 +56,12 @@
       </svg>
       <figcaption id="mechanism-caption">Ethereum checks the scalar against the RedPallas SpendAuth base, so no cross-curve proof, oracle or light client is needed.</figcaption>
     </figure>
+  </section>
+
+  <section id="public" class="proof wrap" aria-labelledby="public-title">
+    <div class="section-head"><div><p class="kicker">Public testnets · 2026-10-18</p><h2 id="public-title">It settled on real networks</h2></div><p class="section-note">0.001 test ZEC for 0.001 Sepolia ETH, between two owner clients on one machine. The settled swap put only two shielded transactions on Zcash; the refund coin was never needed and never appeared.</p></div>
+    <table class="tx-table proof-table"><thead><tr><th scope="col">Chain</th><th scope="col">Step</th><th scope="col">Transaction</th><th scope="col">What it shows</th></tr></thead><tbody><tr><td><span class="tag tag-eth">Sepolia</span></td><td>Escrow deployed</td><td><a href="https://sepolia.etherscan.io/tx/0xac3b8d4fb2daa737eaad344ab0feafe6980233cbdb247c2d8a6bef8aa8d486f0" target="_blank" rel="noopener"><code>0xac3b8d4fb2daa737eaad344ab0feafe6980233cbdb247c2d8a6bef8aa8d486f0</code></a></td><td>Pinned code hash verified</td></tr><tr><td><span class="tag tag-zec">Zcash testnet</span></td><td>Alice funds the shared note</td><td><code>582f27b8ab95961e0f718674807b102e73c93754d90f0ae90290a6218400f7b5</code></td><td>Shielded: no transparent input or output</td></tr><tr><td><span class="tag tag-eth">Sepolia</span></td><td>Bob locks 0.001 ETH</td><td><a href="https://sepolia.etherscan.io/tx/0x775787d1f7103531e3c8c66ebc286b3a825462f76b118c0092b8fc91ca3fa26b" target="_blank" rel="noopener"><code>0x775787d1f7103531e3c8c66ebc286b3a825462f76b118c0092b8fc91ca3fa26b</code></a></td><td>Bound to the point T</td></tr><tr><td><span class="tag tag-eth">Sepolia</span></td><td>Alice claims, revealing t</td><td><a href="https://sepolia.etherscan.io/tx/0xf7ea23e3e3203b5e54e9c1909982eb0b70dc35b3ce3d7e90984de24a724a0420" target="_blank" rel="noopener"><code>0xf7ea23e3e3203b5e54e9c1909982eb0b70dc35b3ce3d7e90984de24a724a0420</code></a></td><td>Escrow checked t·G = T on Pallas</td></tr><tr><td><span class="tag tag-zec">Zcash testnet</span></td><td>Bob claims 0.001 ZEC with t</td><td><code>85aff28c0061c90e7768bd7d0755eedcfade7f3540dd83c4daa817f098774422</code></td><td>Shielded; Bob’s wallet decrypted it</td></tr><tr><td><span class="tag tag-eth">Sepolia</span></td><td>Alice withdraws the ETH</td><td><a href="https://sepolia.etherscan.io/tx/0x5a475c0f34ea2326eb3a359d6a39e21c357dfdee7c432721e1b68f46b401aa23" target="_blank" rel="noopener"><code>0x5a475c0f34ea2326eb3a359d6a39e21c357dfdee7c432721e1b68f46b401aa23</code></a></td><td>Finalized</td></tr></tbody></table>
+    <p class="fineprint">Sepolia links open Etherscan. Zcash IDs are on the public testnet (NU7, Ironwood); their amounts and addresses are encrypted. <a href="/api/evidence/2026-10-18-public-testnet-swap.json" target="_blank" rel="noopener">Full record ↗</a></p>
   </section>
 
   <section id="swap" class="app wrap" aria-labelledby="swap-title">
@@ -190,6 +196,7 @@
   <section id="evidence" class="evidence wrap" aria-labelledby="evidence-title">
     <div class="section-head"><div><p class="kicker">Evidence</p><h2 id="evidence-title">Claims you can check</h2></div><p class="section-note">Recorded runs from isolated chains, committed with the code. Each record states its own commands and limits.</p></div>
     <div class="evidence-grid">
+      <a href="/api/evidence/2026-10-18-public-testnet-swap.json" target="_blank" rel="noopener"><b>Public testnet swap</b><span>Zcash testnet and Sepolia: six transactions, final verification passed.</span><i aria-hidden="true">↗</i></a>
       <a href="/api/evidence/2026-10-15-browser-otc.json" target="_blank" rel="noopener"><b>Custom-amount exchange and refund</b><span>Browser-signed quotes settled with 18-decimal ETH; replay sent nothing new.</span><i aria-hidden="true">↗</i></a>
       <a href="/api/evidence/2026-10-15-owner-client-relay.json" target="_blank" rel="noopener"><b>A competing relay can’t redirect ETH</b><span>Pending claim front-run; the fixed recipient is still credited.</span><i aria-hidden="true">↗</i></a>
       <a href="/api/evidence/2026-10-15-bundle-validation.json" target="_blank" rel="noopener"><b>Exits are checked before funding</b><span>Changed exits and unusable recovery data are rejected.</span><i aria-hidden="true">↗</i></a>
@@ -198,10 +205,10 @@
     <aside class="boundary" aria-labelledby="boundary-title">
       <h3 id="boundary-title">Not claimed</h3>
       <ul>
-        <li>No public-testnet or mainnet swap has run. Everything here uses isolated local chains.</li>
+        <li>One success-path swap ran on the public testnets; refunds and crash recovery were shown on isolated local chains. No mainnet swap.</li>
         <li>Both owners run on one machine. Independent hosts are not demonstrated.</li>
         <li>The custom adaptor signature has no external audit or formal proof.</li>
-        <li>ETH amounts and addresses are public, as are the refund’s transparent auxiliary input and the revealed witness.</li>
+        <li>ETH amounts and addresses are public, as is the revealed witness. A refund (only a refund) adds one transparent coin on Zcash.</li>
         <li>Safety needs monitoring within the timing window; long outages or deep reorgs can break it.</li>
       </ul>
     </aside>

@@ -68,9 +68,11 @@ refund path has not run.
 
 **Two-party mode:** `make two-party` gives Alice and Bob separate apps (ports
 8791 and 8792). Each holds only its own keys, and the OS sandbox denies it the
-other's files. A third page plays the chains and a relay that sees only identities
-and sealed envelopes. See
-[two-party mode](docs/two-party.md).
+other's files. A third process plays the chains and a relay that sees only identities
+and sealed envelopes. Open http://127.0.0.1:8790: it explains the swap and its
+evidence, and its **stage view** (`/stage`) shows both apps side by side with
+everything that crosses between them, plus Autoplay, Stop/Restart Bob and New
+trade controls. See [two-party mode](docs/two-party.md).
 
 If already built and the node is running:
 

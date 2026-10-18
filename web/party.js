@@ -14,6 +14,11 @@ function el(tag, className, text) {
 function setText(selector, value) { const node = $(selector); if (node.textContent !== value) node.textContent = value; }
 function short(value) { return value && value.length > 20 ? `${value.slice(0, 10)}…${value.slice(-6)}` : (value || ''); }
 const NAMES = {alice: 'Alice · sells ZEC', bob: 'Bob · sells ETH'};
+// Inside the network's stage view the app drops its chrome and privacy panel.
+const EMBED = new URLSearchParams(location.search).has('embed');
+if (EMBED) document.documentElement.classList.add('embed');
+const NOTES = {alice: ['shielded, from my own wallet', 'on Ethereum, after I reveal t'],
+  bob: ['locked in the escrow on Ethereum', 'shielded, to a one-time address']};
 
 function renderAction(action) {
   const box = $('#action');
@@ -99,6 +104,16 @@ function render() {
   const busy = $('#busy-chip'); busy.hidden = !view.busy; setText('#busy-chip', view.busy || '');
   if (view.error) { $('#error').textContent = view.error; $('#error').hidden = false; }
   renderAction(view.action);
+  const deal = $('#deal');
+  deal.hidden = !view.trade;
+  if (view.trade) {
+    setText('#give', view.trade.give); setText('#get', view.trade.get);
+    setText('#give-note', NOTES[view.role][0]); setText('#get-note', NOTES[view.role][1]);
+    const done = view.steps.filter(s => s.done).length;
+    $('#progress-bar').style.width = `${Math.round(100 * done / view.steps.length)}%`;
+    setText('#progress-text', view.complete ? view.complete.title : `Step ${Math.min(done + 1, view.steps.length)} of ${view.steps.length}`);
+    deal.classList.toggle('is-complete', Boolean(view.complete));
+  }
   const steps = $('#steps');
   const key = JSON.stringify(view.steps);
   if (steps.dataset.key !== key) {

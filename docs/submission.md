@@ -43,6 +43,10 @@ oracle deciding the exchange outcome or custodial exchange account.
 
 ## Demonstration and verification
 
+- Live demo: `make two-party`, then open http://127.0.0.1:8790. The front page
+  explains the swap and links its evidence; **Try the live demo** opens both
+  owner apps side by side with Autoplay, Refund path, Stop/Restart Bob and New
+  trade ([two-party mode](two-party.md))
 - [Two-minute captioned video](demo/latch-2min.mp4) — real screen checkpoints, waits omitted
 - [Two-minute walkthrough](demo-walkthrough.md#two-minute-presentation)
 - [What each observer can see](privacy.md)
@@ -83,6 +87,5 @@ ready.
 Settlement code `9b978e3` passed [fresh-checkout reproduction](../evidence/2026-10-15-clean-reproduction.json).
 The [two-minute presentation file](demo/latch-2min.mp4) and its reviewed source
 images are included. It is a captioned edit of actual screen checkpoints, not a
-continuous recording. Public deployment/settlement is a separate pending step;
-add that claim only after authorized execution with verifiable transaction evidence.
-Submission itself still requires the user's instruction.
+continuous recording. The public testnet settlement is recorded above with its
+six transactions. Submission itself still requires the user's instruction.

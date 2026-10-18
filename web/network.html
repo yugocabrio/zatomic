@@ -9,7 +9,7 @@
 <body class="party">
 <header class="topbar">
   <div class="wrap topbar-inner">
-    <span class="brand"><img src="/favicon.svg" alt="" width="28" height="28"><span>latch</span></span>
+    <a class="brand" href="/"><img src="/favicon.svg" alt="" width="28" height="28"><span>latch</span></a>
     <span class="role-chip">Local network &amp; relay</span>
     <span class="p-holds">Holds no participant key</span>
     <div class="network" role="status"><i id="network-dot" aria-hidden="true"></i><span id="network-status">Connecting…</span></div>
@@ -17,7 +17,8 @@
 </header>
 <main class="wrap p-main">
   <section class="section-head"><div><p class="kicker">Two-party demo</p><h1 class="p-h1">Two owners, two apps, one relay</h1></div>
-    <p class="section-note">Alice and Bob each run their own app with only their own keys. The OS sandbox stops each app reading the other’s files. This page plays the public chains and relays their messages, sealed so that it cannot read them.</p></section>
+    <div class="section-note"><p>Alice and Bob each run their own app with only their own keys. The OS sandbox stops each app reading the other’s files. This page plays the public chains and relays their messages, sealed so that it cannot read them.</p>
+      <p class="n-stage"><a class="btn btn-primary" href="/stage">Open the stage view</a> <span>Both apps side by side, with everything that crosses between them.</span></p></div></section>
   <div class="n-grid">
     <section class="receipt"><h2 class="n-h">Owner apps</h2><div id="apps" class="n-apps"></div></section>
     <section class="receipt"><h2 class="n-h">Chains</h2><dl class="review" id="chains"></dl>

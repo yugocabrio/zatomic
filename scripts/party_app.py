@@ -442,7 +442,13 @@ class App:
                 action = {'id': 'withdraw', 'label': 'Withdraw refunded ETH'}
             elif seen.get('order_state') == 1:
                 action = {'wait': 'ETH locked. Waiting for Alice to claim it.'}
-        return {'role': self.role, 'token': self.page_token, 'busy': self.busy, 'error': self.error,
+        trade = None
+        if s.get('offer'):
+            p = s['offer']['offer']['payload']
+            zec, eth = decimal_amount(p['payout_zatoshi'], 8), decimal_amount(p['eth_amount_wei'], 18)
+            trade = {'give': f'{zec} ZEC' if self.role == 'alice' else f'{eth} ETH',
+                'get': f'{eth} ETH' if self.role == 'alice' else f'{zec} ZEC'}
+        return {'role': self.role, 'token': self.page_token, 'busy': self.busy, 'error': self.error, 'trade': trade,
             'me': {'fingerprint': manifest_digest(own), 'address': own['identity']['address']},
             'steps': steps, 'action': action, 'chain': seen, 'relay_count': self.relay_total,
             'shared': self.shared(), 'complete': self.complete(seen)}
@@ -523,8 +529,11 @@ def main():
     os.umask(0o077)
     app = App(a.role, a.root.resolve(), a.network)
 
+    network = a.network.rstrip('/')
+
     class Page(Handler):
         page = 'party.html'
+        frame_ancestors = f"{network} {network.replace('127.0.0.1', 'localhost')}"
     server = ThreadingHTTPServer(('127.0.0.1', a.port), Page)
     server.app = app
     server.serve_forever()

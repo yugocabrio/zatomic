@@ -4,13 +4,22 @@
 make two-party
 ```
 
-This opens three local pages:
+Start at **http://127.0.0.1:8790**. That one address is the whole demo:
 
 | Page | What it is |
 |---|---|
-| **Alice** · http://127.0.0.1:8791 | Alice's app. It holds her participant keys, her secret `t`, and her own source wallet operator. |
-| **Bob** · http://127.0.0.1:8792 | Bob's app. It holds his participant keys only. |
-| **Network** · http://127.0.0.1:8790 | A stand-in for the public chains, plus an untrusted relay. It holds no participant key and cannot open sealed messages. |
+| `/` | What Latch does, the public testnet swap, what each observer sees, the recovery cases and the evidence records. |
+| `/stage` | The live demo: both owner apps side by side, the public wire between them, and the demo controls. |
+| `/network` | Behind the scenes: the chains, the sandbox check and every record the relay holds. |
+
+The network process plays the public chains and an untrusted relay. It holds no
+participant key and cannot open sealed messages. The owner apps run as separate
+processes on their own ports:
+
+| App | What it holds |
+|---|---|
+| **Alice** · http://127.0.0.1:8791 | Her participant keys, her secret `t`, and her own source wallet operator. |
+| **Bob** · http://127.0.0.1:8792 | His participant keys only. |
 
 Each app runs under its own macOS `sandbox-exec` policy that denies reads and
 writes of the other owner's directories. At launch, the network page *proves*
@@ -50,6 +59,32 @@ commitment, and so pick out the swap's Zcash transactions.
 one: it requires every record to be an identity or a sealed envelope, and finds
 none of the trade's private values (funding txid, note commitment, auxiliary
 txid, receive addresses, ETH salt, quote ID) in the relay's files.
+
+## Stage view (for a live demo or a video)
+
+Open **http://127.0.0.1:8790/stage**. It shows both real owner apps side by side
+(embedded; each still holds only its own keys) and, between them, only what an
+outside observer can see: relay envelopes, each Zcash transaction as its public
+effects decode (number of actions, any transparent input or output), and the
+escrow's events. The headline step ("Step 5 of 7 · Alice claims the ETH and
+reveals t") is inferred from that public data alone. A settled swap shows two
+shielded Zcash transactions and nothing transparent; the refund path shows the
+auxiliary coin appearing only then. The owner apps allow framing only by this
+local network page.
+
+The bar above the apps drives a demo without touching either app's keys:
+
+| Control | What it does |
+|---|---|
+| **Autoplay** | Presses each app's highlighted button in turn, through that app's own page endpoint, until both owners finish. |
+| **Refund path** | The same, except Alice never claims: ETH time passes, Bob refunds his ETH, the native refund matures and Alice's refund coin appears. |
+| **Stop / Restart Bob's app** | Kills Bob's process (SIGKILL) and starts it again. It resumes from its own journal; stopped after Alice's claim, it still claims the ZEC. |
+| **ETH +61 min · Zcash +24 blocks** | Stand-ins for time passing on a public chain. |
+| **New trade** | Stops both apps and starts a fresh workspace: new keys, a new escrow and a new shared note. The previous trade stays on disk. |
+
+Autoplay types the agreed amounts (0.019 ZEC for 0.0371 ETH) and accepts the
+fingerprints shown on screen. A real owner compares fingerprints over a channel
+they already trust.
 
 ## A trade, step by step
 

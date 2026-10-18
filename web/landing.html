@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Latch — shielded ZEC ⇄ ETH swaps</title>
+  <meta name="description" content="Peer-to-peer swaps of native shielded ZEC for ETH, with no bridge and no wrapped ZEC. Live two-app demo and a settled public testnet swap.">
+  <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"><script src="/landing.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#try">Skip to the demo guide</a>
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="/" aria-label="Latch home"><img src="/favicon.svg" alt="" width="28" height="28"><span>latch</span></a>
+    <nav aria-label="Sections"><a href="/stage"><b>Live demo</b></a><a href="#public">Public run</a><a href="#how">How it works</a><a href="#privacy">Privacy</a><a href="#recovery-matrix">Recovery</a><a href="#evidence">Evidence</a></nav>
+    <div class="network" role="status" aria-live="polite"><i id="network-dot" aria-hidden="true"></i><span id="network-status">Checking the demo…</span></div>
+  </div>
+</header>
+
+<main>
+  <section class="hero wrap" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <p class="kicker">P2P OTC · Native Zcash ↔ Ethereum</p>
+      <h1 id="hero-title">Swap shielded ZEC for ETH.<br><em>No bridge. No wrapped ZEC.</em></h1>
+      <p class="lede">Alice and Bob agree a price. Before anything is funded, Bob holds a pre-signed ZEC claim and Alice holds a pre-signed, time-locked refund. When Alice takes the ETH, the secret she reveals completes Bob’s shielded ZEC payment. The coordinator never needs the secret.</p>
+      <p class="cta-row"><a class="btn btn-primary btn-cta" href="/stage">Try the live demo <span aria-hidden="true">→</span></a><a class="btn btn-ghost btn-cta" href="#public">See the public testnet swap</a></p>
+      <ul class="facts">
+        <li><b>Stays shielded</b><span>Principal and recipients stay in Ironwood. Ethereum never sees a Zcash address or note.</span></li>
+        <li><b>Exits before funding</b><span>Both owners verify their claim or refund, then sign the full terms.</span></li>
+        <li><b>Recovers after a crash</b><span>Durable journals resume the exit without a new signature from the peer.</span></li>
+      </ul>
+    </div>
+    <figure class="mechanism" aria-labelledby="mechanism-caption">
+      <svg viewBox="0 0 440 300" role="img" aria-labelledby="mechanism-title mechanism-desc">
+        <title id="mechanism-title">One scalar links both chains</title>
+        <desc id="mechanism-desc">Ethereum escrow releases ETH only for t with t·G = T. The same t turns Bob's pre-signature into a valid RedPallas signature for the shielded ZEC claim.</desc>
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-ink"/></marker></defs>
+        <rect x="8" y="22" width="180" height="128" rx="14" class="svg-card"/>
+        <text x="26" y="50" class="svg-eyebrow">ZCASH · IRONWOOD</text>
+        <text x="26" y="76" class="svg-title">Joint 2-of-2 note</text>
+        <text x="26" y="102" class="svg-body">Claim C → Bob</text>
+        <text x="26" y="122" class="svg-mono">pre-signed ŝ</text>
+        <rect x="252" y="22" width="180" height="128" rx="14" class="svg-card"/>
+        <text x="270" y="50" class="svg-eyebrow">ETHEREUM</text>
+        <text x="270" y="76" class="svg-title">PointEscrow</text>
+        <text x="270" y="102" class="svg-body">ETH → Alice</text>
+        <text x="270" y="122" class="svg-mono">checks t·G = T</text>
+        <path d="M252 66 H196" class="svg-line" marker-end="url(#arrow)"/>
+        <rect x="196" y="40" width="56" height="20" rx="10" class="svg-pill"/>
+        <text x="224" y="54" text-anchor="middle" class="svg-pill-text">t</text>
+        <text x="220" y="92" text-anchor="middle" class="svg-small">public</text>
+        <text x="220" y="106" text-anchor="middle" class="svg-small">witness</text>
+        <rect x="8" y="186" width="424" height="92" rx="14" class="svg-card svg-dash"/>
+        <text x="26" y="214" class="svg-eyebrow">PREPARED BEFORE FUNDING</text>
+        <text x="26" y="240" class="svg-body">Revealed: s = ŝ + t completes Bob’s ZEC claim.</text>
+        <text x="26" y="262" class="svg-body">No reveal: Bob refunds ETH, Alice’s refund R returns ZEC.</text>
+        <path d="M98 150 V186" class="svg-line svg-faint"/><path d="M342 150 V186" class="svg-line svg-faint"/>
+      </svg>
+      <figcaption id="mechanism-caption">Ethereum checks the scalar against the RedPallas SpendAuth base, so no cross-curve proof, oracle or light client is needed.</figcaption>
+    </figure>
+  </section>
+
+  <section id="public" class="proof wrap" aria-labelledby="public-title">
+    <div class="section-head"><div><p class="kicker">Public testnets · 2026-10-18</p><h2 id="public-title">It settled on real networks</h2></div><p class="section-note">0.001 test ZEC for 0.001 Sepolia ETH, between two owner clients on one machine. The settled swap put only two shielded transactions on Zcash; the refund coin was never needed and never appeared.</p></div>
+    <table class="tx-table proof-table"><thead><tr><th scope="col">Chain</th><th scope="col">Step</th><th scope="col">Transaction</th><th scope="col">What it shows</th></tr></thead><tbody><tr><td><span class="tag tag-eth">Sepolia</span></td><td>Escrow deployed</td><td><a href="https://sepolia.etherscan.io/tx/0xac3b8d4fb2daa737eaad344ab0feafe6980233cbdb247c2d8a6bef8aa8d486f0" target="_blank" rel="noopener"><code>0xac3b8d4fb2daa737eaad344ab0feafe6980233cbdb247c2d8a6bef8aa8d486f0</code></a></td><td>Pinned code hash verified</td></tr><tr><td><span class="tag tag-zec">Zcash testnet</span></td><td>Alice funds the shared note</td><td><code>582f27b8ab95961e0f718674807b102e73c93754d90f0ae90290a6218400f7b5</code></td><td>Shielded: no transparent input or output</td></tr><tr><td><span class="tag tag-eth">Sepolia</span></td><td>Bob locks 0.001 ETH</td><td><a href="https://sepolia.etherscan.io/tx/0x775787d1f7103531e3c8c66ebc286b3a825462f76b118c0092b8fc91ca3fa26b" target="_blank" rel="noopener"><code>0x775787d1f7103531e3c8c66ebc286b3a825462f76b118c0092b8fc91ca3fa26b</code></a></td><td>Bound to the point T</td></tr><tr><td><span class="tag tag-eth">Sepolia</span></td><td>Alice claims, revealing t</td><td><a href="https://sepolia.etherscan.io/tx/0xf7ea23e3e3203b5e54e9c1909982eb0b70dc35b3ce3d7e90984de24a724a0420" target="_blank" rel="noopener"><code>0xf7ea23e3e3203b5e54e9c1909982eb0b70dc35b3ce3d7e90984de24a724a0420</code></a></td><td>Escrow checked t·G = T on Pallas</td></tr><tr><td><span class="tag tag-zec">Zcash testnet</span></td><td>Bob claims 0.001 ZEC with t</td><td><code>85aff28c0061c90e7768bd7d0755eedcfade7f3540dd83c4daa817f098774422</code></td><td>Shielded; Bob’s wallet decrypted it</td></tr><tr><td><span class="tag tag-eth">Sepolia</span></td><td>Alice withdraws the ETH</td><td><a href="https://sepolia.etherscan.io/tx/0x5a475c0f34ea2326eb3a359d6a39e21c357dfdee7c432721e1b68f46b401aa23" target="_blank" rel="noopener"><code>0x5a475c0f34ea2326eb3a359d6a39e21c357dfdee7c432721e1b68f46b401aa23</code></a></td><td>Finalized</td></tr></tbody></table>
+    <p class="fineprint">Sepolia links open Etherscan. Zcash IDs are on the public testnet (NU7, Ironwood); their amounts and addresses are encrypted. <a href="/evidence/2026-10-18-public-testnet-swap.json" target="_blank" rel="noopener">Full record ↗</a></p>
+  </section>
+
+  <section id="try" class="try wrap" aria-labelledby="try-title">
+    <div class="section-head"><div><p class="kicker">Try it · about five minutes</p><h2 id="try-title">Two apps, one swap</h2></div><p class="section-note">Everything runs on a local Zcash regtest chain and a local Ethereum chain, with real transactions and real proofs. Nothing here touches real money.</p></div>
+    <ol class="try-grid">
+      <li><span class="how-n">01</span><h3>Open the live demo</h3><p>Alice’s app is on the left, Bob’s on the right. Each is a separate program that holds only its owner’s keys.</p></li>
+      <li><span class="how-n">02</span><h3>Run the trade</h3><p>Press <b>Autoplay</b>, or click the highlighted button in each app yourself. The middle column shows only what an outsider could see.</p></li>
+      <li><span class="how-n">03</span><h3>Break it on purpose</h3><p>After Alice claims the ETH, press <b>Stop Bob’s app</b>, then <b>Restart</b>: Bob still gets his ZEC. Or choose <b>Autoplay: refund</b> to see both sides take their assets back.</p></li>
+      <li><span class="how-n">04</span><h3>Start over</h3><p><b>New trade</b> gives both owners fresh keys, a fresh shared note and a fresh escrow order.</p></li>
+    </ol>
+  </section>
+
+  <section id="how" class="how wrap" aria-labelledby="how-title">
+    <div class="section-head"><div><p class="kicker">How it works</p><h2 id="how-title">Four steps, one secret</h2></div><p class="section-note">FROST DKG and nonces come from the Zcash Foundation libraries. The adaptor extension and its Solidity check are this project’s own and are unaudited.</p></div>
+    <ol class="how-grid">
+      <li><span class="how-n">01</span><h3>Lock a point</h3><p>Alice picks a fresh secret scalar <var>t</var> and shares only <var>T = t·G</var> on the Pallas curve.</p></li>
+      <li><span class="how-n">02</span><h3>Sign the exits first</h3><p>A fresh 2-of-2 FROST key controls the ZEC. Bob gets an adaptor pre-signature <var>ŝ</var> for claim C. Alice gets refund R, fully signed and time-locked.</p></li>
+      <li><span class="how-n">03</span><h3>Claim ETH by revealing</h3><p>After the ZEC is funded and Bob locks ETH, Alice calls <code>claim(t)</code>. The escrow checks <var>t·G = T</var> and credits her fixed address.</p></li>
+      <li><span class="how-n">04</span><h3>Complete natively</h3><p>Bob reads <var>t</var> and computes <var>s = ŝ + t</var>, a valid RedPallas spend signature. His shielded claim needs nothing more from Alice.</p></li>
+    </ol>
+  </section>
+
+  <section id="privacy" class="privacy wrap" aria-labelledby="privacy-title">
+    <div class="section-head"><div><p class="kicker">Privacy</p><h2 id="privacy-title">What each observer sees</h2></div><p class="section-note">The Zcash side stays shielded. Ethereum is public by design, so the ETH side is public. <a href="https://github.com/yugocabrio/zeceth/blob/main/docs/privacy.md" target="_blank" rel="noopener">Full analysis ↗</a></p></div>
+    <table class="matrix-table">
+      <thead><tr><th scope="col">Observer</th><th scope="col">Learns</th><th scope="col">Does not learn</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Anyone watching Zcash</th><td>That two shielded transactions happened, with their fees and timing. On a refund only: one transparent coin.</td><td>Amounts, senders, recipients, which note is the swap’s.</td></tr>
+        <tr><th scope="row">Anyone watching Ethereum</th><td>Both ETH addresses, the ETH amount, the expiry, the point T and, after the claim, the secret t.</td><td>Any Zcash address, viewing key, note or amount. t cannot be linked to a Zcash transaction.</td></tr>
+        <tr><th scope="row">The message relay</th><td>Each owner’s public keys; who sent a message to whom, when, and its size.</td><td>The quote, amounts, terms or funding transaction: every message is sealed to its recipient.</td></tr>
+        <tr><th scope="row">The other party</th><td>The agreed amounts and your one-time Zcash receive address.</td><td>Your viewing keys, your wallet, or where your ZEC goes next.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="recovery-matrix" class="matrix wrap" aria-labelledby="recovery-heading">
+    <div class="section-head"><div><p class="kicker">Recovery</p><h2 id="recovery-heading">What if someone disappears?</h2></div><p class="section-note">Results under the stated assumptions: honest owners keep monitoring, and inclusion and reorgs stay within the timing window.</p></div>
+    <table class="matrix-table">
+      <thead><tr><th scope="col">If this happens</th><th scope="col">Outcome</th><th scope="col">Shown here</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Setup stops before funding is released</th><td>Cancel the offer. No swap funds were locked.</td><td><a class="tag" href="/evidence/2026-10-15-setup-cancellation.json" target="_blank" rel="noopener">Evidence ↗</a></td></tr>
+        <tr><th scope="row">Alice funds; Bob never locks ETH</th><td>Alice broadcasts her prepared refund after the native deadline.</td><td><a class="tag" href="/evidence/2026-10-15-funding-interruption.json" target="_blank" rel="noopener">Evidence ↗</a></td></tr>
+        <tr><th scope="row">Bob locks; Alice never reveals</th><td>Bob refunds ETH at expiry; Alice refunds ZEC after the native deadline.</td><td><span class="tag tag-strong">Live demo: Advance ETH time</span></td></tr>
+        <tr><th scope="row">Alice reveals, then everything stops</th><td>Bob finishes his ZEC claim from the public witness, with Alice offline.</td><td><span class="tag tag-strong">Live demo: Stop Bob’s app</span></td></tr>
+        <tr><th scope="row">Recovery runs twice</th><td>It reconciles confirmed transactions; no second payment is sent.</td><td><a class="tag" href="/evidence/2026-10-15-browser-otc.json" target="_blank" rel="noopener">Evidence ↗</a></td></tr>
+        <tr class="row-limit"><th scope="row">Outage or reorg beyond the window</th><td>Not covered. This is a monitored swap, not indefinite offline safety.</td><td><span class="tag tag-limit">Limit</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="evidence" class="evidence wrap" aria-labelledby="evidence-title">
+    <div class="section-head"><div><p class="kicker">Evidence</p><h2 id="evidence-title">Claims you can check</h2></div><p class="section-note">Recorded runs, committed with the code: the public testnet swap and the isolated-chain failure tests. Each record states its own commands and limits.</p></div>
+    <div class="evidence-grid">
+      <a href="/evidence/2026-10-18-public-testnet-swap.json" target="_blank" rel="noopener"><b>Public testnet swap</b><span>Zcash testnet and Sepolia: six transactions, final verification passed.</span><i aria-hidden="true">↗</i></a>
+      <a href="/evidence/2026-10-15-browser-otc.json" target="_blank" rel="noopener"><b>Custom-amount exchange and refund</b><span>Browser-signed quotes settled with 18-decimal ETH; replay sent nothing new.</span><i aria-hidden="true">↗</i></a>
+      <a href="/evidence/2026-10-15-owner-client-relay.json" target="_blank" rel="noopener"><b>A competing relay can’t redirect ETH</b><span>Pending claim front-run; the fixed recipient is still credited.</span><i aria-hidden="true">↗</i></a>
+      <a href="/evidence/2026-10-15-bundle-validation.json" target="_blank" rel="noopener"><b>Exits are checked before funding</b><span>Changed exits and unusable recovery data are rejected.</span><i aria-hidden="true">↗</i></a>
+      <a href="/evidence/2026-10-15-security-review.json" target="_blank" rel="noopener"><b>Independent arithmetic re-check</b><span>Pure-Python re-derivation of the adaptor equations and Solidity vectors.</span><i aria-hidden="true">↗</i></a>
+    </div>
+    <aside class="boundary" aria-labelledby="boundary-title">
+      <h3 id="boundary-title">Not claimed</h3>
+      <ul>
+        <li>One success-path swap ran on the public testnets; refunds and crash recovery were shown on isolated local chains. No mainnet swap.</li>
+        <li>Both owners run on one machine. Independent hosts are not demonstrated.</li>
+        <li>The custom adaptor signature has no external audit or formal proof.</li>
+        <li>ETH amounts and addresses are public, as is the revealed witness. A refund (only a refund) adds one transparent coin on Zcash.</li>
+        <li>Safety needs monitoring within the timing window; long outages or deep reorgs can break it.</li>
+      </ul>
+    </aside>
+  </section>
+</main>
+<footer class="site-foot"><div class="wrap"><span class="brand brand-small">latch</span><span>ZECATHON · Cross-chain · MIT licensed prototype · <a href="/network">Behind the scenes</a></span></div></footer>
+</body></html>

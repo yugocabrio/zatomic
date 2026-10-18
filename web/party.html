@@ -16,6 +16,13 @@
   </div>
 </header>
 <main class="wrap p-main">
+  <section class="p-deal" id="deal" aria-label="This trade" hidden>
+    <div class="p-leg p-give"><span class="p-leg-label">I give</span><strong id="give">—</strong><span class="p-leg-note" id="give-note"></span></div>
+    <span class="p-swap" aria-hidden="true">⇄</span>
+    <div class="p-leg p-get"><span class="p-leg-label">I get</span><strong id="get">—</strong><span class="p-leg-note" id="get-note"></span></div>
+    <div class="p-progress" aria-hidden="true"><i id="progress-bar"></i></div>
+    <p class="p-progress-text" id="progress-text"></p>
+  </section>
   <section class="p-grid">
     <article class="ticket p-next" aria-labelledby="next-title">
       <header class="ticket-head"><h1 id="next-title" class="p-title">Next step</h1><span class="chip" id="busy-chip" hidden></span></header>
