@@ -89,6 +89,7 @@ LATCH_NODE=external
 RAYON_NUM_THREADS=2
 ENV
 chmod 0644 /etc/latch/latch.env
+install -d -m 0755 /usr/local/libexec
 install -m 0755 "$DEPLOY/latch-app" "$DEPLOY/latch-probe" /usr/local/libexec/
 install -m 0755 "$DEPLOY/latch-reset" /usr/local/sbin/
 install -m 0440 "$DEPLOY/sudoers" /etc/sudoers.d/latch.new
