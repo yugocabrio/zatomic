@@ -1,15 +1,21 @@
 # Public testnet execution checklist
 
-The funded positive path is **not demonstrated**. The previous isolated release
-remains reproducible. This checklist connects the existing public owner, source,
+**The funded success path ran once on 2026-10-18**
+([record](../evidence/2026-10-18-public-testnet-swap.json)): deployment, F, lock,
+claim, C and withdrawal, with the final `verify` passing. The public refund path
+has not run. The previous isolated release remains reproducible. This checklist connects the existing public owner, source,
 observation, signing and recovery clients; none of the commands below silently
 substitutes a local chain or synthetic inputs. The convenience preparation
 runner controls two owners on one host, not independently administered hosts.
 
-**Public deployment, faucet requests and every public transfer still need the
-human's explicit authorization.** No public broadcast was performed while
-preparing this milestone. Read-only observations are permitted. Do not execute
-commands with `--broadcast-testnet` until that authorization exists.
+**Public deployment, faucet requests and every public transfer need the
+human's authorization.** Read-only observations are permitted.
+
+Practical notes from the run: Zcash testnet blocks arrived faster than the
+nominal 75 seconds, so steps that check the exact provider tip may need a rerun
+(the source preflight now rescans by itself). Tenderly's free gateway can return
+HTTP 429 on sends; the exact retained bytes can be resubmitted elsewhere because
+the hash is fixed.
 
 **Signer version (2026-10-17):** both owners must run a native binary that
 includes the share-release fix ([review S1](review-2026-10-17.md)). Rebuild with
@@ -26,13 +32,12 @@ The current workspace is `.local/public-launch-002` (address-only v2 owner setup
 keys; do not fund it. Keep all keys and protocol packets private. Trade:
 **0.001 test ZEC for 0.001 Sepolia ETH**.
 
-| Account | Minimum initial balance at 1 gwei ceiling | Reason |
-|---|---:|---|
-| Alice | 0.0012 Sepolia ETH | 1,000,000 claim + 200,000 withdrawal gas |
-| Bob | 0.0021 Sepolia ETH | 0.001 trade + 700,000 lock + 200,000 refund + 200,000 withdrawal gas |
-| Dedicated deployer | 0.001 Sepolia ETH | 1,000,000 deployment gas |
-| Total | **0.0043 Sepolia ETH** | Initial reserves, not expected fees |
-| Native source | **one Ironwood note of at least 0.0016 test ZEC** (a 1 TAZ faucet drip is fine) | Principal 0.0011, F fee 0.0001; the change keeps 0.00035 for the refund auxiliary |
+| Account | Minimum balance at the 0.1 gwei ceiling | Funded (2026-10-18) | Reason |
+|---|---:|---:|---|
+| Alice | 0.00012 Sepolia ETH | 0.0464 | 1,000,000 claim + 200,000 withdrawal gas |
+| Bob | 0.00114 Sepolia ETH | 0.0021 | 0.001 trade + 1,000,000 lock + 200,000 refund + 200,000 withdrawal gas |
+| Dedicated deployer | 0.00065 Sepolia ETH | 0.001 | 6,500,000 deployment gas |
+| Native source | **one Ironwood note of at least 0.0016 test ZEC** | 0.125 TAZ | Principal 0.0011, F fee 0.0001; the change keeps 0.00035 for the refund auxiliary |
 
 No transparent coin is funded. New source reservations (v2) select only the
 shielded note: the selector requires a single note strictly larger than 0.00155
@@ -42,22 +47,32 @@ coin. A is sent only on the no-reveal refund path (see below), so a settled
 swap leaves no transparent output and never discloses the auxiliary address to
 the provider. Do **not** send anything to the wallet's transparent address.
 
-This replaces the previous 0.431 ETH budget. All swap gas limits, recovery
-reserves, confirmation requirements and clock windows are unchanged. Only the
-agreed price ceiling falls from 100 to 1 gwei; deploy limit falls from 2 million
-to 1 million. Actual isolated deployment consumed **735,311 gas**. A prior actual
-claim consumed **500,143 gas**; the new browser claim consumed **508,771**.
-Neither is a worst-case proof for all scalars; the 1 million claim limit is retained.
-The new local lock/refund/withdraw receipts used 183,719 / 54,611 / 30,719 gas.
-At the signed 1 gwei price, the observed successful deployment + lock + claim +
-withdrawal would cost 0.001458508 ETH, leaving 0.002841492 ETH across the three
-accounts from the 0.0043 initial total (including the transferred trade principal).
-That is an illustration using actual isolated gas use, not a public gas estimate
-or a guaranteed cost. See the deployment and browser OTC integration evidence.
+**Gas, re-measured on 2026-10-18.** Sepolia now charges heavily for creating
+state: a plain transfer to a new account took 204,600 gas, and two funding
+transfers sent with the old 21,000 limit failed out of gas (fee only, retried
+successfully). The escrow was simulated on current Sepolia rules with
+`eth_simulateV1` (`scripts/measure_sepolia_gas.py`, read-only, test scalars):
 
-At 2026-10-15 17:15:45 UTC, dRPC reported base fee 16 wei, priority 1,000,000 wei,
-and gas price 1,000,016 wei. This is an observation, not an inclusion guarantee.
-The 1 gwei ceiling was about 1,000 times that quote. Every action checks current
+| Operation | Gas on current Sepolia | Signed limit | Earlier local Anvil |
+|---|---:|---:|---:|
+| Deploy | 5,090,645 | 6,500,000 (was 1,000,000) | 735,311 |
+| Lock | 799,459 | 1,000,000 (was 700,000) | 183,719 |
+| Claim, worst-case scalar 2^254−1 | 768,210 | 1,000,000 | 508,771 |
+| Claim, random scalars | 579,956–609,879 | | |
+| Refund | 143,831 | 200,000 | 54,611 |
+| Withdraw | 31,216 | 200,000 | 30,719 |
+
+The new limits are the `bounded-legacy-eth-v2` fee profile; agreements signed
+under v1 keep verifying with their own limits. The check fails unless every
+limit keeps 15% headroom; **run it again right before deployment**, because
+testnet gas schedules change. The default price ceiling falls from 1 gwei to
+0.1 gwei so that the funded deployer covers 6.5 million gas. At 2026-10-18
+the observed Sepolia gas price was about 121,000 wei (0.00012 gwei), so the
+ceiling is roughly 800 times the quote. At 0.1 gwei the measured deploy, lock,
+worst-case claim and withdrawal would cost about 0.00067 ETH in total. This is
+an illustration from simulation, not a guaranteed cost.
+
+Every action checks current
 fees/balances again; **stop if the ceiling no longer suffices**. After signing,
 never silently raise a cap, replace a nonce or reuse the plan for another trade.
 Initial reserve arithmetic assumes bounded inclusion of the retained transaction,
@@ -117,7 +132,9 @@ python3 scripts/public_launch.py owners "$LATCH_RUN"
 # least 11 blocks later. Source/auxiliary/anchor each need 12 confirmations.
 python3 scripts/testnet_wallet.py sync "$LATCH_RUN/source" --batches 32
 
-# Check only; currently refuses because the deployer is unfunded.
+# Read-only: every gas limit must keep 15% headroom on current Sepolia rules.
+python3 scripts/measure_sepolia_gas.py
+# Check only.
 python3 scripts/public_deploy.py "$LATCH_RUN/deployment-owner" --eth-rpc "$LATCH_RPC"
 # ONLY AFTER human public-execution authorization and funding:
 python3 scripts/public_deploy.py "$LATCH_RUN/deployment-owner" --eth-rpc "$LATCH_RPC" --broadcast-testnet
@@ -127,7 +144,8 @@ python3 scripts/public_deploy.py "$LATCH_RUN/deployment-owner" --eth-rpc "$LATCH
 # Start deadlines only after funded inputs and finalized deployment exist.
 # Real source reservation, signed owner review, C/R, recovery receipts, final
 # consents, portable exports, watch wallets and recipient birthdays are connected.
-python3 scripts/public_launch.py prepare "$LATCH_RUN" --eth-rpc "$LATCH_RPC" --gas-cap-wei 1000000000
+python3 scripts/measure_sepolia_gas.py
+python3 scripts/public_launch.py prepare "$LATCH_RUN" --eth-rpc "$LATCH_RPC" --gas-cap-wei 100000000
 python3 scripts/public_eth_outgoing.py init "$LATCH_RUN/alice" "$LATCH_CONSENTS"
 python3 scripts/public_eth_outgoing.py init "$LATCH_RUN/bob" "$LATCH_CONSENTS"
 python3 scripts/public_source_release.py prepare "$LATCH_RUN/alice" "$LATCH_RUN/source" "$LATCH_CONSENTS" --eth-rpc "$LATCH_RPC"

@@ -25,10 +25,10 @@
     "native_refund_after_eth_expiry_seconds": 86400
   },
   "fee_policy": {
-    "profile": "bounded-legacy-eth-v1",
+    "profile": "bounded-legacy-eth-v2",
     "max_gas_price_wei": 100000000000,
     "gas_limits": {
-      "lock": 700000,
+      "lock": 1000000,
       "claim": 1000000,
       "refund": 200000,
       "withdraw": 200000

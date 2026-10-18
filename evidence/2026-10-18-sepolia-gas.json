@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-18",
+  "scope": "Sepolia gas re-measurement and the v2 fee profile. Read-only observations and simulations, except the two user-authorized funding transfers listed below. No deployment and no swap transaction.",
+  "finding": "Sepolia now charges heavily for creating state. Two funding transfers from Alice with the old 21,000 gas limit failed out of gas (fee only). The escrow deployment would need 5.09M gas against the planned 1M limit, and lock 0.80M against 0.70M: the planned public run would have failed at deployment and again at lock.",
+  "funding_transfers": {
+    "authorized_by_user": "Alice -> Bob 0.0021 ETH and Alice -> deployer 0.001 ETH",
+    "failed_out_of_gas": [
+      {
+        "txid": "0x34fb352482694abd932150535ad13169b0928c73252c4d58794f33382ac7529a",
+        "nonce": 0,
+        "gas_limit": 21000,
+        "status": 0
+      },
+      {
+        "txid": "0x2dc29570344739769f6ddb248de6a89380863dea47c969b87fac72b25cb3472a",
+        "nonce": 1,
+        "gas_limit": 21000,
+        "status": 0
+      }
+    ],
+    "retried": [
+      {
+        "txid": "0x418ab2148d836049fcc1fc8ac5fab37f10f37122521aee8cf99ba426186ecc3e",
+        "nonce": 2,
+        "gas_limit": 230000,
+        "gas_used": 204600,
+        "status": 1,
+        "block": 11937004
+      },
+      {
+        "txid": "0xf8ab9a292cbf48e075dff60fd229b58a3b2dc82e215d1a96fe7c7a7650eadf16",
+        "nonce": 3,
+        "gas_limit": 230000,
+        "gas_used": 204600,
+        "status": 1,
+        "block": 11937004
+      }
+    ],
+    "balances_after_wei": {
+      "alice": 46448800000000000,
+      "bob": 2100000000000000,
+      "deployer": 1000000000000000
+    },
+    "estimates": {
+      "transfer_to_new_account": 207391,
+      "transfer_to_existing_account": 12000
+    }
+  },
+  "measurement": {
+    "command": "python3 scripts/measure_sepolia_gas.py",
+    "method": "eth_simulateV1 on publicnode against latest Sepolia state; deploy -> lock -> claim -> withdraw for the worst-case scalar 2^254-1 and five random scalars; deploy -> lock -> refund -> withdraw for the no-reveal path. Test scalars only.",
+    "block": 11937020,
+    "gas_used": {
+      "deploy": 5090645,
+      "lock": 799459,
+      "claim_worst_case": 768210,
+      "claim_random": [
+        579956,
+        609879
+      ],
+      "refund": 143831,
+      "withdraw": 31216
+    },
+    "earlier_local_anvil": {
+      "deploy": 735311,
+      "lock": 183719,
+      "claim": 508771,
+      "refund": 54611,
+      "withdraw": 30719
+    }
+  },
+  "new_policy": {
+    "fee_profile": "bounded-legacy-eth-v2 (v1 agreements keep verifying with their own limits)",
+    "gas_limits": {
+      "deploy": 6500000,
+      "lock": 1000000,
+      "claim": 1000000,
+      "refund": 200000,
+      "withdraw": 200000
+    },
+    "headroom_check": "every limit >= 1.15 x measured worst case: pass",
+    "default_price_ceiling_wei": 100000000,
+    "observed_gas_price_wei": 120916,
+    "required_reserves_at_ceiling_wei": {
+      "alice": 120000000000000,
+      "bob": 1140000000000000,
+      "deployer": 650000000000000
+    },
+    "files": [
+      "scripts/fee_policy.py",
+      "config/public-agreement-policy-v1.json",
+      "scripts/public_deploy.py",
+      "scripts/evm_participant.py",
+      "scripts/plan_testnet.py",
+      "scripts/public_launch.py",
+      "scripts/measure_sepolia_gas.py"
+    ]
+  },
+  "checks": {
+    "deployment_check_only": {
+      "command": "python3 scripts/public_deploy.py .local/public-launch-002/deployment-owner --eth-rpc https://sepolia.gateway.tenderly.co",
+      "state": "ready-for-explicit-testnet-deployment",
+      "gas": 6500000,
+      "gas_price_wei": 100000000,
+      "required_balance_wei": 650000000000000,
+      "broadcast": false
+    },
+    "local_two_party_success_v2": {
+      "workspace": ".local/two-party-008",
+      "fee_profile": "bounded-legacy-eth-v2",
+      "result": "exchange complete on both sides",
+      "defect_found_and_fixed": "the owner client hard-coded lock/claim/refund gas; it now takes them from the agreement's signed profile"
+    },
+    "fee_boundaries": "check_fee_reserves.boundaries(): pass, including legacy v1 acceptance and refusal of mixed profiles"
+  },
+  "rpc": "Sepolia default endpoint: https://sepolia.gateway.tenderly.co (dRPC free plan dropped Sepolia; publicnode prunes genesis).",
+  "limits": [
+    "Simulation is not inclusion: re-run measure_sepolia_gas.py right before deployment.",
+    "Claim gas depends on the scalar; the worst case 2^254-1 was measured."
+  ],
+  "private_material_committed": false
+}

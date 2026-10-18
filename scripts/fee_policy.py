@@ -6,9 +6,18 @@ Balances/nonces/fees are trusted RPC observations, not reservations.
 import copy
 import re
 
-DEFAULT = {'profile': 'bounded-legacy-eth-v1', 'max_gas_price_wei': 100 * 10**9,
+# v1: limits measured under the earlier gas schedule. Agreements signed with
+# it (or without a fee policy) keep verifying with exactly these limits.
+LEGACY = {'profile': 'bounded-legacy-eth-v1', 'max_gas_price_wei': 100 * 10**9,
     'gas_limits': {'lock': 700_000, 'claim': 1_000_000, 'refund': 200_000, 'withdraw': 200_000},
     'withdrawal_attempt_limit': 33}
+# v2 (2026-10-18): Sepolia now charges heavily for new state. Simulated on its
+# current rules (scripts/measure_sepolia_gas.py): lock 799,447, worst-case
+# claim 768,210, refund 143,831, withdraw 31,216. New agreements use v2.
+DEFAULT = {'profile': 'bounded-legacy-eth-v2', 'max_gas_price_wei': 100 * 10**9,
+    'gas_limits': {'lock': 1_000_000, 'claim': 1_000_000, 'refund': 200_000, 'withdraw': 200_000},
+    'withdrawal_attempt_limit': 33}
+PROFILES = {p['profile']: p for p in (LEGACY, DEFAULT)}
 
 
 def default():
@@ -17,15 +26,15 @@ def default():
 
 def policy(agreement):
     # Historical agreements retain their signed digests and original limits.
-    value = agreement.get('fee_policy', DEFAULT)
-    if (not isinstance(value, dict) or set(value) != set(DEFAULT)
-            or value['profile'] != DEFAULT['profile']
+    value = agreement.get('fee_policy', LEGACY)
+    known = PROFILES.get(value.get('profile')) if isinstance(value, dict) else None
+    if (known is None or set(value) != set(known)
             or type(value['max_gas_price_wei']) is not int
-            or not 0 < value['max_gas_price_wei'] <= DEFAULT['max_gas_price_wei']
-            or value['gas_limits'] != DEFAULT['gas_limits']
+            or not 0 < value['max_gas_price_wei'] <= known['max_gas_price_wei']
+            or value['gas_limits'] != known['gas_limits']
             or any(type(n) is not int for n in value['gas_limits'].values())
             or type(value['withdrawal_attempt_limit']) is not int
-            or value['withdrawal_attempt_limit'] != DEFAULT['withdrawal_attempt_limit']):
+            or value['withdrawal_attempt_limit'] != known['withdrawal_attempt_limit']):
         raise RuntimeError('unsupported signed gas policy')
     return value
 

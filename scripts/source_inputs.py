@@ -101,7 +101,9 @@ def replay(directory, plan_digest, principal):
 
 def fresh(value, now):
     observed = datetime.fromisoformat(value['observed_at'].replace('Z', '+00:00')).timestamp()
-    if not 0 <= now-observed <= 120:
+    # `now` is whole seconds; an observation from the same second has a
+    # millisecond fraction and must not look like it came from the future.
+    if not -1 <= now-observed <= 120:
         raise RuntimeError('stale/future source input observation')
 
 

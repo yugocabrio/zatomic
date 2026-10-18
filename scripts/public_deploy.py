@@ -23,7 +23,8 @@ from regtest_wallet import ROOT
 from source_inputs import publish
 from testnet_wallet import read
 
-GAS = 1_000_000
+# Simulated on current Sepolia rules: 5,090,645 gas (2026-10-18); was 735,311.
+GAS = 6_500_000
 
 
 def specification(owner, gas_cap):
@@ -162,7 +163,7 @@ def execute(owner, gas_cap, endpoint, broadcast=False):
 def main():
     os.umask(0o077)
     p=argparse.ArgumentParser(description=__doc__); p.add_argument('owner',type=Path)
-    p.add_argument('--eth-rpc',required=True); p.add_argument('--gas-cap-wei',type=int,default=1_000_000_000)
+    p.add_argument('--eth-rpc',required=True); p.add_argument('--gas-cap-wei',type=int,default=100_000_000)
     p.add_argument('--broadcast-testnet',action='store_true')
     a=p.parse_args(); result=execute(a.owner.resolve(),a.gas_cap_wei,a.eth_rpc,a.broadcast_testnet)
     print(json.dumps(result,indent=2))

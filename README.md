@@ -23,11 +23,17 @@ the browser OTC update; waits omitted. The user will produce the final video.
 
 [Fresh-checkout verification](evidence/2026-10-15-clean-reproduction.json) rebuilt
 `9b978e3` and completed exchange/refund/replay with new wallets and node state.
-The local release is complete; public funded execution is still pending.
-The [new execution checklist](docs/public-execution.md) connects deployment,
-owner preparation, both senders, monitoring and final verification. It proposes
-0.0022 test ZEC + 0.0043 Sepolia ETH in initial balances, with unchanged swap
-gas limits and timing checks. No public deployment or transfer has occurred.
+The local release is complete.
+
+**Public testnet swap (2026-10-18):** a funded exchange of 0.001 test ZEC for
+0.001 Sepolia ETH settled on the public networks: escrow deployment, shielded
+funding F, ETH lock, ETH claim (revealing t), Bob's shielded ZEC claim C and
+Alice's withdrawal. Bob's wallet decrypted his 0.001 ZEC; F and C have no
+transparent input or output, and the refund auxiliary was never broadcast.
+[Record with transaction links](evidence/2026-10-18-public-testnet-swap.json).
+Both owners ran on one host; observations trust public RPC providers.
+The [execution checklist](docs/public-execution.md) connects deployment,
+owner preparation, both senders, monitoring and final verification.
 
 ## Run
 
@@ -56,9 +62,9 @@ feed or counterparty matching is implemented.
 
 A separate [read-only public-testnet wallet](docs/public-testnet.md) downloads
 Ironwood compact blocks, decrypts locally and resumes persisted note witnesses.
-Public synchronization has been exercised with an unfunded wallet. Explicit
-testnet sender entry points now connect private signing and recovery checks;
-their complete funded public execution remains untested.
+Public synchronization has been exercised with an unfunded wallet. The public
+sender entry points ran the funded success path on 2026-10-18; the public
+refund path has not run.
 
 **Two-party mode:** `make two-party` gives Alice and Bob separate apps (ports
 8791 and 8792). Each holds only its own keys, and the OS sandbox denies it the

@@ -16,7 +16,7 @@ import timestamp_policy
 import fee_policy
 
 
-def plan(directory, endpoint=probe_sepolia.ENDPOINT, gas_cap=1_000_000_000):
+def plan(directory, endpoint=probe_sepolia.ENDPOINT, gas_cap=100_000_000):
     if type(gas_cap) is not int or not 0 < gas_cap <= fee_policy.DEFAULT['max_gas_price_wei']:
         raise ValueError('positive gas ceiling within the supported policy required')
     directory.mkdir(mode=0o700)
@@ -55,7 +55,7 @@ if __name__=='__main__':
     os.umask(0o077)
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('directory',type=Path)
     p.add_argument('--eth-rpc',default=probe_sepolia.ENDPOINT)
-    p.add_argument('--gas-cap-wei',type=int,default=1_000_000_000)
+    p.add_argument('--gas-cap-wei',type=int,default=100_000_000)
     a=p.parse_args()
     try:
         result=plan(a.directory.resolve(),a.eth_rpc,a.gas_cap_wei);print(json.dumps(result,indent=2))

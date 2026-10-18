@@ -31,6 +31,16 @@ on the Zcash chain. The refund's transparent coin comes from Alice's private
 auxiliary transaction, sent only if she refunds. Two-party success and refund,
 a browser refund recovery and a timelock check ran on chain. The public path
 was ported too (synthetic-input checks; funded refund not yet exercised).
+
+**Sepolia gas, 2026-10-18:** current Sepolia rules need far more gas for new
+state; the planned public deployment and lock would have run out of gas. Limits
+were re-measured by simulation and raised (fee profile v2).
+[Record](../evidence/2026-10-18-sepolia-gas.json).
+
+**Public testnet swap, 2026-10-18:** the first funded exchange on the public
+Zcash testnet and Sepolia settled and passed the final verify. F and C are fully
+shielded; the refund auxiliary was never broadcast. Success path only, one host.
+[Record](../evidence/2026-10-18-public-testnet-swap.json).
 [Record](../evidence/2026-10-17-deferred-auxiliary.json).
 
 Latest additions after the original local release:

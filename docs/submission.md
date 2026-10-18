@@ -62,12 +62,13 @@ checkpoints.
 
 ## Honest limits
 
-All executed swaps use isolated chains. A second internal review found and fixed
-a release-order flaw in the custom adaptor signing (see the review above). It is
-not an external audit. Public-testnet wallet/observation and
-recovery preparation and explicit sender entry points are implemented, but the
-complete positive path has not run with funded public inputs. Independently administered hosts have not
-been demonstrated. The custom adaptor composition is unaudited; the arithmetic
+One funded exchange settled on the public Zcash testnet and Sepolia on
+2026-10-18 ([record](../evidence/2026-10-18-public-testnet-swap.json)): F and C
+are fully shielded and the refund auxiliary was never broadcast. Only the success
+path ran publicly; refunds and crash recovery were exercised on isolated chains.
+A second internal review found and fixed a release-order flaw in the custom adaptor
+signing (see the review above). It is not an external audit. Independently
+administered hosts have not been demonstrated. The custom adaptor composition is unaudited; the arithmetic
 cross-check is not an external audit or a security proof.
 
 The swap requires bounded monitoring, inclusion and reorg assumptions. Arbitrary

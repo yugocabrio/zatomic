@@ -1,0 +1,115 @@
+{
+  "date": "2026-10-18",
+  "scope": "First funded public-testnet exchange: Zcash public testnet (Ironwood, NU7 branch 77190ad9) and Ethereum Sepolia. One host runs both owner clients; observations use trusted RPC providers. Not a consensus or finality proof, not independent hosts, not mainnet.",
+  "trade": {
+    "zec_payout_zatoshi": 100000,
+    "zec_principal_zatoshi": 110000,
+    "eth_amount_wei": 1000000000000000,
+    "agreement_digest": "77a23a8d4bffd76ef2ae5e7f5218d1791c945b41c5c0b576aafd2787c71112b4",
+    "plan": {
+      "created_at": 1792280335,
+      "eth_expiry": 1792301935,
+      "refund_auxiliary": "deferred",
+      "fee_profile": "bounded-legacy-eth-v2",
+      "gas_price_ceiling_wei": 100000000
+    }
+  },
+  "transactions": [
+    {
+      "step": "deploy PointEscrow",
+      "chain": "sepolia",
+      "txid": "0xac3b8d4fb2daa737eaad344ab0feafe6980233cbdb247c2d8a6bef8aa8d486f0",
+      "block": 11937201,
+      "gas_used": 5090645,
+      "contract": "0xcc0ce295627b5e15cd31a40dc6ace4bf3a35ee42",
+      "runtime_hash_verified": true,
+      "finalized": true,
+      "explorer": "https://sepolia.etherscan.io/tx/0xac3b8d4fb2daa737eaad344ab0feafe6980233cbdb247c2d8a6bef8aa8d486f0"
+    },
+    {
+      "step": "F: source note to the shared note",
+      "chain": "zcash-testnet",
+      "txid": "582f27b8ab95961e0f718674807b102e73c93754d90f0ae90290a6218400f7b5",
+      "height": 4513380,
+      "transparent_inputs": 0,
+      "transparent_outputs": 0,
+      "ironwood_actions": 2,
+      "fee_zatoshi": 10000,
+      "expiry_height": 0
+    },
+    {
+      "step": "Bob locks ETH",
+      "chain": "sepolia",
+      "txid": "0x775787d1f7103531e3c8c66ebc286b3a825462f76b118c0092b8fc91ca3fa26b",
+      "block": 11937482,
+      "gas_used": 799447,
+      "finalized": true,
+      "explorer": "https://sepolia.etherscan.io/tx/0x775787d1f7103531e3c8c66ebc286b3a825462f76b118c0092b8fc91ca3fa26b"
+    },
+    {
+      "step": "Alice claims ETH (reveals t)",
+      "chain": "sepolia",
+      "txid": "0xf7ea23e3e3203b5e54e9c1909982eb0b70dc35b3ce3d7e90984de24a724a0420",
+      "block": 11937626,
+      "gas_used": 589726,
+      "finalized": true,
+      "explorer": "https://sepolia.etherscan.io/tx/0xf7ea23e3e3203b5e54e9c1909982eb0b70dc35b3ce3d7e90984de24a724a0420"
+    },
+    {
+      "step": "C: Bob completes the adaptor signature and claims ZEC",
+      "chain": "zcash-testnet",
+      "txid": "85aff28c0061c90e7768bd7d0755eedcfade7f3540dd83c4daa817f098774422",
+      "height": 4513500,
+      "transparent_inputs": 0,
+      "transparent_outputs": 0,
+      "ironwood_actions": 2,
+      "fee_zatoshi": 10000,
+      "expiry_height": 0,
+      "confirmations_at_verify": 69,
+      "recipient_decrypted_zatoshi": 100000
+    },
+    {
+      "step": "Alice withdraws ETH",
+      "chain": "sepolia",
+      "txid": "0x5a475c0f34ea2326eb3a359d6a39e21c357dfdee7c432721e1b68f46b401aa23",
+      "block": 11937727,
+      "gas_used": 31216,
+      "finalized": true,
+      "explorer": "https://sepolia.etherscan.io/tx/0x5a475c0f34ea2326eb3a359d6a39e21c357dfdee7c432721e1b68f46b401aa23"
+    }
+  ],
+  "refund_auxiliary": {
+    "txid": "d181f63de21c13ab145431ca6a5b9af2731b0f7a165f50257df0252e215e149f",
+    "signed_by_source_before_F": true,
+    "broadcast": false,
+    "provider_observation": "not_found",
+    "meaning": "The settled swap put only F and C on the Zcash chain, both with no transparent input or output."
+  },
+  "final_verify": {
+    "command": "python3 scripts/public_launch.py verify .local/public-launch-002 --version 5e44332a68cdb95acd080ea186ba8007148e420e5a8041cb3bb94d089bbc980d --eth-rpc https://sepolia.gateway.tenderly.co",
+    "result": {
+      "public_swap_succeeded": true,
+      "native_confirmations": 69,
+      "recipient_decrypted_zatoshi": 100000,
+      "eth_amount_wei": 1000000000000000,
+      "broadcast_in_this_command": false
+    }
+  },
+  "integration_defects_found_and_fixed_during_the_run": [
+    "Source freshness compared whole-second time with a millisecond observation and refused same-second observations as future (scripts/source_inputs.py).",
+    "public_launch.py passed the presign output directory as the presignature file, and re-exported an existing review on rerun (now verified for equality).",
+    "The source preflight synced the wallet before the slow Ethereum checks, so a new Zcash block usually invalidated the tip check; it now scans immediately before the provider query and rescans at most three times (scripts/public_source.py).",
+    "The ETH reserve check refused when Sepolia's suggested gas price lagged just below the base fee; it now requires the signed ceiling to cover both (scripts/public_evm_observation.py).",
+    "Earlier the same night: gas limits re-derived for current Sepolia (deploy 5.09M, lock 0.80M actually used); dRPC dropped free Sepolia; publicnode prunes genesis."
+  ],
+  "operational_notes": [
+    "Tenderly's gateway rate-limited two sends (HTTP 429); the exact same signed bytes were resubmitted through publicnode with the same hash.",
+    "Every defect stopped a check before any send; no transaction was lost or duplicated."
+  ],
+  "limits": [
+    "Both owners ran on one host and OS account; not independent administration.",
+    "Trusted RPC providers (Tenderly, publicnode, testnet.zec.rocks); provider finality labels are not local consensus verification.",
+    "Only the success path ran publicly; the no-reveal refund path (with the deferred auxiliary A) has not run on the public networks."
+  ],
+  "private_material_committed": false
+}

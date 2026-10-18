@@ -421,7 +421,7 @@ def execute(directory, action, request, fault_after_send=False):
         data = evm.calldata('lock(bytes32,address,uint64,(uint256,uint256),bytes32)',
             salt, agreement['recipient'], agreement['eth_expiry'],
             f'({terms["point_x"]},{terms["point_y"]})', '0x' + agreement_digest(agreement))
-        gas, value = 700_000, agreement['amount_wei']
+        gas, value = fee_policy.policy(agreement)['gas_limits']['lock'], agreement['amount_wei']
     elif action == 'claim':
         if state != 1:
             raise RuntimeError('agreed ETH order is not claimable')
@@ -435,11 +435,11 @@ def execute(directory, action, request, fault_after_send=False):
         # signer receives it before this client accepts the exact current state.
         secret = read(directory / 'native/witness.json')['witness_uint256']
         data = evm.calldata('claim(bytes32,uint256)', order, secret)
-        gas, value = 1_000_000, 0
+        gas, value = fee_policy.policy(agreement)['gas_limits']['claim'], 0
     elif action == 'refund':
         if state != 1 or now < agreement['eth_expiry']:
             raise RuntimeError('ETH refund not available')
-        data, gas, value = evm.calldata('refund(bytes32)', order), 200_000, 0
+        data, gas, value = evm.calldata('refund(bytes32)', order), fee_policy.policy(agreement)['gas_limits']['refund'], 0
     else:
         raise RuntimeError('unsupported owner operation')
     if previous:

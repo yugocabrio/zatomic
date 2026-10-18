@@ -76,6 +76,17 @@ def inspect_escrow(agreement, call, blocks, phase, record=None):
     return {'order_id': identifier, 'states': states}
 
 
+def market_price(call, latest, p):
+    """Owner transactions pay the signed ceiling, so the ceiling must cover the
+    pinned block's base fee and the provider's suggested price. A suggestion
+    that lags just below the base fee (common at near-zero Sepolia fees) is
+    raised to the base fee instead of refused."""
+    price = max(sepolia.quantity(call('eth_gasPrice', [])), latest['base_fee_wei'])
+    if not 0 < price <= p['max_gas_price_wei']:
+        raise RuntimeError('gas price or base fee outside the signed cap')
+    return price
+
+
 def balances(agreement, call, latest, phase):
     """Pin confirmed balances/nonces to the same block as code and order state.
 
@@ -83,9 +94,7 @@ def balances(agreement, call, latest, phase):
     use of the key elsewhere or private pending transactions unknown to this RPC.
     """
     p = fee_policy.policy(agreement)
-    price = sepolia.quantity(call('eth_gasPrice', []))
-    if not 0 < price <= p['max_gas_price_wei'] or price < latest['base_fee_wei']:
-        raise RuntimeError('gas price outside signed cap or below pinned base fee')
+    price = market_price(call, latest, p)
     roles = [('alice', 'claim')]
     if phase != 'first_reveal':
         roles.append(('bob', 'lock'))
@@ -99,9 +108,7 @@ def action_reserve(agreement, call, latest, role, action, price=None):
     if role not in ('alice', 'bob') or action not in ('lock', 'claim', 'refund', 'withdraw'):
         raise RuntimeError('unsupported owner reserve')
     p = fee_policy.policy(agreement)
-    if price is None: price = sepolia.quantity(call('eth_gasPrice', []))
-    if not 0 < price <= p['max_gas_price_wei'] or price < latest['base_fee_wei']:
-        raise RuntimeError('gas price outside signed cap or below pinned base fee')
+    if price is None: price = market_price(call, latest, p)
     address = agreement['owners'][role]['address']
     at = {'blockHash': latest['hash'], 'requireCanonical': True}
     confirmed_nonce = sepolia.quantity(call('eth_getTransactionCount', [address, at]))

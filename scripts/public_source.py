@@ -83,30 +83,53 @@ def prepare(wallet, bundle_path, agreement, verified, directory, released=False,
     if (original['fvk_fingerprint'] != authority['source_fvk_fingerprint']
             or expected_aux['aux_script'] != authority['source_aux_script']):
         raise RuntimeError('reserved graph is not controlled by the source-approved wallet keys')
-    # Synchronization keeps every old checkpoint; on a fork it refuses instead
-    # of rewinding or replacing the reservation. Bounded batches, no busy retry.
+    save(directory/'reserved-graph-check.json', checked)
+    return {'directory': directory, 'authority': authority, 'wallet': wallet, 'folder': folder,
+        'original': original, 'principal': agreement['native']['principal_zatoshi'],
+        'released': released, 'replay': replay}
+
+
+def scan(context, attempt):
+    """Synchronize to the provider tip and snapshot the exact reserved note.
+
+    Synchronization keeps every old checkpoint; on a fork it refuses instead of
+    rewinding or replacing the reservation. Bounded batches.
+    """
+    wallet, folder = context['wallet'], context['folder']
+    work = context['directory']/('scan-'+str(attempt)); work.mkdir(mode=0o700)
     sync = testnet_wallet.sync(wallet, 4)
     if sync['caught_up_to_observed_tip'] is not True:
         raise RuntimeError('source still behind provider tip; continue explicit wallet sync')
     _, current = testnet_wallet.checkpoint(wallet)
-    save(directory/'current.json', current)
-    native('compact-source-snapshot', wallet, folder/'anchor.json', directory/'current.json',
-        agreement['native']['principal_zatoshi'], directory/'source.json')
-    fresh = testnet_wallet.read(directory/'source.json')
-    exact_note(original, fresh)
-    save(directory/'reserved-graph-check.json', checked)
-    return {'directory': directory, 'snapshot': fresh, 'authority': authority, 'wallet': wallet,
-        'released': released, 'replay': replay}
+    save(work/'current.json', current)
+    native('compact-source-snapshot', wallet, folder/'anchor.json', work/'current.json',
+        context['principal'], work/'source.json')
+    fresh = testnet_wallet.read(work/'source.json')
+    exact_note(context['original'], fresh)
+    return work, fresh
 
 
 def observe(context, agreement):
-    """Recheck the exact old anchor and the freshly scanned current tip live."""
-    directory, snapshot = context['directory'], context['snapshot']
+    """Recheck the exact old anchor and the freshly scanned current tip live.
+
+    Scans immediately before the provider query, after the slower escrow
+    observations. Zcash blocks arrive about every 75 seconds; if one lands
+    mid-check the tip no longer matches, so scan again (at most three times)
+    rather than skip the new block's nullifiers.
+    """
     if source_identity(context['wallet'], agreement, context.get('released', False)) != context['authority']:
         raise RuntimeError('source authority changed during observations')
-    subprocess.run(['node', str(ROOT/'scripts/observe_testnet_source.mjs'),
-        str(directory/'source.json'), str(directory/'canonical.json')],
-        capture_output=True, text=True, timeout=150, check=True)
+    for attempt in range(3):
+        directory, snapshot = scan(context, attempt)
+        observed = subprocess.run(['node', str(ROOT/'scripts/observe_testnet_source.mjs'),
+            str(directory/'source.json'), str(directory/'canonical.json')],
+            capture_output=True, text=True, timeout=150)
+        if observed.returncode == 0:
+            break
+        if 'synchronized to the current provider tip' not in observed.stderr:
+            raise RuntimeError('source canonical observation refused')
+    else:
+        raise RuntimeError('source tip kept advancing during observation')
     canonical = testnet_wallet.read(directory/'canonical.json')
     source_inputs.fresh(canonical, int(time.time()))
     if (canonical['genesis'] != agreement['native_genesis']

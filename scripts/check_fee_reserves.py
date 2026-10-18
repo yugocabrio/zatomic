@@ -38,7 +38,11 @@ def boundaries():
         try: fee_policy.require_action_budget(agreement, 'public-fixture', 'claim', fake)
         except RuntimeError: pass
         else: raise AssertionError('unsafe budget accepted')
-    for modify in (lambda p:p.update(max_gas_price_wei=True),lambda p:p.update(extra=1),lambda p:p['gas_limits'].update(claim=1)):
+    legacy = {'amount_wei': 10**16, 'fee_policy': copy.deepcopy(fee_policy.LEGACY)}
+    assert fee_policy.policy(legacy)['gas_limits']['lock'] == 700_000
+    assert fee_policy.policy({'amount_wei': 1})['profile'] == 'bounded-legacy-eth-v1'
+    for modify in (lambda p:p.update(max_gas_price_wei=True),lambda p:p.update(extra=1),lambda p:p['gas_limits'].update(claim=1),
+            lambda p:p['gas_limits'].update(lock=700_000),lambda p:p.update(profile='bounded-legacy-eth-v3')):
         altered=copy.deepcopy(agreement);modify(altered['fee_policy'])
         try: fee_policy.policy(altered)
         except RuntimeError: pass

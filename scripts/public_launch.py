@@ -92,12 +92,21 @@ def prepare(root,endpoint,cap):
     reserved=source/read(source/'source-reservation.json')['package']
     command('testnet_wallet.py','graph',source,'--destinations',packet/'destinations.json')
     graph=reserved/read(reserved/'graph-draft.json')['directory']
-    native('testnet-export-review',graph,packet/'destinations.json',reserved/'plan.json',packet/'review.json')
+    review_path=packet/'review.json'
+    if review_path.exists():
+        # Rerun: the saved review must be exactly what this graph exports now.
+        again=packet/('review-check-'+uuid.uuid4().hex+'.json')
+        native('testnet-export-review',graph,packet/'destinations.json',reserved/'plan.json',again)
+        if read(again)!=read(review_path): raise RuntimeError('saved review differs from the reserved graph')
+        again.unlink()
+    else:
+        native('testnet-export-review',graph,packet/'destinations.json',reserved/'plan.json',review_path)
     review=read(packet/'review.json')
     for r in ('alice','bob'): owner_action(root,r,'graph-review',review)
     save(packet/'signers.json',{r:[str(NATIVE),'testnet-owner-signer',str(root/r)] for r in ('alice','bob')})
     command('presign_testnet_review.py',packet/'review.json',packet/'signers.json',packet/'presignatures.json')
-    command('prepare_testnet_recovery.py',source,reserved,packet/'review.json',packet/'presignatures.json')
+    # presign_testnet_review.py writes into an output directory (kept under this name).
+    command('prepare_testnet_recovery.py',source,reserved,packet/'review.json',packet/'presignatures.json'/'exit-presignatures.json')
     bundle=read(reserved/'native-recovery-bundle.json'); save(packet/'native-recovery.json',bundle)
     receipts={r:owner_action(root,r,'recovery-accept',bundle) for r in ('alice','bob')}
     save(packet/'receipts.json',receipts)
@@ -162,7 +171,7 @@ def main():
     os.umask(0o077)
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('action',choices=('owners','prepare','native-exit','verify'));p.add_argument('root',type=Path)
-    p.add_argument('--eth-rpc',default='https://sepolia.gateway.tenderly.co');p.add_argument('--gas-cap-wei',type=int,default=1_000_000_000)
+    p.add_argument('--eth-rpc',default='https://sepolia.gateway.tenderly.co');p.add_argument('--gas-cap-wei',type=int,default=100_000_000)
     p.add_argument('--zec-amount',default='0.001');p.add_argument('--eth-amount',default='0.001')
     p.add_argument('--role',choices=('alice','bob'),default='bob');p.add_argument('--version')
     a=p.parse_args(); root=a.root.resolve()
