@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {Pallas} from "../src/Pallas.sol";
+import {Pallas} from "./Pallas.sol";
 
-/// @notice BENCHMARK ONLY, not deployed. Same predicate as Pallas.opens:
+/// @notice Fixed-base verifier with the same predicate as Pallas.opens:
 /// 0 < scalar < Q, T on curve with canonical coordinates, and scalar*G == T for
 /// the RedPallas SpendAuth base G. Fixed-base comb (Lim-Lee, one table): with t
 /// teeth and spacing d = ceil(255/t), column j of the scalar selects
 /// idx = sum_i bit(j + d*i) << i, and the loop is d-1 doublings plus up to d mixed
 /// additions of table[idx] = sum_{bits i of idx} 2^(d*i) G, read with EXTCODECOPY
-/// from a PallasCombTable* data contract. Variable-time on PUBLIC input only.
+/// from a PallasCombTable{t} data contract. Variable-time on PUBLIC input only.
 /// Doubling: dbl-2009-l with D = (2X)(2Y^2); addition: madd-2007-bl with
 /// Z3 = 2*Z1*H (EFD, a = 0). Values below 2^256 are fed to mulmod unreduced.
-/// For 0 < scalar < Q the H == 0 branch is unreachable (docs/gas-optimization.md);
-/// it is still handled exactly (double, or infinity).
-library PallasFast {
+/// For 0 < scalar < Q the H == 0 branch is unreachable (docs/escrow-v2-review.md);
+/// it is still handled exactly (double, or infinity). Unreviewed implementation.
+library PallasComb {
     struct Comb {
         address table;
         uint256 teeth;
@@ -37,6 +37,12 @@ library PallasFast {
             magic |= uint256(1) << (shift - (d - 1) * i);
         }
         c = Comb(table, teeth, d, mask, magic, shift);
+    }
+
+    /// comb(table, 4) as literals: the width PointEscrowV2 uses.
+    function comb4(address table) internal pure returns (Comb memory) {
+        return Comb(table, 4, 64, 0x1000000000000000100000000000000010000000000000001,
+            0x200000000000000040000000000000008000000000000001, 189);
     }
 
     function opens(uint256 scalar, Pallas.Point memory t, Comb memory c) internal view returns (bool) {

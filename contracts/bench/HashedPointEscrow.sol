@@ -2,8 +2,8 @@
 pragma solidity 0.8.25;
 
 import {Pallas} from "../src/Pallas.sol";
-import {PallasFast} from "./PallasFast.sol";
-import {PallasCombTables} from "./PallasCombTables.sol";
+import {PallasComb} from "../src/PallasComb.sol";
+import {PallasCombTables} from "../src/PallasCombTables.sol";
 
 /// @notice BENCHMARK ONLY, not deployed. PointEscrowFast with one storage slot per
 /// order: lock stores keccak256(abi.encode(Order)); claim and refund take the
@@ -52,12 +52,12 @@ contract HashedPointEscrow {
     constructor(address table_, uint256 teeth_) {
         bytes32 expected = PallasCombTables.codehash(teeth_);
         if (expected == bytes32(0) || table_.codehash != expected) revert InvalidTable();
-        PallasFast.Comb memory c = PallasFast.comb(table_, teeth_);
+        PallasComb.Comb memory c = PallasComb.comb(table_, teeth_);
         (table, teeth, spacing, mask, magic, shift) = (table_, teeth_, c.spacing, c.mask, c.magic, c.shift);
     }
 
-    function comb() internal view returns (PallasFast.Comb memory) {
-        return PallasFast.Comb(table, teeth, spacing, mask, magic, shift);
+    function comb() internal view returns (PallasComb.Comb memory) {
+        return PallasComb.Comb(table, teeth, spacing, mask, magic, shift);
     }
 
     function orderId(address maker, bytes32 salt) public view returns (bytes32) {
@@ -84,7 +84,7 @@ contract HashedPointEscrow {
     function claim(bytes32 id, Order calldata order, uint256 witness) external {
         if (orders[id] != orderHash(order)) revert NotLocked();
         if (block.timestamp >= order.refundAt) revert ClaimExpired();
-        if (!PallasFast.opens(witness, order.point, comb())) revert InvalidWitness();
+        if (!PallasComb.opens(witness, order.point, comb())) revert InvalidWitness();
         orders[id] = CLAIMED;
         credits[order.recipient] += order.amount;
         emit Claimed(id, witness);

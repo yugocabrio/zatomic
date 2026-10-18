@@ -6,8 +6,8 @@ from the forge artifacts in .local/forge-out (run `forge build` first), and
 sends real transactions from Anvil's unlocked dev accounts (no key is read or
 written):
   shipped  contracts/src/PointEscrow.sol            Pallas.opens, 7-slot order
-  fast     contracts/bench/PointEscrowFast.sol      PallasFast comb, 7-slot order
-  hashed   contracts/bench/HashedPointEscrow.sol    PallasFast comb, 1-slot order hash
+  fast     contracts/bench/PointEscrowFast.sol      PallasComb comb, 7-slot order
+  hashed   contracts/bench/HashedPointEscrow.sol    PallasComb comb, 1-slot order hash
 Each comb table PallasCombTable{4..8} is deployed once and shared by every
 escrow of that width. Matrix and scalars: escrow_bench.py. Prints the summary
 and writes contracts/bench/gas-results.json.

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 import {Pallas} from "../src/Pallas.sol";
-import {PallasFast} from "../bench/PallasFast.sol";
-import {PallasCombTables} from "../bench/PallasCombTables.sol";
+import {PallasComb} from "../src/PallasComb.sol";
+import {PallasCombTables} from "../src/PallasCombTables.sol";
+import {PallasOracle} from "./PallasOracle.sol";
 
 interface Vm {
     function deployCode(string calldata artifactPath) external returns (address);
@@ -16,17 +17,15 @@ contract PallasBenchHarness {
         return Pallas.opens(k, Pallas.Point(x, y));
     }
     function fast8(uint256 k, uint256 x, uint256 y) external view returns (bool) {
-        return PallasFast.opens(k, Pallas.Point(x, y), PallasFast.comb(table8, 8));
+        return PallasComb.opens(k, Pallas.Point(x, y), PallasComb.comb(table8, 8));
     }
 }
 
-/// BENCHMARK ONLY. PallasFast (comb widths 4..8) must accept and reject exactly
+/// BENCHMARK ONLY. PallasComb (comb widths 4..8) must accept and reject exactly
 /// what Pallas.opens does. Expected points come from a third, independent
 /// affine double-and-add with modexp inversion.
-contract PallasFastTest {
+contract PallasCombTest is PallasOracle {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-    uint256 constant P = Pallas.P;
-    uint256 constant Q = Pallas.Q;
     address[9] tables;
 
     event log_named_uint(string key, uint256 val);
@@ -44,54 +43,13 @@ contract PallasFastTest {
         require(tables[8].codehash == PallasCombTables.CODEHASH_8 && tables[8].code.length == PallasCombTables.SIZE_8);
     }
 
-    // ---- independent affine reference ----
-
-    function inv(uint256 a) internal view returns (uint256 r) {
-        require(a % P != 0);
-        uint256 p = P;
-        assembly {
-            let m := mload(0x40)
-            mstore(m, 0x20) mstore(add(m, 0x20), 0x20) mstore(add(m, 0x40), 0x20)
-            mstore(add(m, 0x60), a) mstore(add(m, 0x80), sub(p, 2)) mstore(add(m, 0xa0), p)
-            if iszero(staticcall(gas(), 5, m, 0xc0, m, 0x20)) { revert(0, 0) }
-            r := mload(m)
-        }
-    }
-
-    function affineDouble(uint256 x, uint256 y) internal view returns (uint256, uint256, bool) {
-        if (y == 0) return (0, 0, true);
-        uint256 m = mulmod(mulmod(3, mulmod(x, x, P), P), inv(addmod(y, y, P)), P);
-        uint256 x3 = addmod(mulmod(m, m, P), P - addmod(x, x, P), P);
-        return (x3, addmod(mulmod(m, addmod(x, P - x3, P), P), P - y, P), false);
-    }
-
-    function affineAdd(uint256 x1, uint256 y1, uint256 x2, uint256 y2) internal view returns (uint256, uint256, bool) {
-        if (x1 == x2) return y1 == y2 ? affineDouble(x1, y1) : (0, 0, true);
-        uint256 m = mulmod(addmod(y2, P - y1, P), inv(addmod(x2, P - x1, P)), P);
-        uint256 x3 = addmod(addmod(mulmod(m, m, P), P - x1, P), P - x2, P);
-        return (x3, addmod(mulmod(m, addmod(x1, P - x3, P), P), P - y1, P), false);
-    }
-
-    function mulG(uint256 k) internal view returns (uint256 x, uint256 y) {
-        bool inf = true;
-        for (uint256 bit = 256; bit > 0;) {
-            --bit;
-            if (!inf) (x, y, inf) = affineDouble(x, y);
-            if ((k >> bit) & 1 == 1) {
-                if (inf) (x, y, inf) = (Pallas.GX, Pallas.GY, false);
-                else (x, y, inf) = affineAdd(x, y, Pallas.GX, Pallas.GY);
-            }
-        }
-        require(!inf && x < P && y < P && mulmod(y, y, P) == addmod(mulmod(mulmod(x, x, P), x, P), 5, P));
-    }
-
     // ---- agreement ----
 
     /// Returns the common verdict; reverts if any comb width disagrees with Pallas.opens.
     function agree(uint256 k, uint256 x, uint256 y) internal view returns (bool r) {
         r = Pallas.opens(k, Pallas.Point(x, y));
         for (uint256 t = 4; t <= 8; ++t) {
-            require(PallasFast.opens(k, Pallas.Point(x, y), PallasFast.comb(tables[t], t)) == r, "disagree");
+            require(PallasComb.opens(k, Pallas.Point(x, y), PallasComb.comb(tables[t], t)) == r, "disagree");
         }
     }
 
@@ -113,7 +71,7 @@ contract PallasFastTest {
     function testEveryTableEntryIsTheIntendedMultiple() public view {
         for (uint256 t = 4; t <= 8; ++t) {
             uint256 d = (255 + t - 1) / t;
-            PallasFast.Comb memory c = PallasFast.comb(tables[t], t);
+            PallasComb.Comb memory c = PallasComb.comb(tables[t], t);
             for (uint256 idx = 1; idx < uint256(1) << t; ++idx) {
                 uint256 s;
                 for (uint256 i; i < t; ++i) if ((idx >> i) & 1 == 1) s |= uint256(1) << (d * i);
@@ -126,7 +84,7 @@ contract PallasFastTest {
                     y := mload(0x20)
                 }
                 require(Pallas.opens(s, Pallas.Point(x, y)), "table entry");
-                require(PallasFast.opens(s, Pallas.Point(x, y), c), "fast table entry");
+                require(PallasComb.opens(s, Pallas.Point(x, y), c), "fast table entry");
             }
         }
     }
@@ -195,12 +153,12 @@ contract PallasFastTest {
         require(ok);
         emit log_named_uint(string.concat(label, " Pallas.opens"), g);
         for (uint256 t = 4; t <= 8; ++t) {
-            PallasFast.Comb memory c = PallasFast.comb(tables[t], t);
+            PallasComb.Comb memory c = PallasComb.comb(tables[t], t);
             g = gasleft();
-            ok = PallasFast.opens(k, point, c);
+            ok = PallasComb.opens(k, point, c);
             g -= gasleft();
             require(ok);
-            emit log_named_uint(string.concat(label, " PallasFast t=", string(abi.encodePacked(bytes1(uint8(48 + t))))), g);
+            emit log_named_uint(string.concat(label, " PallasComb t=", string(abi.encodePacked(bytes1(uint8(48 + t))))), g);
         }
     }
 

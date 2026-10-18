@@ -649,3 +649,30 @@ body[data-role="alice"] .p-get strong, body[data-role="bob"] .p-give strong { co
 .zp-proof + .zp-cost { border-top: 0; padding-top: 0; }
 .zp-cost b { color: var(--ink); }
 @media (max-width: 860px) { .zp-points { grid-template-columns: 1fr; } }
+
+/* Front page colours: white and neutral greys with one Zcash-gold accent; no tinted panels.
+   Colours only (layout and type unchanged), scoped to body.landing. */
+body.landing { --paper: #ffffff; --surface: #ffffff; --sunken: #f3f4f3; --ink: #0e1210; --ink-2: #353b38; --muted: #646b67;
+  --line: #e2e5e2; --line-strong: #c6ccc7; --accent: #946300; background: #ffffff; }
+.landing .topbar { background: rgba(255, 255, 255, .92); }
+.landing .btn-primary { background: #0e1210; }
+.landing .btn-primary:not(:disabled):hover { background: #2b322e; }
+.landing .mechanism { box-shadow: none; }
+.landing .svg-card { fill: #f3f4f3; stroke: #d3d8d4; }
+.landing .compare-cards .gap { background: #f4f5f4; border-left-color: #0e1210; }
+.landing .compare-cards .gap b, .landing .compare-cards .gap-label { color: var(--ink); }
+.landing .zatomic-panel { background: #f4f5f4 !important; border: 1px solid var(--line) !important; }
+.landing .zp-cost, .landing .zp-proof { border-top-color: var(--line) !important; }
+.landing .zp-proof b { color: var(--accent); }
+.landing .zp-points li { border-left-color: #0e1210; }
+.landing .steps-result { background: #f4f5f4; border-color: var(--line); }
+.landing .row-limit th, .landing .row-limit td { background: #f4f5f4; }
+.landing .tag-limit { background: #fff; border-color: var(--line-strong); color: var(--ink-2); }
+.landing .tag-zec, .landing .tag-eth { background: #fff; border-color: var(--line-strong); color: var(--ink-2); }
+.landing .tag-zec::before, .landing .tag-eth::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.landing .tag-zec::before { background: #e0a51b; }
+.landing .tag-eth::before { background: #6f7dc4; }
+.landing h1 em { color: var(--accent); }
+.landing .svg-pill { fill: #f4b728; stroke: #c98f0a; }
+.landing .svg-pill-text { fill: #3a2a00; }
+.landing :focus-visible { outline-color: #c98f0a; }

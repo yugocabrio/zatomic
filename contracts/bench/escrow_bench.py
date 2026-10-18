@@ -20,7 +20,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 OUT = ROOT / '.local/forge-out'
-sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent / 'tools'))
 from gen_comb_tables import Q, mul  # noqa: E402
 
 AMOUNT = 10**15

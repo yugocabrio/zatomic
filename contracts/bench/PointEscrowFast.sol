@@ -2,11 +2,11 @@
 pragma solidity 0.8.25;
 
 import {Pallas} from "../src/Pallas.sol";
-import {PallasFast} from "./PallasFast.sol";
-import {PallasCombTables} from "./PallasCombTables.sol";
+import {PallasComb} from "../src/PallasComb.sol";
+import {PallasCombTables} from "../src/PallasCombTables.sol";
 
 /// @notice BENCHMARK ONLY, not deployed. contracts/src/PointEscrow.sol with one
-/// change: claim verifies the witness with PallasFast (t-tooth comb, table in a
+/// change: claim verifies the witness with PallasComb (t-tooth comb, table in a
 /// PallasCombTable{t} data contract whose code hash the constructor checks).
 contract PointEscrowFast {
     enum State { Empty, Locked, Claimed, Refunded }
@@ -49,12 +49,12 @@ contract PointEscrowFast {
     constructor(address table_, uint256 teeth_) {
         bytes32 expected = PallasCombTables.codehash(teeth_);
         if (expected == bytes32(0) || table_.codehash != expected) revert InvalidTable();
-        PallasFast.Comb memory c = PallasFast.comb(table_, teeth_);
+        PallasComb.Comb memory c = PallasComb.comb(table_, teeth_);
         (table, teeth, spacing, mask, magic, shift) = (table_, teeth_, c.spacing, c.mask, c.magic, c.shift);
     }
 
-    function comb() internal view returns (PallasFast.Comb memory) {
-        return PallasFast.Comb(table, teeth, spacing, mask, magic, shift);
+    function comb() internal view returns (PallasComb.Comb memory) {
+        return PallasComb.Comb(table, teeth, spacing, mask, magic, shift);
     }
 
     function orderId(address maker, bytes32 salt) public view returns (bytes32) {
@@ -77,7 +77,7 @@ contract PointEscrowFast {
         Order storage order = orders[id];
         if (order.state != State.Locked) revert NotLocked();
         if (block.timestamp >= order.refundAt) revert ClaimExpired();
-        if (!PallasFast.opens(witness, order.point, comb())) revert InvalidWitness();
+        if (!PallasComb.opens(witness, order.point, comb())) revert InvalidWitness();
         order.state = State.Claimed;
         credits[order.recipient] += order.amount;
         emit Claimed(id, witness);
