@@ -1,0 +1,747 @@
+{
+ "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
+ "client": "reth/v2.7.0-3d592ec/x86_64-unknown-linux-gnu",
+ "block": 11943536,
+ "block_timestamp": 1792356432,
+ "fork": {
+  "activation_time": 1791294816,
+  "fork_id": "0x6c1d9423"
+ },
+ "method": "eth_simulateV1 (validation false) at the pinned block; fresh addresses with balance overrides; each simulation deploys its own table and escrow",
+ "addresses_without_keys": {
+  "deployer": "0x6ba1c7b1f2568a94420a3f2c8fa22bbeb0302144",
+  "maker": "0xeecc017172b40219543aa84938cfb6d8d8f400aa",
+  "recipient": "0xda8ad7c87d130b93a3a972e810328b95a7badb3e"
+ },
+ "gas_limits_per_call": {
+  "table": 40000000,
+  "escrow": 15000000,
+  "lock": 3000000,
+  "claim": 3000000,
+  "small": 1000000
+ },
+ "claim_scalars": {
+  "worst_case_2^254-1": "0x3fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "q_minus_1": "0x40000000000000000000000000000000224698fc0994a8dd8c46eb2100000000",
+  "one": "0x1",
+  "random_0": "0x3a89ded2dd0fc8a01053383ac7ec2c925457da22336da9d8c8764d7edb5586af",
+  "random_1": "0x15e24ffdb0608fcf1a3286c58e6dfd7113c8b5ddd23f529b0016b6ec7c34dea3",
+  "random_2": "0x25affcf2e6fc1c131d7bac5bb677be97f5d1402d8c35e46856530aa4083efb5a",
+  "random_3": "0x39276a61b419e82a5fb657dd5fcf637e0204fd88e4fc8fdf09a70a6b336ca212",
+  "random_4": "0x180cde93721f2fc67498187898c36983f78bf674ec5b9d092d1cd78e66455f3f",
+  "random_5": "0x229e3394f3973e8222462907b9ff2eb852137a298dd49fdd92e67c8de7ab48d6",
+  "random_6": "0x2c849a17cae13e2b3bec8567d165b85f813373dc60bf322b6840fb26c0590237",
+  "random_7": "0x369758971a51fcb8236b074927a5dec8395c283672411b208c30ca001b59f1f4"
+ },
+ "summary": {
+  "shipped": {
+   "deploy_escrow": 5090645,
+   "lock": [
+    799447,
+    799459
+   ],
+   "claim_random_median": 605083,
+   "claim_random_range": [
+    582640,
+    610846
+   ],
+   "claim_worst_case_2^254-1": 768210,
+   "random_scalars": 8,
+   "withdraw": [
+    31206,
+    31216
+   ],
+   "swap_random_median": 1435758,
+   "swap_worst_case": 1598885,
+   "refund": [
+    143831,
+    143831
+   ],
+   "refund_path": 974496
+  },
+  "fast_t8": {
+   "deploy_escrow": 5312498,
+   "lock": [
+    799422,
+    799446
+   ],
+   "claim_random_median": 191660,
+   "claim_random_range": [
+    190884,
+    191660
+   ],
+   "claim_worst_case_2^254-1": 191660,
+   "random_scalars": 8,
+   "withdraw": [
+    31208,
+    31218
+   ],
+   "deploy_table": 25490376,
+   "swap_random_median": 1022324,
+   "swap_worst_case": 1022324,
+   "refund": [
+    143825,
+    143825
+   ],
+   "refund_path": 974479
+  },
+  "hashed_t8": {
+   "deploy_escrow": 5576975,
+   "lock": [
+    139079,
+    139103
+   ],
+   "claim_random_median": 186614,
+   "claim_random_range": [
+    185835,
+    186626
+   ],
+   "claim_worst_case_2^254-1": 186626,
+   "random_scalars": 8,
+   "withdraw": [
+    31244,
+    31253
+   ],
+   "deploy_table": 25490376,
+   "swap_random_median": 356970,
+   "swap_worst_case": 356982,
+   "refund": [
+    143217,
+    143217
+   ],
+   "refund_path": 313564
+  },
+  "fast_t4": {
+   "deploy_escrow": 5311195,
+   "lock": [
+    799446,
+    799446
+   ],
+   "claim_random_median": 226762,
+   "claim_random_range": [
+    224705,
+    228820
+   ],
+   "claim_worst_case_2^254-1": 231148,
+   "random_scalars": 2,
+   "withdraw": [
+    31218,
+    31218
+   ],
+   "deploy_table": 1696604,
+   "swap_random_median": 1057426,
+   "swap_worst_case": 1061812
+  },
+  "hashed_t4": {
+   "deploy_escrow": 5575672,
+   "lock": [
+    139091,
+    139103
+   ],
+   "claim_random_median": 221479,
+   "claim_random_range": [
+    219446,
+    223513
+   ],
+   "claim_worst_case_2^254-1": 225826,
+   "random_scalars": 2,
+   "withdraw": [
+    31253,
+    31253
+   ],
+   "deploy_table": 1696604,
+   "swap_random_median": 391835,
+   "swap_worst_case": 396182
+  },
+  "fast_t5": {
+   "deploy_escrow": 5311522,
+   "lock": [
+    799446,
+    799446
+   ],
+   "claim_random_median": 214318,
+   "claim_random_range": [
+    214306,
+    214330
+   ],
+   "claim_worst_case_2^254-1": 215106,
+   "random_scalars": 2,
+   "withdraw": [
+    31218,
+    31218
+   ],
+   "deploy_table": 3282865,
+   "swap_random_median": 1044982,
+   "swap_worst_case": 1045770
+  },
+  "hashed_t5": {
+   "deploy_escrow": 5575999,
+   "lock": [
+    139103,
+    139103
+   ],
+   "claim_random_median": 209128,
+   "claim_random_range": [
+    209122,
+    209134
+   ],
+   "claim_worst_case_2^254-1": 209901,
+   "random_scalars": 2,
+   "withdraw": [
+    31253,
+    31253
+   ],
+   "deploy_table": 3282865,
+   "swap_random_median": 379484,
+   "swap_worst_case": 380257
+  },
+  "fast_t6": {
+   "deploy_escrow": 5311849,
+   "lock": [
+    799422,
+    799446
+   ],
+   "claim_random_median": 204058,
+   "claim_random_range": [
+    203682,
+    204434
+   ],
+   "claim_worst_case_2^254-1": 205234,
+   "random_scalars": 2,
+   "withdraw": [
+    31218,
+    31218
+   ],
+   "deploy_table": 6455310,
+   "swap_random_median": 1034722,
+   "swap_worst_case": 1035898
+  },
+  "hashed_t6": {
+   "deploy_escrow": 5576326,
+   "lock": [
+    139067,
+    139103
+   ],
+   "claim_random_median": 198944,
+   "claim_random_range": [
+    198567,
+    199322
+   ],
+   "claim_worst_case_2^254-1": 200089,
+   "random_scalars": 2,
+   "withdraw": [
+    31253,
+    31253
+   ],
+   "deploy_table": 6455310,
+   "swap_random_median": 369300,
+   "swap_worst_case": 370445
+  },
+  "fast_t7": {
+   "deploy_escrow": 5312176,
+   "lock": [
+    799434,
+    799446
+   ],
+   "claim_random_median": 197812,
+   "claim_random_range": [
+    197806,
+    197818
+   ],
+   "claim_worst_case_2^254-1": 197818,
+   "random_scalars": 2,
+   "withdraw": [
+    31218,
+    31218
+   ],
+   "deploy_table": 12800212,
+   "swap_random_median": 1028476,
+   "swap_worst_case": 1028482
+  },
+  "hashed_t7": {
+   "deploy_escrow": 5576653,
+   "lock": [
+    139103,
+    139103
+   ],
+   "claim_random_median": 192745,
+   "claim_random_range": [
+    192739,
+    192751
+   ],
+   "claim_worst_case_2^254-1": 192751,
+   "random_scalars": 2,
+   "withdraw": [
+    31253,
+    31253
+   ],
+   "deploy_table": 12800212,
+   "swap_random_median": 363101,
+   "swap_worst_case": 363107
+  }
+ },
+ "raw": {
+  "shipped": {
+   "deploy_escrow": [
+    5090645,
+    5090645,
+    5090645,
+    5090645,
+    5090645,
+    5090645,
+    5090645,
+    5090645,
+    5090645,
+    5090645,
+    5090645,
+    5090645,
+    5090645
+   ],
+   "deploy_table": [],
+   "lock": [
+    799459,
+    799459,
+    799447,
+    799459,
+    799459,
+    799459,
+    799459,
+    799459,
+    799459,
+    799459,
+    799447,
+    799447,
+    799447
+   ],
+   "claim": {
+    "worst_case_2^254-1": 768210,
+    "q_minus_1": 485307,
+    "one": 233338,
+    "random_0": 600103,
+    "random_1": 606035,
+    "random_2": 610846,
+    "random_3": 605462,
+    "random_4": 604704,
+    "random_5": 605474,
+    "random_6": 593391,
+    "random_7": 582640
+   },
+   "withdraw": [
+    31216,
+    31216,
+    31216,
+    31216,
+    31216,
+    31216,
+    31216,
+    31216,
+    31216,
+    31216,
+    31216
+   ],
+   "refund": [
+    143831,
+    143831
+   ],
+   "refund_withdraw": [
+    31206,
+    31206
+   ]
+  },
+  "fast_t8": {
+   "deploy_escrow": [
+    5312498,
+    5312498,
+    5312498,
+    5312498,
+    5312498,
+    5312498,
+    5312498,
+    5312498,
+    5312498,
+    5312498,
+    5312498,
+    5312498,
+    5312498
+   ],
+   "deploy_table": [
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376
+   ],
+   "lock": [
+    799446,
+    799446,
+    799434,
+    799446,
+    799446,
+    799446,
+    799446,
+    799446,
+    799446,
+    799446,
+    799434,
+    799422,
+    799446
+   ],
+   "claim": {
+    "worst_case_2^254-1": 191660,
+    "q_minus_1": 186776,
+    "one": 156909,
+    "random_0": 191660,
+    "random_1": 191648,
+    "random_2": 191660,
+    "random_3": 191660,
+    "random_4": 190884,
+    "random_5": 191660,
+    "random_6": 191660,
+    "random_7": 191636
+   },
+   "withdraw": [
+    31218,
+    31218,
+    31218,
+    31218,
+    31218,
+    31218,
+    31218,
+    31218,
+    31218,
+    31218,
+    31218
+   ],
+   "refund": [
+    143825,
+    143825
+   ],
+   "refund_withdraw": [
+    31208,
+    31208
+   ]
+  },
+  "hashed_t8": {
+   "deploy_escrow": [
+    5576975,
+    5576975,
+    5576975,
+    5576975,
+    5576975,
+    5576975,
+    5576975,
+    5576975,
+    5576975,
+    5576975,
+    5576975,
+    5576975,
+    5576975
+   ],
+   "deploy_table": [
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376,
+    25490376
+   ],
+   "lock": [
+    139103,
+    139103,
+    139103,
+    139103,
+    139103,
+    139103,
+    139103,
+    139103,
+    139103,
+    139079,
+    139079,
+    139091,
+    139103
+   ],
+   "claim": {
+    "worst_case_2^254-1": 186626,
+    "q_minus_1": 181796,
+    "one": 152154,
+    "random_0": 186626,
+    "random_1": 186614,
+    "random_2": 186626,
+    "random_3": 186626,
+    "random_4": 185835,
+    "random_5": 186602,
+    "random_6": 186614,
+    "random_7": 186614
+   },
+   "withdraw": [
+    31253,
+    31253,
+    31253,
+    31253,
+    31253,
+    31253,
+    31253,
+    31253,
+    31253,
+    31253,
+    31253
+   ],
+   "refund": [
+    143217,
+    143217
+   ],
+   "refund_withdraw": [
+    31244,
+    31244
+   ]
+  },
+  "fast_t4": {
+   "deploy_escrow": [
+    5311195,
+    5311195,
+    5311195
+   ],
+   "deploy_table": [
+    1696604,
+    1696604,
+    1696604
+   ],
+   "lock": [
+    799446,
+    799446,
+    799446
+   ],
+   "claim": {
+    "worst_case_2^254-1": 231148,
+    "random_0": 228820,
+    "random_1": 224705
+   },
+   "withdraw": [
+    31218,
+    31218,
+    31218
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "hashed_t4": {
+   "deploy_escrow": [
+    5575672,
+    5575672,
+    5575672
+   ],
+   "deploy_table": [
+    1696604,
+    1696604,
+    1696604
+   ],
+   "lock": [
+    139103,
+    139091,
+    139103
+   ],
+   "claim": {
+    "worst_case_2^254-1": 225826,
+    "random_0": 223513,
+    "random_1": 219446
+   },
+   "withdraw": [
+    31253,
+    31253,
+    31253
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "fast_t5": {
+   "deploy_escrow": [
+    5311522,
+    5311522,
+    5311522
+   ],
+   "deploy_table": [
+    3282865,
+    3282865,
+    3282865
+   ],
+   "lock": [
+    799446,
+    799446,
+    799446
+   ],
+   "claim": {
+    "worst_case_2^254-1": 215106,
+    "random_0": 214330,
+    "random_1": 214306
+   },
+   "withdraw": [
+    31218,
+    31218,
+    31218
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "hashed_t5": {
+   "deploy_escrow": [
+    5575999,
+    5575999,
+    5575999
+   ],
+   "deploy_table": [
+    3282865,
+    3282865,
+    3282865
+   ],
+   "lock": [
+    139103,
+    139103,
+    139103
+   ],
+   "claim": {
+    "worst_case_2^254-1": 209901,
+    "random_0": 209134,
+    "random_1": 209122
+   },
+   "withdraw": [
+    31253,
+    31253,
+    31253
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "fast_t6": {
+   "deploy_escrow": [
+    5311849,
+    5311849,
+    5311849
+   ],
+   "deploy_table": [
+    6455310,
+    6455310,
+    6455310
+   ],
+   "lock": [
+    799446,
+    799446,
+    799422
+   ],
+   "claim": {
+    "worst_case_2^254-1": 205234,
+    "random_0": 203682,
+    "random_1": 204434
+   },
+   "withdraw": [
+    31218,
+    31218,
+    31218
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "hashed_t6": {
+   "deploy_escrow": [
+    5576326,
+    5576326,
+    5576326
+   ],
+   "deploy_table": [
+    6455310,
+    6455310,
+    6455310
+   ],
+   "lock": [
+    139067,
+    139103,
+    139103
+   ],
+   "claim": {
+    "worst_case_2^254-1": 200089,
+    "random_0": 198567,
+    "random_1": 199322
+   },
+   "withdraw": [
+    31253,
+    31253,
+    31253
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "fast_t7": {
+   "deploy_escrow": [
+    5312176,
+    5312176,
+    5312176
+   ],
+   "deploy_table": [
+    12800212,
+    12800212,
+    12800212
+   ],
+   "lock": [
+    799446,
+    799434,
+    799446
+   ],
+   "claim": {
+    "worst_case_2^254-1": 197818,
+    "random_0": 197818,
+    "random_1": 197806
+   },
+   "withdraw": [
+    31218,
+    31218,
+    31218
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "hashed_t7": {
+   "deploy_escrow": [
+    5576653,
+    5576653,
+    5576653
+   ],
+   "deploy_table": [
+    12800212,
+    12800212,
+    12800212
+   ],
+   "lock": [
+    139103,
+    139103,
+    139103
+   ],
+   "claim": {
+    "worst_case_2^254-1": 192751,
+    "random_0": 192751,
+    "random_1": 192739
+   },
+   "withdraw": [
+    31253,
+    31253,
+    31253
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  }
+ },
+ "broadcast": false
+}

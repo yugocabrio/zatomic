@@ -1,0 +1,653 @@
+{
+ "tool": {
+  "anvil": "foundry Version: 1.3.1-stable",
+  "hardfork": "Prague",
+  "chain_id": 31337
+ },
+ "method": "receipt gasUsed of real Anvil transactions; tables shared by escrows of the same width",
+ "claim_scalars": {
+  "worst_case_2^254-1": "0x3fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "q_minus_1": "0x40000000000000000000000000000000224698fc0994a8dd8c46eb2100000000",
+  "one": "0x1",
+  "random_0": "0x3a89ded2dd0fc8a01053383ac7ec2c925457da22336da9d8c8764d7edb5586af",
+  "random_1": "0x15e24ffdb0608fcf1a3286c58e6dfd7113c8b5ddd23f529b0016b6ec7c34dea3",
+  "random_2": "0x25affcf2e6fc1c131d7bac5bb677be97f5d1402d8c35e46856530aa4083efb5a",
+  "random_3": "0x39276a61b419e82a5fb657dd5fcf637e0204fd88e4fc8fdf09a70a6b336ca212",
+  "random_4": "0x180cde93721f2fc67498187898c36983f78bf674ec5b9d092d1cd78e66455f3f",
+  "random_5": "0x229e3394f3973e8222462907b9ff2eb852137a298dd49fdd92e67c8de7ab48d6",
+  "random_6": "0x2c849a17cae13e2b3bec8567d165b85f813373dc60bf322b6840fb26c0590237",
+  "random_7": "0x369758971a51fcb8236b074927a5dec8395c283672411b208c30ca001b59f1f4"
+ },
+ "summary": {
+  "shipped": {
+   "deploy_escrow": 735311,
+   "lock": [
+    183695,
+    183707
+   ],
+   "claim_random_median": 515863,
+   "claim_random_range": [
+    493420,
+    521626
+   ],
+   "claim_worst_case_2^254-1": 678990,
+   "random_scalars": 8,
+   "withdraw": [
+    30707,
+    30719
+   ],
+   "swap_random_median": 730289,
+   "swap_worst_case": 893416,
+   "refund": [
+    54599,
+    54611
+   ],
+   "refund_path": 269037
+  },
+  "fast_t8": {
+   "deploy_escrow": 781168,
+   "lock": [
+    183682,
+    183694
+   ],
+   "claim_random_median": 98840,
+   "claim_random_range": [
+    98164,
+    98840
+   ],
+   "claim_worst_case_2^254-1": 98840,
+   "random_scalars": 8,
+   "withdraw": [
+    30710,
+    30722
+   ],
+   "deploy_table": 3625780,
+   "swap_random_median": 313256,
+   "swap_worst_case": 313256,
+   "refund": [
+    54605,
+    54605
+   ],
+   "refund_path": 269021
+  },
+  "hashed_t8": {
+   "deploy_escrow": 818179,
+   "lock": [
+    51047,
+    51071
+   ],
+   "claim_random_median": 93794,
+   "claim_random_range": [
+    93139,
+    93806
+   ],
+   "claim_worst_case_2^254-1": 93806,
+   "random_scalars": 8,
+   "withdraw": [
+    30754,
+    30766
+   ],
+   "deploy_table": 3625780,
+   "swap_random_median": 175631,
+   "swap_worst_case": 175643,
+   "refund": [
+    53997,
+    53997
+   ],
+   "refund_path": 135834
+  },
+  "fast_t4": {
+   "deploy_escrow": 779877,
+   "lock": [
+    183682,
+    183694
+   ],
+   "claim_random_median": 131242,
+   "claim_random_range": [
+    129385,
+    133100
+   ],
+   "claim_worst_case_2^254-1": 135128,
+   "random_scalars": 2,
+   "withdraw": [
+    30710,
+    30710
+   ],
+   "deploy_table": 263688,
+   "swap_random_median": 345646,
+   "swap_worst_case": 349532
+  },
+  "hashed_t4": {
+   "deploy_escrow": 816888,
+   "lock": [
+    51059,
+    51071
+   ],
+   "claim_random_median": 125965,
+   "claim_random_range": [
+    124126,
+    127805
+   ],
+   "claim_worst_case_2^254-1": 129806,
+   "random_scalars": 2,
+   "withdraw": [
+    30754,
+    30754
+   ],
+   "deploy_table": 263688,
+   "swap_random_median": 207790,
+   "swap_worst_case": 211631
+  },
+  "fast_t5": {
+   "deploy_escrow": 780204,
+   "lock": [
+    183682,
+    183694
+   ],
+   "claim_random_median": 119704,
+   "claim_random_range": [
+    119698,
+    119710
+   ],
+   "claim_worst_case_2^254-1": 120386,
+   "random_scalars": 2,
+   "withdraw": [
+    30710,
+    30710
+   ],
+   "deploy_table": 487837,
+   "swap_random_median": 334108,
+   "swap_worst_case": 334790
+  },
+  "hashed_t5": {
+   "deploy_escrow": 817215,
+   "lock": [
+    51059,
+    51071
+   ],
+   "claim_random_median": 114508,
+   "claim_random_range": [
+    114502,
+    114514
+   ],
+   "claim_worst_case_2^254-1": 115181,
+   "random_scalars": 2,
+   "withdraw": [
+    30754,
+    30754
+   ],
+   "deploy_table": 487837,
+   "swap_random_median": 196333,
+   "swap_worst_case": 197006
+  },
+  "fast_t6": {
+   "deploy_escrow": 780531,
+   "lock": [
+    183694,
+    183694
+   ],
+   "claim_random_median": 110288,
+   "claim_random_range": [
+    109962,
+    110614
+   ],
+   "claim_worst_case_2^254-1": 111314,
+   "random_scalars": 2,
+   "withdraw": [
+    30710,
+    30710
+   ],
+   "deploy_table": 936058,
+   "swap_random_median": 324692,
+   "swap_worst_case": 325718
+  },
+  "hashed_t6": {
+   "deploy_escrow": 817542,
+   "lock": [
+    51059,
+    51071
+   ],
+   "claim_random_median": 105174,
+   "claim_random_range": [
+    104847,
+    105502
+   ],
+   "claim_worst_case_2^254-1": 106169,
+   "random_scalars": 2,
+   "withdraw": [
+    30754,
+    30754
+   ],
+   "deploy_table": 936058,
+   "swap_random_median": 186999,
+   "swap_worst_case": 187994
+  },
+  "fast_t7": {
+   "deploy_escrow": 780858,
+   "lock": [
+    183682,
+    183694
+   ],
+   "claim_random_median": 104504,
+   "claim_random_range": [
+    104498,
+    104510
+   ],
+   "claim_worst_case_2^254-1": 104510,
+   "random_scalars": 2,
+   "withdraw": [
+    30710,
+    30710
+   ],
+   "deploy_table": 1832512,
+   "swap_random_median": 318908,
+   "swap_worst_case": 318914
+  },
+  "hashed_t7": {
+   "deploy_escrow": 817869,
+   "lock": [
+    51059,
+    51071
+   ],
+   "claim_random_median": 99419,
+   "claim_random_range": [
+    99407,
+    99431
+   ],
+   "claim_worst_case_2^254-1": 99431,
+   "random_scalars": 2,
+   "withdraw": [
+    30754,
+    30754
+   ],
+   "deploy_table": 1832512,
+   "swap_random_median": 181244,
+   "swap_worst_case": 181256
+  }
+ },
+ "raw": {
+  "shipped": {
+   "deploy_escrow": [
+    735311
+   ],
+   "deploy_table": [],
+   "lock": [
+    183707,
+    183695,
+    183707,
+    183707,
+    183707,
+    183707,
+    183707,
+    183707,
+    183707,
+    183707,
+    183695,
+    183695,
+    183707
+   ],
+   "claim": {
+    "worst_case_2^254-1": 678990,
+    "q_minus_1": 396087,
+    "one": 144130,
+    "random_0": 510871,
+    "random_1": 516815,
+    "random_2": 521626,
+    "random_3": 516254,
+    "random_4": 515484,
+    "random_5": 516242,
+    "random_6": 504171,
+    "random_7": 493420
+   },
+   "withdraw": [
+    30707,
+    30707,
+    30707,
+    30707,
+    30707,
+    30707,
+    30707,
+    30707,
+    30707,
+    30707,
+    30707
+   ],
+   "refund": [
+    54611,
+    54599
+   ],
+   "refund_withdraw": [
+    30719,
+    30719
+   ]
+  },
+  "fast_t8": {
+   "deploy_escrow": [
+    781168
+   ],
+   "deploy_table": [
+    3625780
+   ],
+   "lock": [
+    183682,
+    183694,
+    183694,
+    183694,
+    183694,
+    183694,
+    183682,
+    183694,
+    183682,
+    183682,
+    183682,
+    183682,
+    183694
+   ],
+   "claim": {
+    "worst_case_2^254-1": 98840,
+    "q_minus_1": 94556,
+    "one": 67189,
+    "random_0": 98840,
+    "random_1": 98828,
+    "random_2": 98840,
+    "random_3": 98840,
+    "random_4": 98164,
+    "random_5": 98840,
+    "random_6": 98840,
+    "random_7": 98828
+   },
+   "withdraw": [
+    30710,
+    30710,
+    30710,
+    30710,
+    30710,
+    30710,
+    30710,
+    30710,
+    30710,
+    30710,
+    30710
+   ],
+   "refund": [
+    54605,
+    54605
+   ],
+   "refund_withdraw": [
+    30722,
+    30722
+   ]
+  },
+  "hashed_t8": {
+   "deploy_escrow": [
+    818179
+   ],
+   "deploy_table": [
+    3625780
+   ],
+   "lock": [
+    51071,
+    51071,
+    51059,
+    51071,
+    51071,
+    51059,
+    51071,
+    51071,
+    51071,
+    51071,
+    51047,
+    51059,
+    51071
+   ],
+   "claim": {
+    "worst_case_2^254-1": 93806,
+    "q_minus_1": 89576,
+    "one": 62434,
+    "random_0": 93794,
+    "random_1": 93782,
+    "random_2": 93794,
+    "random_3": 93806,
+    "random_4": 93139,
+    "random_5": 93794,
+    "random_6": 93794,
+    "random_7": 93794
+   },
+   "withdraw": [
+    30754,
+    30754,
+    30754,
+    30754,
+    30754,
+    30754,
+    30754,
+    30754,
+    30754,
+    30754,
+    30754
+   ],
+   "refund": [
+    53997,
+    53997
+   ],
+   "refund_withdraw": [
+    30766,
+    30766
+   ]
+  },
+  "fast_t4": {
+   "deploy_escrow": [
+    779877
+   ],
+   "deploy_table": [
+    263688
+   ],
+   "lock": [
+    183682,
+    183694,
+    183694
+   ],
+   "claim": {
+    "worst_case_2^254-1": 135128,
+    "random_0": 133100,
+    "random_1": 129385
+   },
+   "withdraw": [
+    30710,
+    30710,
+    30710
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "hashed_t4": {
+   "deploy_escrow": [
+    816888
+   ],
+   "deploy_table": [
+    263688
+   ],
+   "lock": [
+    51059,
+    51071,
+    51071
+   ],
+   "claim": {
+    "worst_case_2^254-1": 129806,
+    "random_0": 127805,
+    "random_1": 124126
+   },
+   "withdraw": [
+    30754,
+    30754,
+    30754
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "fast_t5": {
+   "deploy_escrow": [
+    780204
+   ],
+   "deploy_table": [
+    487837
+   ],
+   "lock": [
+    183682,
+    183694,
+    183694
+   ],
+   "claim": {
+    "worst_case_2^254-1": 120386,
+    "random_0": 119710,
+    "random_1": 119698
+   },
+   "withdraw": [
+    30710,
+    30710,
+    30710
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "hashed_t5": {
+   "deploy_escrow": [
+    817215
+   ],
+   "deploy_table": [
+    487837
+   ],
+   "lock": [
+    51071,
+    51071,
+    51059
+   ],
+   "claim": {
+    "worst_case_2^254-1": 115181,
+    "random_0": 114514,
+    "random_1": 114502
+   },
+   "withdraw": [
+    30754,
+    30754,
+    30754
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "fast_t6": {
+   "deploy_escrow": [
+    780531
+   ],
+   "deploy_table": [
+    936058
+   ],
+   "lock": [
+    183694,
+    183694,
+    183694
+   ],
+   "claim": {
+    "worst_case_2^254-1": 111314,
+    "random_0": 109962,
+    "random_1": 110614
+   },
+   "withdraw": [
+    30710,
+    30710,
+    30710
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "hashed_t6": {
+   "deploy_escrow": [
+    817542
+   ],
+   "deploy_table": [
+    936058
+   ],
+   "lock": [
+    51059,
+    51071,
+    51071
+   ],
+   "claim": {
+    "worst_case_2^254-1": 106169,
+    "random_0": 104847,
+    "random_1": 105502
+   },
+   "withdraw": [
+    30754,
+    30754,
+    30754
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "fast_t7": {
+   "deploy_escrow": [
+    780858
+   ],
+   "deploy_table": [
+    1832512
+   ],
+   "lock": [
+    183682,
+    183694,
+    183694
+   ],
+   "claim": {
+    "worst_case_2^254-1": 104510,
+    "random_0": 104510,
+    "random_1": 104498
+   },
+   "withdraw": [
+    30710,
+    30710,
+    30710
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "hashed_t7": {
+   "deploy_escrow": [
+    817869
+   ],
+   "deploy_table": [
+    1832512
+   ],
+   "lock": [
+    51059,
+    51071,
+    51059
+   ],
+   "claim": {
+    "worst_case_2^254-1": 99431,
+    "random_0": 99431,
+    "random_1": 99407
+   },
+   "withdraw": [
+    30754,
+    30754,
+    30754
+   ],
+   "refund": [],
+   "refund_withdraw": []
+  },
+  "deploy_tables": {
+   "t4": 263688,
+   "t5": 487837,
+   "t6": 936058,
+   "t7": 1832512,
+   "t8": 3625780
+  },
+  "runtime_bytes_table": {
+   "t4": 961,
+   "t5": 1985,
+   "t6": 4033,
+   "t7": 8129,
+   "t8": 16321
+  }
+ }
+}
