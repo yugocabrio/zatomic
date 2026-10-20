@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sets up the hosted Zatomic demo on a fresh Ubuntu 24.04 server (arm64 or x86_64).
 #
-#   git clone https://github.com/yugocabrio/zeceth /opt/latch
+#   git clone https://github.com/yugocabrio/zatomic /opt/latch
 #   LATCH_HOST=203-0-113-7.sslip.io bash /opt/latch/deploy/setup.sh
 #
 # LATCH_HOST is the site's host name. alice.$LATCH_HOST and bob.$LATCH_HOST

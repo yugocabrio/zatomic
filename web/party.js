@@ -110,7 +110,7 @@ function render() {
   setText('#holds', `This app holds only ${view.role === 'alice' ? 'Alice' : 'Bob'}’s keys`);
   document.title = `Zatomic — ${view.role === 'alice' ? 'Alice' : 'Bob'}`;
   $('#network-dot').className = view.offline ? 'offline' : 'online';
-  setText('#network-status', view.offline ? 'Network unreachable' : `ZEC #${view.chain.zcash_height} · relay ${view.relay_count} msgs`);
+  setText('#network-status', view.offline ? 'Network unreachable' : `Regtest #${view.chain.zcash_height} · relay ${view.relay_count} msgs`);
   if (view.offline) return;
   const busy = $('#busy-chip'); busy.hidden = !view.busy; setText('#busy-chip', view.busy || '');
   if (view.error) { $('#error').textContent = view.error; $('#error').hidden = false; }

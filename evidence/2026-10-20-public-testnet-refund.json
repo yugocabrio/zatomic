@@ -1,0 +1,124 @@
+{
+  "date": "2026-10-20",
+  "scope": "First funded public-testnet no-reveal refund: Zcash public testnet (Ironwood, NU7 branch 77190ad9) and Ethereum Sepolia. Nobody revealed t; Bob took his ETH back after the ETH deadline and Alice took her ZEC back after the later Zcash refund height. One host runs both owner clients; observations use trusted RPC providers. Not a consensus or finality proof, not independent hosts, not mainnet.",
+  "trade": {
+    "zec_payout_zatoshi": 100000,
+    "zec_principal_zatoshi": 110000,
+    "eth_amount_wei": 1000000000000000,
+    "agreement_digest": "b1d85b5d80861393097d36db0722b916e1d0919ed73d6569d0e4681924f9d2d7",
+    "escrow_contract": "0xcc0ce295627b5e15cd31a40dc6ace4bf3a35ee42",
+    "escrow_note": "The same pinned PointEscrow deployed for the 2026-10-18 success run; no new deployment.",
+    "plan": {
+      "created_at": 1792362651,
+      "eth_expiry": 1792384251,
+      "native_refund_lock_timestamp": 1792470651,
+      "refund_auxiliary": "deferred",
+      "fee_profile": "bounded-legacy-eth-v2",
+      "gas_price_ceiling_wei": 100000000
+    }
+  },
+  "transactions": [
+    {
+      "step": "F: source note to the shared note",
+      "chain": "zcash-testnet",
+      "txid": "604cdc076dbf306fb3b2e7183b80c29430fa413ae03c51ce9323f8fa4a11c16d",
+      "height": 4516646,
+      "transparent_inputs": 0,
+      "transparent_outputs": 0,
+      "expiry_height": 0,
+      "explorer": "https://testnet.zecblock.com/tx/604cdc076dbf306fb3b2e7183b80c29430fa413ae03c51ce9323f8fa4a11c16d"
+    },
+    {
+      "step": "Bob locks ETH",
+      "chain": "sepolia",
+      "txid": "0x2f4463f0eac777b6e93bd2604aa940c0e30e31279d363abd0d63cab3b4a254a6",
+      "block": 11944196,
+      "gas_used": 799447,
+      "expected_event_verified": true,
+      "finalized": true,
+      "explorer": "https://sepolia.etherscan.io/tx/0x2f4463f0eac777b6e93bd2604aa940c0e30e31279d363abd0d63cab3b4a254a6"
+    },
+    {
+      "step": "Bob refunds the order after the ETH deadline (no claim, t never published)",
+      "chain": "sepolia",
+      "txid": "0x425ef6725b74e08ba09fa2d2f2b5ac83ae63ad4c3e14e43bee72931ba7ded17d",
+      "block": 11945949,
+      "gas_used": 143831,
+      "expected_event_verified": true,
+      "finalized": true,
+      "explorer": "https://sepolia.etherscan.io/tx/0x425ef6725b74e08ba09fa2d2f2b5ac83ae63ad4c3e14e43bee72931ba7ded17d"
+    },
+    {
+      "step": "Bob withdraws his ETH",
+      "chain": "sepolia",
+      "txid": "0x8f2bd919c8e636f745d65b16e8cfeb85ea2a43ab7fdc31a8008b75189e2a17f5",
+      "block": 11946069,
+      "gas_used": 31216,
+      "withdrawal_verified": true,
+      "finalized": true,
+      "explorer": "https://sepolia.etherscan.io/tx/0x8f2bd919c8e636f745d65b16e8cfeb85ea2a43ab7fdc31a8008b75189e2a17f5"
+    },
+    {
+      "step": "A: Alice's pre-signed auxiliary transaction creates the refund coin from her own change",
+      "chain": "zcash-testnet",
+      "txid": "67de5df671ea0a166de7564efcdb53b5a6d7c51d4851363aa77dfe5a9b32fb56",
+      "height": 4517606,
+      "transparent_inputs": 0,
+      "transparent_output_zatoshi": 20000,
+      "expiry_height": 0,
+      "explorer": "https://testnet.zecblock.com/tx/67de5df671ea0a166de7564efcdb53b5a6d7c51d4851363aa77dfe5a9b32fb56"
+    },
+    {
+      "step": "R: Alice's time-locked refund spends the joint note and A's coin",
+      "chain": "zcash-testnet",
+      "txid": "86e90e1638f76e5162dfa566e48d610761dacac9874d2448a1872cce7dcbea9d",
+      "height": 4520981,
+      "lock_time": 1792470651,
+      "transparent_input_zatoshi": 20000,
+      "transparent_change_zatoshi": 15000,
+      "expiry_height": 0,
+      "recipient_decrypted_zatoshi": 100000,
+      "explorer": "https://testnet.zecblock.com/tx/86e90e1638f76e5162dfa566e48d610761dacac9874d2448a1872cce7dcbea9d"
+    }
+  ],
+  "setup_transfer": {
+    "step": "Funding transfer, not part of the protocol: Bob to Alice 0.001 ETH so Alice holds her claim reserve",
+    "chain": "sepolia",
+    "txid": "0x49db115f9a201e65fcead7aed93755c401a05018b1425bd0424ffe9e92f5aa46",
+    "block": 11944040,
+    "gas_used": 204600,
+    "explorer": "https://sepolia.etherscan.io/tx/0x49db115f9a201e65fcead7aed93755c401a05018b1425bd0424ffe9e92f5aa46"
+  },
+  "final_checks": {
+    "eth_order": "refunded and withdrawn; lock, refund and withdrawal receipts provider-finalized with their expected escrow events",
+    "bob_withdrawal_verified": true,
+    "alice_claim_history": "never prepared or sent; local_claim_may_be_exposed false throughout",
+    "native_refund": "R confirmed by the provider (17 confirmations at the first reconcile); its observed bytes match the staged version 2601b5627e2c282ef7f0e13c38d195e830f0705302bd9aea67b895315d0c0fc9",
+    "alice_wallet": "Alice's own native wallet decrypted the 100,000-zatoshi refund note at height 4520981"
+  },
+  "commands": [
+    "python3 scripts/public_launch.py owners .local/public-launch-003 --zec-amount 0.001 --eth-amount 0.001",
+    "python3 scripts/public_launch.py prepare .local/public-launch-003 --eth-rpc https://sepolia.gateway.tenderly.co --gas-cap-wei 100000000",
+    "python3 scripts/public_source_execute.py ALICE SOURCE CONSENTS --eth-rpc RPC --broadcast-testnet",
+    "python3 scripts/public_eth_execute.py BOB CONSENTS lock --eth-rpc RPC --broadcast-testnet",
+    "python3 scripts/public_eth_outgoing.py prepare BOB CONSENTS --action refund --eth-rpc RPC  (after the finalized block passed eth_expiry)",
+    "python3 scripts/public_eth_execute.py BOB CONSENTS refund --eth-rpc RPC --broadcast-testnet",
+    "python3 scripts/public_eth_execute.py BOB CONSENTS withdraw --eth-rpc RPC --broadcast-testnet",
+    "python3 scripts/public_auxiliary_execute.py ALICE SOURCE CONSENTS --eth-rpc RPC --broadcast-testnet",
+    "python3 scripts/public_launch.py native-exit .local/public-launch-003 --role alice",
+    "python3 scripts/public_native_execute.py ALICE 2601b5627e2c282ef7f0e13c38d195e830f0705302bd9aea67b895315d0c0fc9 CONSENTS --watch-wallet ALICE-WATCH --eth-rpc RPC --broadcast-testnet"
+  ],
+  "operational_notes": [
+    "The escrow deployment of 2026-10-18 was reused by copying its retained deployment record; public_deploy reported it finalized and sent nothing.",
+    "Bob's refund preparation refused until the provider-finalized block passed the ETH deadline (about 20 minutes after expiry), as the sender requires.",
+    "A first refund check created an empty action folder before any decision existed; it held no decision or signature and was removed before preparing again.",
+    "The native refund check refused twice because a new block arrived between the watch-wallet sync and the tip check; syncing immediately before the check resolved it.",
+    "The funding transfer's first send through Python urllib returned HTTP 403; the same signed bytes were resent with curl."
+  ],
+  "limits": [
+    "Both owners ran on one host and OS account; not independent administration.",
+    "Trusted RPC providers (Tenderly, publicnode, testnet.zec.rocks); provider finality labels are not local consensus verification.",
+    "Public Zcash hashes do not prove the private amounts to a third party; the 100,000-zatoshi figure comes from Alice's own wallet decryption."
+  ],
+  "private_material_committed": false
+}

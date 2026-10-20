@@ -20,7 +20,7 @@ function el(tag, className, text) {
 
 function render() {
   $('#network-dot').className = state ? 'online' : 'offline';
-  $('#network-status').textContent = state ? `ZEC #${state.zcash.height} · ETH block ${state.ethereum.block}` : 'Network page offline';
+  $('#network-status').textContent = state ? `Regtest #${state.zcash.height} · Anvil block ${state.ethereum.block}` : 'Network page offline';
   if (!state) return;
   update($('#apps'), JSON.stringify(state.apps), () => Object.entries(state.apps).map(([role, app]) => {
     const card = el('div', 'n-app');

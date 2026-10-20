@@ -41,7 +41,9 @@ final consent. See [OTC offers](otc-offers.md). New browser runs use the same
 canonical quote and acceptance, exact decimal amounts and full funding consent.
 Actual browser settlement and refund remain isolated-chain demonstrations.
 The public command integration and funding checklist are in
-[public execution](public-execution.md); no funded public swap is claimed.
+[public execution](public-execution.md); one funded success-path swap ran on the
+public testnets on 2026-10-18 ([record](../evidence/2026-10-18-public-testnet-swap.json)),
+and one funded no-reveal refund on 2026-10-20 ([record](../evidence/2026-10-20-public-testnet-refund.json)).
 
 The public preparation path now has a separate [owner setup](public-owner-setup.md)
 CLI. Independently pinned identity keys sign an exact public-profile quote,
@@ -75,7 +77,8 @@ checks its current index/origin/confirmations without source-wallet key access.
 Funding preflight additionally binds the reserved note/nullifier/FVK/anchor to
 the private unsigned F, synchronizes the source under its wallet lock and
 rechecks the same unspent note and canonical old/current trees. This has real
-isolated-history component tests but no funded public positive run. Portable
+isolated-history component tests, and the 2026-10-18 funded public run passed
+through it. Portable
 watch-only recovery now connects compact note/witness acquisition to private
 native reproof of the original C/R authorizations. The native proofs have been
 exercised with synthetic public-profile blocks and a retained real isolated
@@ -121,8 +124,8 @@ F replay keeps the same source/anchor/bytes and requires the original wallet.
 ETH actions sign at the agreed gas ceiling; no automatic fee/nonce replacement
 is performed. Actual cap-priced isolated ETH transactions and native proof,
 crash/lock checks pass. The funded public positive path ran once on 2026-10-18
-([record](../evidence/2026-10-18-public-testnet-swap.json)); the funded public
-refund path has not run. The private source signer is an offline native
+([record](../evidence/2026-10-18-public-testnet-swap.json)) and the funded public
+no-reveal refund ran once on 2026-10-20 ([record](../evidence/2026-10-20-public-testnet-refund.json)). The private source signer is an offline native
 primitive behind the live preflight wrapper, not an independent verifier of live
 chain observations. Default invocation checks only; sending needs the explicit
 testnet broadcast flag. See
@@ -235,7 +238,8 @@ destinations but has no adaptor presignatures, bundle receipts or final graph
 consents, and cannot authorize F.
 The separate private source-signing stage requires the completed exits and both
 conditional consents, as described above. Explicit senders enforce separate
-fresh checks, with funded public execution still untested. See
+fresh checks; the funded success path ran once on 2026-10-18 and the funded
+no-reveal refund once on 2026-10-20. See
 the exact preparation thresholds and evidence limits in
 [public-testnet.md](public-testnet.md).
 

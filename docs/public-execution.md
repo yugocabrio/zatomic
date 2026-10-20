@@ -2,8 +2,10 @@
 
 **The funded success path ran once on 2026-10-18**
 ([record](../evidence/2026-10-18-public-testnet-swap.json)): deployment, F, lock,
-claim, C and withdrawal, with the final `verify` passing. The public refund path
-has not run. The previous isolated release remains reproducible. This checklist connects the existing public owner, source,
+claim, C and withdrawal, with the final `verify` passing. **The funded no-reveal
+refund ran once on 2026-10-20** ([record](../evidence/2026-10-20-public-testnet-refund.json)): F, lock, Bob's
+refund and withdrawal, then Alice's A and time-locked R (see "If either
+participant stops" below; the steps there are the ones that ran). The previous isolated release remains reproducible. This checklist connects the existing public owner, source,
 observation, signing and recovery clients; none of the commands below silently
 substitutes a local chain or synthetic inputs. The convenience preparation
 runner controls two owners on one host, not independently administered hosts.

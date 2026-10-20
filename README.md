@@ -17,8 +17,9 @@ ETH stays on Ethereum; Zatomic exchanges ownership without minting wrapped asset
 The local demo runs **real Zebra NU7 and Anvil transactions**. It includes a
 successful exchange, interruption after secret reveal, and interruption before
 reveal. Recovery resumes from durable state; replay checks produce no second
-payment. This is a working isolated-chain prototype, not a public-testnet release
-or an audited protocol.
+payment. On the public testnets, one funded swap settled (2026-10-18) and one
+funded no-reveal trade refunded both sides (2026-10-20). This is a working
+prototype, not an audited protocol or a mainnet release.
 
 [Previous local-release walkthrough](docs/demo/latch-2min.mp4) — recorded before
 the browser OTC update and the rename from Latch; waits omitted. The user will
@@ -35,6 +36,12 @@ Alice's withdrawal. Bob's wallet decrypted his 0.001 ZEC; F and C have no
 transparent input or output, and the refund auxiliary was never broadcast.
 [Record with transaction links](evidence/2026-10-18-public-testnet-swap.json).
 Both owners ran on one host; observations trust public RPC providers.
+
+**Public testnet refund (2026-10-20):** a second funded trade where nobody
+revealed t: F, Bob's ETH lock, then after the ETH deadline Bob's refund and
+withdrawal, and after the later Zcash refund height Alice's auxiliary A and her
+time-locked refund R. Alice's own wallet decrypted her returned 0.001 ZEC; Bob
+withdrew exactly his 0.001 ETH. [Record with transaction links](evidence/2026-10-20-public-testnet-refund.json).
 The [execution checklist](docs/public-execution.md) connects deployment,
 owner preparation, both senders, monitoring and final verification.
 
@@ -66,8 +73,8 @@ feed or counterparty matching is implemented.
 A separate [read-only public-testnet wallet](docs/public-testnet.md) downloads
 Ironwood compact blocks, decrypts locally and resumes persisted note witnesses.
 Public synchronization has been exercised with an unfunded wallet. The public
-sender entry points ran the funded success path on 2026-10-18; the public
-refund path has not run.
+sender entry points ran the funded success path on 2026-10-18 and the funded
+no-reveal refund path on 2026-10-20 ([record](evidence/2026-10-20-public-testnet-refund.json)).
 
 **Live demo:** https://162-55-186-88.sslip.io (hosted on one server; regtest
 and a local Anvil, no real value; one visitor drives at a time).
@@ -154,6 +161,6 @@ receipt fields. HTTP is loopback-only, with host/origin/session checks and no
 filesystem browsing.
 
 Original code is MIT licensed; upstream components retain their licenses.
-Source repository: [yugocabrio/zeceth](https://github.com/yugocabrio/zeceth).
+Source repository: [yugocabrio/zatomic](https://github.com/yugocabrio/zatomic).
 The public testnet run used a test contract on Sepolia; no contest submission
 has been made.

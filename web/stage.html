@@ -9,7 +9,7 @@
 <body class="stage-body">
 <header class="stage-top">
   <a class="brand brand-small" href="/"><img src="/mark.svg" alt="" width="28" height="28"><span>Zatomic</span></a>
-  <p class="stage-claim">Native shielded ZEC ⇄ ETH. Two independent apps, no bridge, no custodian.</p>
+  <p class="stage-claim">Native shielded ZEC ⇄ ETH. Two separate apps, no bridge, no custodian.</p>
   <nav class="stage-links" aria-label="Pages"><a href="/">How it works</a><a href="/network">Behind the scenes</a></nav>
   <div class="network" role="status"><i id="network-dot" aria-hidden="true"></i><span id="network-status">Connecting…</span></div>
 </header>
@@ -34,7 +34,7 @@
     <p id="stage-clock" class="stage-clock" role="status" hidden></p>
     <div id="start" class="start" hidden>
       <p class="start-lead">Nothing has crossed between them yet. Pick what to see: each runs by itself, and both apps show every step.</p>
-      <button class="scenario" data-scenario="success"><span class="scenario-n">1</span><span class="scenario-text"><strong>The swap, start to finish</strong><span>Alice’s ZEC for Bob’s ETH. A few minutes, mostly proving.</span></span></button>
+      <button class="scenario" data-scenario="success"><span class="scenario-n">1</span><span class="scenario-text"><strong>The swap, start to finish</strong><span>Alice’s ZEC for Bob’s ETH. About two minutes here, mostly proving.</span></span></button>
       <button class="scenario" data-scenario="crash"><span class="scenario-n">2</span><span class="scenario-text"><strong>Bob’s app crashes mid-swap</strong><span>Killed right after Alice claims the ETH, then restarted. It finds t on Ethereum and still claims the ZEC.</span></span></button>
       <button class="scenario" data-scenario="refund"><span class="scenario-n">3</span><span class="scenario-text"><strong>Nobody reveals: both refund</strong><span>Alice never claims. Time passes; Bob takes back his ETH and Alice her ZEC.</span></span></button>
       <p class="start-note">Or press the highlighted button in each app yourself.</p>
@@ -67,7 +67,7 @@
   </section>
 </main>
 <footer class="stage-foot">
-  <span><span id="iso" class="stage-iso"></span> Local Zebra NU7 regtest and Anvil; the same flow settled on the public Zcash testnet and Sepolia on 2026-10-18.</span>
+  <span><span id="iso" class="stage-iso"></span> Private Zebra NU7 regtest and Anvil chains; the same flow settled on the public Zcash testnet and Sepolia on 2026-10-18.</span>
   <a href="/network" class="stage-link">Relay log and sandbox check</a>
 </footer>
 </body></html>

@@ -211,7 +211,7 @@ function render(state) {
   for (const [role, address] of Object.entries(state.owners)) names[address.toLowerCase()] = role === 'alice' ? 'Alice' : 'Bob';
   names.alice = 'Alice'; names.bob = 'Bob';
   $('#network-dot').className = 'online';
-  $('#network-status').textContent = `ZEC #${state.zcash_height}`;
+  $('#network-status').textContent = `Regtest #${state.zcash_height}`;
   const story = narrate(state.events);
   state.finished = story.done;
   const begun = state.events.some(e => e.chain === 'relay' && e.kind === 'sealed');

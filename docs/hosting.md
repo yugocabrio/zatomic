@@ -49,7 +49,7 @@ as well.
 
 ```sh
 ssh root@SERVER_IP
-git clone https://github.com/yugocabrio/zeceth /opt/latch
+git clone https://github.com/yugocabrio/zatomic /opt/latch
 LATCH_HOST=203-0-113-7.sslip.io bash /opt/latch/deploy/setup.sh
 ```
 

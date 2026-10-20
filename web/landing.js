@@ -6,7 +6,7 @@ async function poll() {
     const state = await (await fetch('/api/network', {cache: 'no-store'})).json();
     const running = Object.values(state.apps).every(a => a.running);
     dot.className = running ? 'online' : 'offline';
-    text.textContent = running ? `Live demo ready · ZEC #${state.zcash.height}` : 'Live demo restarting';
+    text.textContent = running ? `Live demo ready · regtest #${state.zcash.height}` : 'Live demo restarting';
   } catch {
     dot.className = 'offline';
     text.textContent = 'Live demo offline';
