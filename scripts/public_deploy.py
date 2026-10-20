@@ -13,6 +13,7 @@ import re
 import subprocess
 import time
 import uuid
+import escrow_abi
 import evm_wallet as wallet
 import probe_sepolia as rpcmod
 from public_agreement import validate_policy
@@ -25,10 +26,14 @@ from testnet_wallet import read
 
 # Simulated on current Sepolia rules: 5,090,645 gas (2026-10-18); was 735,311.
 GAS = 6_500_000
+# v2 deploys the escrow and its width-4 comb table in one CREATE; see
+# docs/escrow-v2-review.md for the measured Sepolia figure behind this limit.
+GAS_BY_VERSION = {1: GAS, 2: 8_500_000}
+ARTIFACT = {1: 'PointEscrow.sol/PointEscrow.json', 2: 'PointEscrowV2.sol/PointEscrowV2.json'}
 
 
-def specification(owner, gas_cap):
-    policy = validate_policy()
+def specification(owner, gas_cap, version=1):
+    policy = validate_policy(version)
     if type(gas_cap) is not int or not 0 < gas_cap <= policy['fee_policy']['max_gas_price_wei']:
         raise RuntimeError('unsupported deployment fee ceiling')
     identity = read(owner/'identity.json')
@@ -36,18 +41,23 @@ def specification(owner, gas_cap):
     sender = '0x'+wallet.keccak(public[1:])[-20:].hex()
     if len(public) != 65 or public[0] != 4 or identity['chain_id'] != rpcmod.CHAIN_ID or identity['address'] != sender:
         raise RuntimeError('dedicated Sepolia deployer identity required')
-    artifact = json.loads((ROOT/'.local/forge-out/PointEscrow.sol/PointEscrow.json').read_text())
+    artifact = json.loads((ROOT/'.local/forge-out'/ARTIFACT[version]).read_text())
     code = bytes.fromhex(artifact['bytecode']['object'].removeprefix('0x'))
     runtime = bytes.fromhex(artifact['deployedBytecode']['object'].removeprefix('0x'))
     for name, data in [('creation_code_hash', code), ('runtime_code_hash', runtime)]:
         if '0x'+wallet.keccak(data).hex() != policy['escrow'][name]:
             raise RuntimeError('compiled escrow differs from pinned code')
     address = '0x'+wallet.keccak(wallet.rlp([bytes.fromhex(sender[2:]), 0]))[-20:].hex()
-    return {'format': 'latch-sepolia-deployment-v1', 'chain_id': rpcmod.CHAIN_ID,
-        'genesis': rpcmod.GENESIS, 'sender': sender, 'nonce': 0, 'gas': GAS,
+    spec = {'format': 'latch-sepolia-deployment-v1', 'chain_id': rpcmod.CHAIN_ID,
+        'genesis': rpcmod.GENESIS, 'sender': sender, 'nonce': 0, 'gas': GAS_BY_VERSION[version],
         'gas_price_wei': gas_cap, 'value_wei': 0, 'contract': address,
         'creation_code_hash': policy['escrow']['creation_code_hash'],
-        'runtime_code_hash': policy['escrow']['runtime_code_hash']}, code
+        'runtime_code_hash': policy['escrow']['runtime_code_hash']}
+    if version == 2:
+        # v1 specs keep their exact original fields (retained intents compare equal).
+        spec.update(escrow_version=2, table_code_hash=policy['escrow']['table_code_hash'],
+            table=escrow_abi.table_address(address))
+    return spec, code
 
 
 def verify_raw(raw, spec, code):
@@ -102,6 +112,10 @@ def receipt(spec, code, txid, rpc, blocks):
             runtime = rpc('eth_getCode',[spec['contract'],tag])
             if not re.fullmatch(r'0x(?:[0-9a-f]{2}){1,24576}',runtime) or '0x'+wallet.keccak(bytes.fromhex(runtime[2:])).hex()!=spec['runtime_code_hash']:
                 raise RuntimeError('deployed runtime hash mismatch')
+            if spec.get('escrow_version') == 2:
+                table = rpc('eth_getCode',[spec['table'],tag])
+                if not re.fullmatch(r'0x(?:[0-9a-f]{2}){1,24576}',table) or '0x'+wallet.keccak(bytes.fromhex(table[2:])).hex()!=spec['table_code_hash']:
+                    raise RuntimeError('deployed comb table hash mismatch')
     if rpc('eth_getBlockByNumber',[hex(height),False]) != block:
         raise RuntimeError('deployment block changed')
     return {'state': ('finalized-by-provider' if height<=blocks['provider_finalized']['height'] else 'confirming') if status else 'reverted',
@@ -125,9 +139,9 @@ def fresh_unsigned(spec, rpc, blocks):
         raise RuntimeError('stale deployment context')
 
 
-def execute(owner, gas_cap, endpoint, broadcast=False):
+def execute(owner, gas_cap, endpoint, broadcast=False, version=1):
     with owner_locked(owner):
-        spec, code = specification(owner,gas_cap)
+        spec, code = specification(owner,gas_cap,version)
         folder=owner/'deployment'; private_directory(folder)
         if (folder/'intent.json').exists(): immutable(folder/'intent.json',spec)
         raw=None; txid=None
@@ -141,7 +155,7 @@ def execute(owner, gas_cap, endpoint, broadcast=False):
             publish(folder/('receipt-'+uuid.uuid4().hex+'.json'),observed)
             if observed['state'] != 'unobserved': return observed
         fresh_unsigned(spec,rpc,blocks)
-        result=dict(spec,state='ready-for-explicit-testnet-deployment',broadcast=False,required_balance_wei=GAS*gas_cap)
+        result=dict(spec,state='ready-for-explicit-testnet-deployment',broadcast=False,required_balance_wei=spec['gas']*gas_cap)
         if not broadcast: return result
         immutable(folder/'intent.json',spec) # Durable before signing, immutable on retry.
         if raw is None:
@@ -165,7 +179,8 @@ def main():
     p=argparse.ArgumentParser(description=__doc__); p.add_argument('owner',type=Path)
     p.add_argument('--eth-rpc',required=True); p.add_argument('--gas-cap-wei',type=int,default=100_000_000)
     p.add_argument('--broadcast-testnet',action='store_true')
-    a=p.parse_args(); result=execute(a.owner.resolve(),a.gas_cap_wei,a.eth_rpc,a.broadcast_testnet)
+    p.add_argument('--escrow-version',type=int,choices=(1,2),default=1)
+    a=p.parse_args(); result=execute(a.owner.resolve(),a.gas_cap_wei,a.eth_rpc,a.broadcast_testnet,a.escrow_version)
     print(json.dumps(result,indent=2))
     return 0 if result['state']=='finalized-by-provider' else 2
 

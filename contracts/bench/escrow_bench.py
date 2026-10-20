@@ -22,13 +22,17 @@ ROOT = HERE.parents[1]
 OUT = ROOT / '.local/forge-out'
 sys.path.insert(0, str(HERE.parent / 'tools'))
 from gen_comb_tables import Q, mul  # noqa: E402
+sys.path.insert(0, str(ROOT / 'scripts'))
+import escrow_abi  # noqa: E402
 
 AMOUNT = 10**15
 LOCK = 'lock(bytes32,address,uint64,(uint256,uint256),bytes32)'
 ORDER = '(address,address,uint256,uint64,(uint256,uint256),bytes32)'
 ARTIFACT = {'shipped': 'PointEscrow.sol/PointEscrow.json', 'fast': 'PointEscrowFast.sol/PointEscrowFast.json',
-            'hashed': 'HashedPointEscrow.sol/HashedPointEscrow.json'}
-MAIN = [('shipped', None), ('fast', 8), ('hashed', 8)]
+            'hashed': 'HashedPointEscrow.sol/HashedPointEscrow.json', 'v2': 'PointEscrowV2.sol/PointEscrowV2.json'}
+# v2 = contracts/src/PointEscrowV2.sol: width-4 table created by its constructor,
+# one-slot order, per-order withdrawal (no new credit slot on claim or refund).
+MAIN = [('shipped', None), ('fast', 8), ('hashed', 8), ('v2', None)]
 SWEEP = [(name, t) for t in range(4, 8) for name in ('fast', 'hashed')]
 REFUND_SCALARS = ('worst_case_2^254-1', 'random_0')
 SWEEP_SCALARS = ('worst_case_2^254-1', 'random_0', 'random_1')
@@ -72,6 +76,15 @@ def order_id(chain_id, escrow, maker, salt):
 def swap_calldata(name, oid, maker, recipient, k, refund_at, salt, terms):
     """Calldata for lock, claim, refund and withdraw(to) of one order."""
     x, y = mul(k)
+    if name == 'v2':
+        words = escrow_abi.order(maker, recipient, AMOUNT, refund_at, x, y, terms)
+        return {
+            'lock': cast('calldata', LOCK, salt, recipient, refund_at, f'({x},{y})', terms),
+            'claim': escrow_abi.calldata(2, 'claim', oid, words, witness=k),
+            'refund': escrow_abi.calldata(2, 'refund', oid, words),
+            'withdraw_recipient': escrow_abi.calldata(2, 'withdraw', oid, words, to=recipient),
+            'withdraw_maker': escrow_abi.calldata(2, 'withdraw', oid, words, to=maker),
+        }
     order = f'({maker},{recipient},{AMOUNT},{refund_at},({x},{y}),{terms})'
     hashed = name == 'hashed'
     return {

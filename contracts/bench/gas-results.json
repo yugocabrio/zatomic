@@ -71,7 +71,7 @@
    "refund_path": 269021
   },
   "hashed_t8": {
-   "deploy_escrow": 818179,
+   "deploy_escrow": 818191,
    "lock": [
     51047,
     51071
@@ -96,6 +96,31 @@
    ],
    "refund_path": 135834
   },
+  "v2": {
+   "deploy_escrow": 1026250,
+   "lock": [
+    51090,
+    51114
+   ],
+   "claim_random_median": 105076,
+   "claim_random_range": [
+    102225,
+    106583
+   ],
+   "claim_worst_case_2^254-1": 107905,
+   "random_scalars": 8,
+   "withdraw": [
+    40026,
+    40074
+   ],
+   "swap_random_median": 196264,
+   "swap_worst_case": 199093,
+   "refund": [
+    31769,
+    31769
+   ],
+   "refund_path": 122957
+  },
   "fast_t4": {
    "deploy_escrow": 779877,
    "lock": [
@@ -107,7 +132,7 @@
     129385,
     133100
    ],
-   "claim_worst_case_2^254-1": 135128,
+   "claim_worst_case_2^254-1": 135116,
    "random_scalars": 2,
    "withdraw": [
     30710,
@@ -115,10 +140,10 @@
    ],
    "deploy_table": 263688,
    "swap_random_median": 345646,
-   "swap_worst_case": 349532
+   "swap_worst_case": 349520
   },
   "hashed_t4": {
-   "deploy_escrow": 816888,
+   "deploy_escrow": 816900,
    "lock": [
     51059,
     51071
@@ -160,15 +185,15 @@
    "swap_worst_case": 334790
   },
   "hashed_t5": {
-   "deploy_escrow": 817215,
+   "deploy_escrow": 817227,
    "lock": [
     51059,
     51071
    ],
-   "claim_random_median": 114508,
+   "claim_random_median": 114502,
    "claim_random_range": [
     114502,
-    114514
+    114502
    ],
    "claim_worst_case_2^254-1": 115181,
    "random_scalars": 2,
@@ -177,19 +202,19 @@
     30754
    ],
    "deploy_table": 487837,
-   "swap_random_median": 196333,
+   "swap_random_median": 196327,
    "swap_worst_case": 197006
   },
   "fast_t6": {
    "deploy_escrow": 780531,
    "lock": [
-    183694,
+    183682,
     183694
    ],
-   "claim_random_median": 110288,
+   "claim_random_median": 110294,
    "claim_random_range": [
     109962,
-    110614
+    110626
    ],
    "claim_worst_case_2^254-1": 111314,
    "random_scalars": 2,
@@ -198,13 +223,13 @@
     30710
    ],
    "deploy_table": 936058,
-   "swap_random_median": 324692,
+   "swap_random_median": 324698,
    "swap_worst_case": 325718
   },
   "hashed_t6": {
-   "deploy_escrow": 817542,
+   "deploy_escrow": 817554,
    "lock": [
-    51059,
+    51071,
     51071
    ],
    "claim_random_median": 105174,
@@ -212,7 +237,7 @@
     104847,
     105502
    ],
-   "claim_worst_case_2^254-1": 106169,
+   "claim_worst_case_2^254-1": 106181,
    "random_scalars": 2,
    "withdraw": [
     30754,
@@ -220,7 +245,7 @@
    ],
    "deploy_table": 936058,
    "swap_random_median": 186999,
-   "swap_worst_case": 187994
+   "swap_worst_case": 188006
   },
   "fast_t7": {
    "deploy_escrow": 780858,
@@ -244,25 +269,25 @@
    "swap_worst_case": 318914
   },
   "hashed_t7": {
-   "deploy_escrow": 817869,
+   "deploy_escrow": 817881,
    "lock": [
-    51059,
+    51047,
     51071
    ],
-   "claim_random_median": 99419,
+   "claim_random_median": 99425,
    "claim_random_range": [
-    99407,
+    99419,
     99431
    ],
-   "claim_worst_case_2^254-1": 99431,
+   "claim_worst_case_2^254-1": 99419,
    "random_scalars": 2,
    "withdraw": [
     30754,
     30754
    ],
    "deploy_table": 1832512,
-   "swap_random_median": 181244,
-   "swap_worst_case": 181256
+   "swap_random_median": 181250,
+   "swap_worst_case": 181244
   }
  },
  "raw": {
@@ -380,7 +405,7 @@
   },
   "hashed_t8": {
    "deploy_escrow": [
-    818179
+    818191
    ],
    "deploy_table": [
     3625780
@@ -435,6 +460,61 @@
     30766
    ]
   },
+  "v2": {
+   "deploy_escrow": [
+    1026250
+   ],
+   "deploy_table": [],
+   "lock": [
+    51102,
+    51114,
+    51114,
+    51102,
+    51114,
+    51114,
+    51102,
+    51114,
+    51114,
+    51114,
+    51102,
+    51090,
+    51114
+   ],
+   "claim": {
+    "worst_case_2^254-1": 107905,
+    "q_minus_1": 89680,
+    "one": 44545,
+    "random_0": 105916,
+    "random_1": 102225,
+    "random_2": 106583,
+    "random_3": 104916,
+    "random_4": 105237,
+    "random_5": 104570,
+    "random_6": 105237,
+    "random_7": 104558
+   },
+   "withdraw": [
+    40026,
+    40038,
+    40038,
+    40038,
+    40026,
+    40038,
+    40038,
+    40026,
+    40026,
+    40026,
+    40026
+   ],
+   "refund": [
+    31769,
+    31769
+   ],
+   "refund_withdraw": [
+    40074,
+    40074
+   ]
+  },
   "fast_t4": {
    "deploy_escrow": [
     779877
@@ -443,12 +523,12 @@
     263688
    ],
    "lock": [
-    183682,
     183694,
-    183694
+    183694,
+    183682
    ],
    "claim": {
-    "worst_case_2^254-1": 135128,
+    "worst_case_2^254-1": 135116,
     "random_0": 133100,
     "random_1": 129385
    },
@@ -462,15 +542,15 @@
   },
   "hashed_t4": {
    "deploy_escrow": [
-    816888
+    816900
    ],
    "deploy_table": [
     263688
    ],
    "lock": [
-    51059,
     51071,
-    51071
+    51071,
+    51059
    ],
    "claim": {
     "worst_case_2^254-1": 129806,
@@ -493,9 +573,9 @@
     487837
    ],
    "lock": [
-    183682,
     183694,
-    183694
+    183694,
+    183682
    ],
    "claim": {
     "worst_case_2^254-1": 120386,
@@ -512,19 +592,19 @@
   },
   "hashed_t5": {
    "deploy_escrow": [
-    817215
+    817227
    ],
    "deploy_table": [
     487837
    ],
    "lock": [
     51071,
-    51071,
-    51059
+    51059,
+    51071
    ],
    "claim": {
     "worst_case_2^254-1": 115181,
-    "random_0": 114514,
+    "random_0": 114502,
     "random_1": 114502
    },
    "withdraw": [
@@ -543,14 +623,14 @@
     936058
    ],
    "lock": [
+    183682,
     183694,
-    183694,
-    183694
+    183682
    ],
    "claim": {
     "worst_case_2^254-1": 111314,
     "random_0": 109962,
-    "random_1": 110614
+    "random_1": 110626
    },
    "withdraw": [
     30710,
@@ -562,18 +642,18 @@
   },
   "hashed_t6": {
    "deploy_escrow": [
-    817542
+    817554
    ],
    "deploy_table": [
     936058
    ],
    "lock": [
-    51059,
+    51071,
     51071,
     51071
    ],
    "claim": {
-    "worst_case_2^254-1": 106169,
+    "worst_case_2^254-1": 106181,
     "random_0": 104847,
     "random_1": 105502
    },
@@ -593,9 +673,9 @@
     1832512
    ],
    "lock": [
-    183682,
     183694,
-    183694
+    183694,
+    183682
    ],
    "claim": {
     "worst_case_2^254-1": 104510,
@@ -612,20 +692,20 @@
   },
   "hashed_t7": {
    "deploy_escrow": [
-    817869
+    817881
    ],
    "deploy_table": [
     1832512
    ],
    "lock": [
-    51059,
+    51047,
     51071,
-    51059
+    51071
    ],
    "claim": {
-    "worst_case_2^254-1": 99431,
+    "worst_case_2^254-1": 99419,
     "random_0": 99431,
-    "random_1": 99407
+    "random_1": 99419
    },
    "withdraw": [
     30754,

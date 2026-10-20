@@ -13,6 +13,8 @@ from pathlib import Path
 import re
 import subprocess
 import uuid
+import claim_precheck
+import escrow_abi
 import evm_wallet
 import fee_policy
 import public_authority as authority
@@ -96,11 +98,13 @@ def require_no_local_claim(owner, files, checked):
 
 
 def prefix(agreement, kind, role=None):
-    if kind == 'claim': return opening.CLAIM_SELECTOR + eth.order_id(agreement)[2:]
-    if kind == 'refund': return '0x'+evm_wallet.keccak(b'refund(bytes32)')[:4].hex()+eth.order_id(agreement)[2:]
+    v = escrow_abi.version(agreement)
+    order = eth.public_order(agreement) if v == 2 else None
+    if kind == 'claim': return eth.claim_prefix(agreement)
+    if kind == 'refund': return escrow_abi.calldata(v, 'refund', eth.order_id(agreement), order)
     if kind == 'withdraw':
         address = agreement['owners'][action_role(kind, role)]['address']
-        return '0x'+evm_wallet.keccak(b'withdraw(address)')[:4].hex()+eth.data(address, 20).hex().rjust(64, '0')
+        return escrow_abi.calldata(v, 'withdraw', eth.order_id(agreement), order, to=address)
     if kind != 'lock': raise RuntimeError('unsupported public ETH action')
     selector = evm_wallet.keccak(b'lock(bytes32,address,uint64,(uint256,uint256),bytes32)')[:4].hex()
     return '0x'+selector+agreement['escrow']['salt'][2:]+agreement['recipient'][2:].rjust(64, '0')+''.join(
@@ -219,7 +223,12 @@ def finish(owner, directory, binding, files, checked, kind, inspect=False):
             # fail or be killed; that never resets local exposure history.
             witness = read(owner/'setup-round1.json')['witness_le']
             check_opening(action, files, checked, witness)
-            payload += int.from_bytes(bytes.fromhex(witness), 'little').to_bytes(32, 'big').hex()
+            scalar = int.from_bytes(bytes.fromhex(witness), 'little')
+            if escrow_abi.version(agreement) == 2:
+                # The pinned v2 bytecode must accept t on a private throwaway
+                # node before any signature exists; no provider sees t here.
+                claim_precheck.verify(2, scalar, agreement['point_x'], agreement['point_y'])
+            payload += scalar.to_bytes(32, 'big').hex()
         raw = sign(owner, dict(value['transaction_base'], data=payload))
         verify_raw(action, value, files, checked, raw)
         outgoing.publish_raw(path, raw)

@@ -7,6 +7,18 @@ use std::{fs::OpenOptions, os::unix::fs::OpenOptionsExt, path::Path};
 
 const DOMAIN: &[u8] = b"Latch public cross-chain conditional consent v1\0";
 const POLICY: &str = include_str!("../../../config/public-agreement-policy-v1.json");
+/// PointEscrowV2 (one-slot order commitment, width-4 comb verifier). A v2
+/// agreement carries `escrow_version: 2`; a v1 agreement has no such field and
+/// keeps its exact original bytes.
+const POLICY_V2: &str = include_str!("../../../config/public-agreement-policy-v2.json");
+
+fn escrow_policy(version: u64) -> Result<Value> {
+    match version {
+        1 => Ok(serde_json::from_str(POLICY)?),
+        2 => Ok(serde_json::from_str(POLICY_V2)?),
+        _ => Err("unsupported escrow version".into()),
+    }
+}
 
 fn u32_value(v: &Value, key: &str) -> Result<u64> {
     v[key]
@@ -91,11 +103,17 @@ fn validate_plan(plan: &Value, policy: &Value) -> Result<()> {
     Ok(())
 }
 
-fn agreement(bundle: &Value, receipts: &Value, contract: &str, salt: &str) -> Result<Value> {
+fn agreement(
+    bundle: &Value,
+    receipts: &Value,
+    contract: &str,
+    salt: &str,
+    version: u64,
+) -> Result<Value> {
     hex_field(contract, 20)?;
     hex_field(salt, 32)?;
     let checked = public_recovery::check_receipts(bundle, receipts)?;
-    let policy: Value = serde_json::from_str(POLICY)?;
+    let policy = escrow_policy(version)?;
     let packet = &bundle["review"];
     let plan = &packet["plan"];
     validate_plan(plan, &policy)?;
@@ -120,7 +138,7 @@ fn agreement(bundle: &Value, receipts: &Value, contract: &str, salt: &str) -> Re
     {
         return Err("funding fee differs from fixed public profile".into());
     }
-    Ok(
+    let mut value =
         json!({"format":"latch-public-cross-chain-agreement-v1","policy_digest":hash(&policy)?,
         "native_genesis":packet["graph"]["native_genesis"],"native_branch":packet["graph"]["native_branch"],
         "eth_chain_id":policy["escrow"]["chain_id"],"eth_genesis":policy["escrow"]["genesis"],
@@ -137,8 +155,12 @@ fn agreement(bundle: &Value, receipts: &Value, contract: &str, salt: &str) -> Re
         "amount_wei":quote["eth_amount_wei"],"point_x":setup["point_x"],"point_y":setup["point_y"],
         "eth_expiry":plan["eth_expiry"],"fee_policy":plan["fee_policy"],"observation_policy":policy["observation_policy"],
         "synthetic_inputs":bundle["synthetic_inputs"],"release_requires_live_checks":true,
-        "scope":"offline conditional agreement; no deployment, chain observation or transaction release"}),
-    )
+        "scope":"offline conditional agreement; no deployment, chain observation or transaction release"});
+    if version == 2 {
+        value["escrow_version"] = json!(2);
+        value["escrow"]["table_code_hash"] = policy["escrow"]["table_code_hash"].clone();
+    }
+    Ok(value)
 }
 
 pub fn stage(
@@ -147,10 +169,11 @@ pub fn stage(
     contract: &str,
     salt: &str,
     output: &Path,
+    version: u64,
 ) -> Result<Value> {
     let bundle = storage::json(bundle)?;
     let receipts = storage::json(receipts)?;
-    let agreement = agreement(&bundle, &receipts, contract, salt)?;
+    let agreement = agreement(&bundle, &receipts, contract, salt, version)?;
     let proposal = json!({"format":"latch-public-consent-proposal-v1","agreement":agreement,"receipts":receipts});
     immutable(output, &proposal)?;
     Ok(
@@ -159,8 +182,21 @@ pub fn stage(
     )
 }
 
+/// Absent means v1, whose agreements keep their exact original bytes; an
+/// explicit field must be exactly the integer 2.
+fn agreement_version(actual: &Value) -> Result<u64> {
+    match actual.get("escrow_version") {
+        None => Ok(1),
+        Some(v) => v
+            .as_u64()
+            .filter(|n| *n == 2)
+            .ok_or_else(|| "unsupported escrow version".into()),
+    }
+}
+
 fn validate(bundle: &Value, proposal: &Value) -> Result<Value> {
     let actual = &proposal["agreement"];
+    let version = agreement_version(actual)?;
     let expected = agreement(
         bundle,
         &proposal["receipts"],
@@ -168,6 +204,7 @@ fn validate(bundle: &Value, proposal: &Value) -> Result<Value> {
             .as_str()
             .ok_or("escrow contract")?,
         actual["escrow"]["salt"].as_str().ok_or("escrow salt")?,
+        version,
     )?;
     if proposal.as_object().is_none_or(|o| o.len() != 3)
         || proposal["format"] != "latch-public-consent-proposal-v1"
@@ -285,4 +322,36 @@ pub fn verify(bundle: &Path, proposal: &Path, consents: &Path) -> Result<Value> 
         "synthetic_inputs":agreement["synthetic_inputs"],"live_observations_checked":false,
         "release_requires_live_checks":true,"funding_authorized":false,"broadcast":false}),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn escrow_versions_parse_strictly() {
+        assert_eq!(agreement_version(&json!({})).unwrap(), 1);
+        assert_eq!(agreement_version(&json!({"escrow_version": 2})).unwrap(), 2);
+        for bad in [json!(1), json!(3), json!("2"), json!(2.0), json!(null), json!(-2)] {
+            assert!(agreement_version(&json!({ "escrow_version": bad })).is_err());
+        }
+    }
+
+    #[test]
+    fn both_policies_share_profiles_and_pin_distinct_escrows() {
+        let v1 = escrow_policy(1).unwrap();
+        let v2 = escrow_policy(2).unwrap();
+        assert!(escrow_policy(3).is_err());
+        for key in ["timestamp_policy", "fee_policy", "observation_policy"] {
+            assert_eq!(v1[key], v2[key]);
+        }
+        assert_eq!(v2["escrow"]["version"], 2);
+        assert_eq!(v1["escrow"]["chain_id"], v2["escrow"]["chain_id"]);
+        assert_ne!(
+            v1["escrow"]["runtime_code_hash"],
+            v2["escrow"]["runtime_code_hash"]
+        );
+        assert!(v2["escrow"]["table_code_hash"].as_str().unwrap().len() == 66);
+        assert!(v1["escrow"].get("table_code_hash").is_none());
+    }
 }

@@ -15,12 +15,15 @@ import re
 import subprocess
 import sys
 import run_native_evm_gate as evm
+import claim_precheck
+import escrow_abi
 import evm_wallet
 import fee_policy
 import native_funding
 import native_owner
 from recover_regtest_swap import auxiliary_depth, native_exit
-from evm_journal import InjectedStop, validate_intent, verify_contract, order_state, require_reveal_window, receipt
+from evm_journal import (InjectedStop, validate_intent, verify_contract, order_state, order_slot, local_order,
+    require_reveal_window, receipt)
 from regtest_node import rpc as zrpc, status
 from regtest_wallet import save, capture, native
 from signer_transport import private_file
@@ -93,6 +96,7 @@ def validate_agreement(directory, agreement, initial=False, prefunding=False, mi
         raise RuntimeError('full agreement differs from locally accepted OTC quote')
     native_funding.controlled_refund_height(terms)
     fee_policy.policy(agreement)
+    escrow_abi.version(agreement)
     own_field = 'recipient' if identity['role'] == 'alice' else 'maker'
     if agreement[own_field].lower() != identity['address']:
         raise RuntimeError('owner ETH address changed')
@@ -202,7 +206,12 @@ def settled(directory, agreement, order, action, previous, role):
     return result
 
 
-def withdrawal_attempts(directory, agreement, address):
+def withdraw_calldata(agreement, terms, order, address):
+    v = escrow_abi.version(agreement)
+    return escrow_abi.calldata(v, 'withdraw', order, local_order(agreement, terms) if v == 2 else None, to=address)
+
+
+def withdrawal_attempts(directory, agreement, terms, order, address):
     """Validate every immutable withdrawal version before trusting any receipt."""
     original = directory/'eth-intent-withdraw.json'
     folder = directory/'eth-withdraw-attempts'
@@ -217,7 +226,7 @@ def withdrawal_attempts(directory, agreement, address):
         if current.get('withdrawal_predecessor') != attempts[-1]['txid']:
             raise RuntimeError('withdrawal history predecessor changed')
         attempts.append(current)
-    expected = evm.calldata('withdraw(address)',address)
+    expected = withdraw_calldata(agreement, terms, order, address)
     nonces = set()
     for attempt in attempts:
         tx = validate_intent(attempt)
@@ -231,21 +240,18 @@ def withdrawal_attempts(directory, agreement, address):
     return attempts
 
 
-def withdraw(directory, agreement, identity, order, state, fault_after_send):
+def withdraw(directory, agreement, terms, identity, order, state, fault_after_send):
     address,role = identity['address'],identity['role']
     if state != (2 if role=='alice' else 3):
         raise RuntimeError('owner withdrawal requires the agreed settlement')
-    attempts = withdrawal_attempts(directory,agreement,address)
+    v = escrow_abi.version(agreement)
+    attempts = withdrawal_attempts(directory,agreement,terms,order,address)
     successes = []
-    topic = '0x'+evm_wallet.keccak(b'Withdrawn(address,address,uint256)').hex()
-    address_topic = '0x'+address[2:].rjust(64,'0')
     for attempt in attempts:
         observed = observe_receipt(directory,attempt,allow_reverted=True)
         if observed and observed['status']=='0x1':
-            events = [log for log in observed['logs']
-                if log['address'].lower()==agreement['contract'].lower()
-                and log['topics']==[topic,address_topic,address_topic]
-                and int(log['data'],16)==agreement['amount_wei']]
+            events = [log for log in observed['logs'] if escrow_abi.withdrawn_event(v, log,
+                agreement['contract'], order, address, address, agreement['amount_wei'])]
             if len(events)!=1:
                 raise RuntimeError('withdrawal receipt does not pay the exact fixed owner')
             successes.append(attempt)
@@ -254,9 +260,14 @@ def withdraw(directory, agreement, identity, order, state, fault_after_send):
     if successes:
         return {'role':role,'action':'withdraw','txid':successes[0]['txid'],'order':order,
             'new_transaction':False,'locally_signed':True}
-    credit = int(evm.rpc('eth_call',[{'to':agreement['contract'],
-        'data':evm.calldata('credits(address)',address)},'latest']),16)
-    if credit != agreement['amount_wei']:
+    if v == 1:
+        credit = int(evm.rpc('eth_call',[{'to':agreement['contract'],
+            'data':evm.calldata('credits(address)',address)},'latest']),16)
+        if credit != agreement['amount_wei']:
+            raise RuntimeError('owner has no exact agreed ETH credit')
+    elif order_slot(agreement, terms, order) != (state, False):
+        # v2 credits the order itself; PAID without a validated receipt above
+        # means an unknown withdrawal, so refuse rather than guess.
         raise RuntimeError('owner has no exact agreed ETH credit')
     current = int(evm.rpc('eth_getTransactionCount',[address,'latest']),16)
     pending_nonce = int(evm.rpc('eth_getTransactionCount',[address,'pending']),16)
@@ -274,7 +285,7 @@ def withdraw(directory, agreement, identity, order, state, fault_after_send):
             raise RuntimeError('withdrawal nonce changed during fee checks')
         tx = {'from':address,'to':agreement['contract'],'gas':hex(budget['gas']),
             'gasPrice':budget['gas_price'],'nonce':budget['nonce'],'value':'0x0',
-            'data':evm.calldata('withdraw(address)',address)}
+            'data':withdraw_calldata(agreement, terms, order, address)}
         intent = evm_wallet.sign(directory/'ethereum',tx,'withdraw')
         validate_intent(intent)
         if attempts:
@@ -404,7 +415,7 @@ def execute(directory, action, request, fault_after_send=False):
         order = request.get('order')
         state = pin_order(directory, agreement, terms, order)
     if action=='withdraw':
-        return withdraw(directory,agreement,identity,order,state,fault_after_send)
+        return withdraw(directory,agreement,terms,identity,order,state,fault_after_send)
     # Existing intents are never replaced. Validate actual signed bytes and
     # current chain receipts before treating a repeated operation as complete.
     if previous:
@@ -449,12 +460,21 @@ def execute(directory, action, request, fault_after_send=False):
         # Only Alice's client reads her secret. Neither coordinator nor RPC
         # signer receives it before this client accepts the exact current state.
         secret = read(directory / 'native/witness.json')['witness_uint256']
-        data = evm.calldata('claim(bytes32,uint256)', order, secret)
+        v = escrow_abi.version(agreement)
+        if v == 2 and not previous:
+            # Before the first exposure only: the pinned bytecode must accept t
+            # on a private throwaway node, so a verifier rejection cannot
+            # publish t in a reverted claim. Never sent to the agreed chain.
+            claim_precheck.verify(2, secret, terms['point_x'], terms['point_y'])
+        data = escrow_abi.calldata(v, 'claim', order, local_order(agreement, terms) if v == 2 else None,
+            witness=secret)
         gas, value = fee_policy.policy(agreement)['gas_limits']['claim'], 0
     elif action == 'refund':
         if state != 1 or now < agreement['eth_expiry']:
             raise RuntimeError('ETH refund not available')
-        data, gas, value = evm.calldata('refund(bytes32)', order), fee_policy.policy(agreement)['gas_limits']['refund'], 0
+        v = escrow_abi.version(agreement)
+        data = escrow_abi.calldata(v, 'refund', order, local_order(agreement, terms) if v == 2 else None)
+        gas, value = fee_policy.policy(agreement)['gas_limits']['refund'], 0
     else:
         raise RuntimeError('unsupported owner operation')
     if previous:

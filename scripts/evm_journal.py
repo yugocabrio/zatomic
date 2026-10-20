@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import time
 import run_native_evm_gate as evm
+import escrow_abi
 from regtest_wallet import save
 from regtest_node import status
 
@@ -19,12 +20,7 @@ class InjectedStop(RuntimeError):
     pass
 
 
-METHODS = {
-    'lock': 'lock(bytes32,address,uint64,(uint256,uint256),bytes32)',
-    'claim': 'claim(bytes32,uint256)',
-    'refund': 'refund(bytes32)',
-    'withdraw': 'withdraw(address)',
-}
+METHODS = escrow_abi.SIGNATURES[1]  # v1 names; validate_intent accepts every version's shape.
 
 
 def validate_intent(intent):
@@ -54,13 +50,11 @@ def validate_intent(intent):
             raise RuntimeError('outgoing signed destination/data/sender differs from journal')
     kind = intent['kind']
     if kind == 'deploy':
-        artifact = json.loads((evm.ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json').read_text())
-        if actual.get('to') or actual['input'].removeprefix('0x') != artifact['bytecode']['object'].removeprefix('0x'):
+        if actual.get('to') or actual['input'] not in (escrow_abi.creation_code(v) for v in escrow_abi.VERSIONS):
             raise RuntimeError('outgoing deployment differs from pinned escrow')
     elif kind in METHODS:
-        selector = subprocess.check_output(['cast', 'sig', METHODS[kind]], text=True).strip()
-        words = 6 if kind == 'lock' else 2 if kind == 'claim' else 1
-        if actual['input'][:10] != selector or len(actual['input']) != 10 + 64 * words:
+        found = escrow_abi.shape(actual['input'])
+        if found is None or found[1] != kind:
             raise RuntimeError('outgoing kind differs from signed method')
     else:
         raise RuntimeError('unknown outgoing intent; refuse replay')
@@ -74,19 +68,41 @@ def require_reveal_window(agreement, terms):
 
 
 def verify_contract(agreement):
-    artifact = json.loads((evm.ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json').read_text())
-    code = evm.rpc('eth_getCode', [agreement['contract'], 'latest']).removeprefix('0x')
-    if code != artifact['deployedBytecode']['object'].removeprefix('0x'):
-        raise RuntimeError('restored contract code mismatch before any replay')
+    try:
+        escrow_abi.verify_code(agreement, lambda address: evm.rpc('eth_getCode', [address, 'latest']))
+    except RuntimeError:
+        raise RuntimeError('restored contract code mismatch before any replay') from None
+
+
+def terms_hash(agreement):
+    return '0x' + hashlib.sha256(json.dumps(agreement, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def local_order(agreement, terms):
+    """The agreed order exactly as lock() commits it (v2 claim/refund/withdraw carry it)."""
+    return escrow_abi.order(agreement['maker'], agreement['recipient'], agreement['amount_wei'],
+        agreement['eth_expiry'], terms['point_x'], terms['point_y'], terms_hash(agreement))
+
+
+def order_slot(agreement, terms, order):
+    """(state, paid) of the agreed order: 0 empty, 1 locked, 2 claimed, 3 refunded."""
+    encoded = evm.rpc('eth_call', [{'to': agreement['contract'], 'data': evm.calldata('orders(bytes32)', order)}, 'latest'])
+    if escrow_abi.version(agreement) == 2:
+        return escrow_abi.slot_state(2, encoded, local_order(agreement, terms))
+    words = [int(encoded[2+i:2+i+64], 16) for i in range(0, len(encoded)-2, 64)]
+    if len(words) == 8 and not any(words):
+        return 0, False
+    if len(words) != 8 or words[0] != int(agreement['maker'], 16) or words[1] != int(agreement['recipient'], 16) or words[2] != agreement['amount_wei'] or words[3] != agreement['eth_expiry'] or words[5] != int(terms['point_x'], 16) or words[6] != int(terms['point_y'], 16) or words[7] != int(terms_hash(agreement), 16):
+        raise RuntimeError('restored order differs from committed agreement')
+    return words[4], False
 
 
 def order_state(agreement, terms, order):
-    encoded = evm.rpc('eth_call', [{'to': agreement['contract'], 'data': evm.calldata('orders(bytes32)', order)}, 'latest'])
-    words = [int(encoded[2+i:2+i+64], 16) for i in range(0, len(encoded)-2, 64)]
-    commitment = hashlib.sha256(json.dumps(agreement, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-    if len(words) != 8 or words[0] != int(agreement['maker'], 16) or words[1] != int(agreement['recipient'], 16) or words[2] != agreement['amount_wei'] or words[3] != agreement['eth_expiry'] or words[5] != int(terms['point_x'], 16) or words[6] != int(terms['point_y'], 16) or words[7] != int(commitment, 16):
+    """State of an existing agreed order; an empty slot is rejected."""
+    state, _ = order_slot(agreement, terms, order)
+    if state == 0:
         raise RuntimeError('restored order differs from committed agreement')
-    return words[4]
+    return state
 
 
 def checkpoint(directory):
@@ -172,7 +188,7 @@ def replay(directory, agreement, terms):
         now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
         if intent['kind'] == 'claim':
             data = tx.get('data', '')
-            if tx.get('to', '').lower() != agreement['contract'].lower() or len(data) != 138:
+            if tx.get('to', '').lower() != agreement['contract'].lower() or escrow_abi.shape(data) != (escrow_abi.version(agreement), 'claim'):
                 raise RuntimeError('outgoing claim destination/encoding mismatch')
             state = order_state(agreement, terms, '0x' + data[10:74])
             if state == 2:

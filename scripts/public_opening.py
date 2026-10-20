@@ -32,14 +32,13 @@ def scalar(word):
 
 def from_transaction(agreement, txid, value):
     if value is None: return None
-    order = eth.order_id(agreement)
     if (not isinstance(value, dict) or value.get('hash') != txid
             or value.get('to') != agreement['escrow']['contract']
             or sepolia.quantity(value['chainId']) != agreement['eth_chain_id']
             or sepolia.quantity(value['value']) != 0):
         raise RuntimeError('observed claim transaction domain mismatch')
     payload = value['input']
-    if not isinstance(payload, str) or not re.fullmatch(CLAIM_SELECTOR + order[2:] + '[0-9a-f]{64}', payload):
+    if not isinstance(payload, str) or not re.fullmatch(re.escape(eth.claim_prefix(agreement)) + '[0-9a-f]{64}', payload):
         raise RuntimeError('exact agreed claim calldata required')
     # No success/receipt/block/finality condition: the bytes themselves expose t.
     return scalar('0x'+payload[-64:])

@@ -13,9 +13,10 @@ from pathlib import Path
 import owner_swap as flow
 import prefunding_swap
 import run_native_evm_gate as evm
+import escrow_abi
 from check_evm_reorg import digest, revert
 from check_native_reorg import wait
-from evm_journal import checkpoint
+from evm_journal import checkpoint, local_order
 from peer_workspace import sync
 from regtest_node import rpc, status, GENESIS, BRANCH
 from regtest_wallet import native, save
@@ -120,8 +121,10 @@ def check(directory, direct=False, orphan_source_tip=False):
                 evm.rpc('evm_mine')
                 checks.append(no_funding_mutation(directory, order, intent, exposure_digest, 'exposed_claim_expired'))
                 refund_relayer = evm.rpc('eth_accounts')[0]
+                v = escrow_abi.version(agreement)
                 refunded = evm.send({'from': refund_relayer, 'to': agreement['contract'],
-                    'data': evm.calldata('refund(bytes32)', order), 'gas': hex(200_000)})
+                    'data': escrow_abi.calldata(v, 'refund', order,
+                        local_order(agreement, agreement['native']) if v == 2 else None), 'gas': hex(200_000)})
                 if flow.order_state(agreement, agreement['native'], order) != 3:
                     raise RuntimeError('competing ETH refund did not settle')
                 refused = no_funding_mutation(directory, order, intent, exposure_digest, 'eth_refund_won')

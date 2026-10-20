@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import time
+import escrow_abi
 import fee_policy
 from evm_wallet import keccak
 import probe_sepolia as sepolia
@@ -31,6 +32,19 @@ def order_id(agreement):
         + data(agreement['escrow']['contract'], 20).rjust(32, b'\0')
         + data(agreement['maker'], 20).rjust(32, b'\0')
         + data(agreement['escrow']['salt'], 32)).hex()
+
+
+def public_order(agreement):
+    """abi.encode(Order) exactly as lock() commits it (v2 calls carry it)."""
+    return escrow_abi.order(agreement['maker'], agreement['recipient'], agreement['amount_wei'],
+        agreement['eth_expiry'], agreement['point_x'], agreement['point_y'], '0x'+digest(agreement))
+
+
+def claim_prefix(agreement):
+    """Exact claim calldata before the 32-byte witness, for the agreed version."""
+    v = escrow_abi.version(agreement)
+    return ('0x' + escrow_abi.selector(escrow_abi.SIGNATURES[v]['claim']) + order_id(agreement)[2:]
+            + (public_order(agreement) if v == 2 else ''))
 
 
 def expected_order(agreement):
@@ -57,6 +71,10 @@ def inspect_escrow(agreement, call, blocks, phase, record=None):
         code_hash = '0x' + keccak(bytes.fromhex(code[2:])).hex()
         if code_hash != agreement['escrow']['runtime_code_hash']:
             raise RuntimeError('escrow code differs from signed runtime hash')
+        if escrow_abi.version(agreement) == 2:
+            states[label] = inspect_v2(agreement, call, at, phase, target, identifier, code_hash, blocks[label])
+            if record is not None: record(label, states[label])
+            continue
         encoded = data(call('eth_call', [{'to': target, 'data': '0x9c3f1e90' + identifier[2:]}, at]), 256)
         words = [int.from_bytes(encoded[i:i+32], 'big') for i in range(0, 256, 32)]
         expected = expected_order(agreement) if phase in ('first_reveal', 'recovery') else [0]*8
@@ -73,7 +91,28 @@ def inspect_escrow(agreement, call, blocks, phase, record=None):
         final, latest = states['provider_finalized']['state'], states['latest']['state']
         if latest not in {0: (0, 1, 2, 3), 1: (1, 2, 3), 2: (2,), 3: (3,)}[final]:
             raise RuntimeError('escrow finalized/latest states contradict immutable lifecycle')
+        if states['provider_finalized'].get('paid') and not states['latest'].get('paid'):
+            raise RuntimeError('escrow finalized/latest states contradict immutable lifecycle')
     return {'order_id': identifier, 'states': states}
+
+
+def inspect_v2(agreement, call, at, phase, target, identifier, code_hash, block):
+    """One v2 slot: commitment(order) | state, and the escrow's own comb table."""
+    table = escrow_abi.table_address(target)
+    code = call('eth_getCode', [table, at])
+    if not isinstance(code, str) or not re.fullmatch(r'0x(?:[0-9a-f]{2}){1,24576}', code):
+        raise RuntimeError('comb table code absent or malformed at pinned block')
+    table_hash = '0x' + keccak(bytes.fromhex(code[2:])).hex()
+    if table_hash != agreement['escrow']['table_code_hash'] or table_hash != escrow_abi.table_codehash():
+        raise RuntimeError('comb table differs from signed code hash')
+    slot = '0x' + data(call('eth_call', [{'to': target, 'data': '0x9c3f1e90' + identifier[2:]}, at]), 32).hex()
+    state, paid = escrow_abi.slot_state(2, slot, public_order(agreement))
+    allowed = {'funding': ((0, False),), 'eth_lock': ((0, False),), 'first_reveal': ((1, False),),
+        'recovery': ((0, False), (1, False), (2, False), (3, False), (2, True), (3, True))}[phase]
+    if (state, paid) not in allowed:
+        raise RuntimeError('escrow order/state differs from signed phase conditions')
+    return {'block': block, 'runtime_code_hash': code_hash, 'table_code_hash': table_hash,
+        'state': state, 'paid': paid, 'exact_order_matched': True}
 
 
 def market_price(call, latest, p):
@@ -148,6 +187,16 @@ def recovery_action(agreement, call, blocks, escrow, role, action, now=None):
         raise RuntimeError('ETH refund timestamp not mature')
     address = agreement['owners'][role]['address']
     credits = {}
+    if escrow_abi.version(agreement) == 2:
+        # v2 credits the order itself: a terminal state without the PAID bit
+        # is exactly this order's unwithdrawn amount, never another order's.
+        if action == 'withdraw' and any(s['paid'] for s in escrow['states'].values()):
+            raise RuntimeError('exact dedicated owner credit required; reconcile prior withdrawal or other orders')
+        expected_credit = agreement['amount_wei'] if action == 'withdraw' else 0
+        credits = {label: expected_credit for label in ('provider_finalized', 'latest')}
+        return {'action': action, 'role': role, 'credit_wei': expected_credit, 'credits': credits,
+            'reserve': action_reserve(agreement, call, blocks['latest'], role, action),
+            'withdrawal_verified': False, 'send_authorized': False}
     for label in ('provider_finalized', 'latest'):
         at = {'blockHash': blocks[label]['hash'], 'requireCanonical': True}
         credits[label] = int.from_bytes(data(call('eth_call', [{'to': agreement['escrow']['contract'],

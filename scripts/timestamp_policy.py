@@ -6,6 +6,7 @@ connected to the current height-only sender. Never use first-reveal checks to
 erase exposure history or to authorize a no-reveal refund.
 """
 import copy
+import os
 from datetime import datetime
 import hashlib
 import json
@@ -24,6 +25,20 @@ POLICY = {'version': 1, 'profile': 'candidate-testnet-timestamp-v1',
     'eth_tip_max_age_seconds': 120, 'eth_expiry_after_creation_seconds': 21600,
     'funding_cutoff_before_expiry_seconds': 7200, 'reveal_cutoff_before_expiry_seconds': 3600,
     'native_refund_after_eth_expiry_seconds': 86400}
+# A shorter reviewed profile for public-testnet demonstrations: the same latency,
+# clock and reorg bounds, an ETH deadline 3 hours after creation and a native
+# refund 6 hours after that (slack about 73 minutes over the strict gap check).
+# Selected only by LATCH_TIMING_PROFILE=short; the default stays POLICY.
+SHORT = dict(POLICY, profile='candidate-testnet-timestamp-short-v1',
+    eth_expiry_after_creation_seconds=10800, native_refund_after_eth_expiry_seconds=21600)
+PROFILES = {POLICY['profile']: POLICY, SHORT['profile']: SHORT}
+
+
+def selected():
+    value = os.environ.get('LATCH_TIMING_PROFILE', 'default')
+    if value not in ('default', 'short'):
+        raise RuntimeError('LATCH_TIMING_PROFILE must be default or short')
+    return SHORT if value == 'short' else POLICY
 
 
 def uint(value):
@@ -42,13 +57,13 @@ def native_work(p):
         'native_inclusion_seconds', 'native_confirmation_seconds', 'native_reorg_recovery_seconds'))
 
 
-def build(now):
-    now = uint(now)
-    expiry = uint(now + POLICY['eth_expiry_after_creation_seconds'])
-    plan = {'policy': copy.deepcopy(POLICY), 'created_at': now, 'eth_expiry': expiry,
-        'fund_before': expiry-POLICY['funding_cutoff_before_expiry_seconds'],
-        'first_reveal_before': expiry-POLICY['reveal_cutoff_before_expiry_seconds'],
-        'native_refund_lock': {'kind': 'timestamp', 'value': uint(expiry+POLICY['native_refund_after_eth_expiry_seconds'])},
+def build(now, policy=None):
+    now = uint(now); policy = selected() if policy is None else policy
+    expiry = uint(now + policy['eth_expiry_after_creation_seconds'])
+    plan = {'policy': copy.deepcopy(policy), 'created_at': now, 'eth_expiry': expiry,
+        'fund_before': expiry-policy['funding_cutoff_before_expiry_seconds'],
+        'first_reveal_before': expiry-policy['reveal_cutoff_before_expiry_seconds'],
+        'native_refund_lock': {'kind': 'timestamp', 'value': uint(expiry+policy['native_refund_after_eth_expiry_seconds'])},
         'fee_policy': fee_policy.default()}
     validate(plan)
     return plan
@@ -59,7 +74,8 @@ def validate(plan):
         raise RuntimeError('unknown/missing execution plan fields')
     p = plan['policy']
     # A changed profile needs a new reviewed version, not caller-selected bounds.
-    if p != POLICY or any(type(p[k]) is not int for k,v in POLICY.items() if type(v) is int):
+    expected = PROFILES.get(p.get('profile')) if isinstance(p, dict) else None
+    if expected is None or p != expected or any(type(p[k]) is not int for k,v in expected.items() if type(v) is int):
         raise RuntimeError('unsupported candidate timestamp policy')
     now, expiry = uint(plan['created_at']), uint(plan['eth_expiry'])
     lock = plan['native_refund_lock']

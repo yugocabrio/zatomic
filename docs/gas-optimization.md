@@ -29,8 +29,8 @@ The variants:
 | Name | Contract | Verifier | Order storage |
 |---|---|---|---|
 | Shipped | `contracts/src/PointEscrow.sol` | `Pallas.opens` | 7-slot struct |
-| Comb | `contracts/bench/PointEscrowFast.sol` | `PallasFast` comb | 7-slot struct |
-| Comb + hash | `contracts/bench/HashedPointEscrow.sol` | `PallasFast` comb | one slot holding the order hash |
+| Comb | `contracts/bench/PointEscrowFast.sol` | `PallasComb` comb | 7-slot struct |
+| Comb + hash | `contracts/bench/HashedPointEscrow.sol` | `PallasComb` comb | one slot holding the order hash |
 
 Comb widths t = 4 to 8 were all measured. The table for width t is the data
 contract `PallasCombTable{t}`. "Random" means the median of eight random
@@ -81,16 +81,25 @@ isolated.
 
 **Table size.** Deploying a table costs about 219 gas per byte on Prague and
 about 1,549 per byte on Sepolia: the marginal cost from t = 4 (961 bytes) to
-t = 8 (16,321 bytes), computed from the measurements. The 25,490,376-gas
-deployment of the width-8 table is above the 2^24 (16,777,216) transaction gas
-cap of EIP-7825. Two observations suggest it is includable on Sepolia today:
+t = 8 (16,321 bytes), computed from the measurements. That matches EIP-8037's
+1,530 gas per state byte for deployed code, plus calldata and hashing.
+
+**The 2^24 cap does not block the width-8 table.** [EIP-8037][eip8037] (status
+Last Call) meters state gas separately: "the transaction gas limit set in
+EIP-7825 only applies to execution-gas", and `tx.gas` may reach 2^32−1. Most of
+the 25,490,376 gas of the width-8 table deployment is state gas for its 16,321
+code bytes, so the 2^24 (16,777,216) execution cap of EIP-7825 does not apply
+to it. I verified the EIP text and three observations, but no actual
+deployment:
 
 - Simulation with `validation: true` accepted a 30M gas limit.
 - In blocks 11,942,012 to 11,943,511, 278 included transactions used more than
   2^24 gas, for example a contract creation of 39,135,637 gas in block
   11,942,024 (tx `0x97571eedbf33c72238bf85ed21d76ca49714802eb9704cfc0820c91eb32ad67e`).
+- A plain transfer to a new account costs 204,600 = 21,000 + 183,600, the
+  EIP's 120 state bytes × 1,530 for a new account.
 
-Simulation is not inclusion. Each width-4 to width-7 table deploys below 2^24.
+Simulation is not inclusion.
 
 Raw output is in `contracts/bench/gas-results.json` (Prague) and
 `contracts/bench/sepolia-gas-results.json` (Sepolia).
@@ -160,16 +169,19 @@ constructor. A deterministic address (for example, from a fixed CREATE2
 factory) would make the table easy to find, and would make the escrow runtime
 hash reproducible.
 
-**With a shared table, use t = 8.** This is the cheapest claim: comb + hash
-costs 186,626 gas on Sepolia and 93,806 on Prague. The table is paid for once
-per chain, and it beats t = 4 per claim from the first swap.
+**Use t = 4 by default.** Sharing a table spreads its cost across escrows,
+but it does not remove the break-even: someone still pays the larger table's
+extra deployment, and on Sepolia t = 8 repays it over t = 4 only after about
+607 claims (93 on Prague) across all users of that table. A 961-byte table
+costs 1.70M gas on Sepolia. A larger table repays its extra deployment only
+after 100 to 2,072 claims on Sepolia. With its own table, comb + hash at
+t = 4 overtakes the shipped escrow from the third swap on Sepolia: the shipped
+escrow is cheaper for one swap (6.53M against 7.67M) and still slightly
+cheaper for two. Only a table already deployed by someone else makes t = 8 the
+cheaper choice for a newcomer (186,626 against 225,826 per claim on Sepolia).
 
-**If every escrow must bring its own table, use t = 4.** A 961-byte table
-costs 1.70M gas on Sepolia. With few swaps per escrow, it is the cheapest
-width: a larger table repays its extra deployment only after 100 to 2,072
-claims on Sepolia. On Sepolia, comb + hash at t = 4 overtakes the shipped
-escrow from the third swap: the shipped escrow is cheaper for one swap
-(6.53M against 7.67M) and still slightly cheaper for two.
+The production candidate, `PointEscrowV2`, uses t = 4 and goes further: see
+`docs/escrow-v2-review.md`.
 
 **In both cases, use the one-slot order.** On current Sepolia, lock goes from
 799k to 139k gas. That is most of the saving, because the shipped lock creates
@@ -184,8 +196,8 @@ against 1,435,758 shipped, on Sepolia.
 
 **Both variants require:**
 
-1. **Contract changes.** Move `PallasFast.sol` and the table generator into
-   `contracts/src`. The escrow takes `(table, teeth)` in its constructor and
+1. **Contract changes.** `PallasComb.sol` and the generated tables now live in
+   `contracts/src`; `PointEscrowV2` is the integrated candidate. The escrow takes `(table, teeth)` in its constructor and
    checks `table.codehash` against the generated constant, as both bench
    escrows do.
 2. **Review.** Get an independent review of the assembly and of the argument
@@ -212,9 +224,12 @@ against 1,435,758 shipped, on Sepolia.
   take the ETH without revealing t, so Bob loses. A false reject reverts the
   claim, but the reverted transaction still publishes t: Bob takes the ZEC
   and Alice loses. The mitigations are the differential tests, an independent
-  review, and a rule that clients `eth_call` the claim before broadcasting.
-  Execution is deterministic, so that pre-check catches a false reject before
-  t is exposed.
+  review, and a client pre-check that runs the claim against the pinned
+  bytecode on a private, throwaway local node (`scripts/claim_precheck.py`).
+  It must never be an `eth_call`, `eth_estimateGas` or `eth_simulateV1` to an
+  RPC provider: that would hand t to the provider before Alice's claim is
+  included, so a leaky provider could let Bob take the ZEC while her claim
+  fails or misses the deadline.
 - **Table integrity and immutability.** The constructor rejects any code whose
   hash differs from the generated constant, including an empty address. The
   table's code is fixed: it has no SELFDESTRUCT, and since EIP-6780 code cannot
@@ -264,7 +279,7 @@ against 1,435,758 shipped, on Sepolia.
 
 ## Method
 
-**Fixed-base comb** (`contracts/bench/PallasFast.sol`). This is a Lim–Lee comb
+**Fixed-base comb** (`contracts/src/PallasComb.sol`). This is a Lim–Lee comb
 with one table. The scalar is split into t rows of d = ⌈255/t⌉ bits. Column j
 selects idx = Σᵢ bit(j + d·i)·2ⁱ, and the precomputed entry is
 table[idx] = Σ_{bits i of idx} 2^(d·i)·G. The loop runs MSB column first:
@@ -286,7 +301,7 @@ immutables set in the constructor.
 
 **Table placement.** Each `PallasCombTable{t}` constructor returns a 0x00 (STOP)
 byte followed by the 64-byte affine entries as its runtime code. Entries are
-read with `EXTCODECOPY` into scratch memory. `contracts/bench/gen_comb_tables.py`
+read with `EXTCODECOPY` into scratch memory. `contracts/tools/gen_comb_tables.py`
 regenerates `PallasCombTables.sol`, including each width's size and code hash,
 from plain affine double-and-add.
 
@@ -323,7 +338,7 @@ external call in a fresh frame
 | Function | Min | Median | Max |
 |---|---:|---:|---:|
 | `opensRef` (`Pallas.opens`) | 479,763 | 489,645 | 694,446 |
-| `fast8` (`PallasFast`, t = 8) | 41,803 | 41,803 | 41,803 |
+| `fast8` (`PallasComb`, t = 8) | 41,803 | 41,803 | 41,803 |
 
 `fast8` also ABI-decodes its input and computes the comb constants in a loop.
 
@@ -338,7 +353,7 @@ external call in a fresh frame
 
 ## Same predicate as `Pallas.opens`
 
-`PallasFast.opens` makes the same checks in the same order. It returns false
+`PallasComb.opens` makes the same checks in the same order. It returns false
 for scalar 0, for scalar ≥ Q, for a coordinate ≥ P, and for a point off
 y² = x³ + 5. Otherwise it returns true exactly when scalar·G = T: it compares
 X = x·Z² and Y = y·Z³, and returns false if the result is the point at infinity.
@@ -363,10 +378,10 @@ B_j for the entry's scalar at column j. Then S_j = 2S_{j+1} + B_j, and
 
 | File | What it checks |
 |---|---|
-| `contracts/test/PallasFast.t.sol` | Widths 4–8 against `Pallas.opens`. Expected points come from a third, independent implementation: affine double-and-add with modexp inversion. |
+| `contracts/test/PallasComb.t.sol` | Widths 4–8 against `Pallas.opens`. Expected points come from a third, independent implementation: affine double-and-add with modexp inversion. |
 | `contracts/test/BenchEscrows.t.sol` | The benchmark escrows keep the shipped rules. |
 
-The tests in `PallasFast.t.sol`:
+The tests in `PallasComb.t.sol`:
 
 - **Every table entry**: each of the 491 entries is the intended multiple.
 - **Edge scalars**: 1, 2, 3, Q−1, Q−2, Q−3, 2^254−1, 2^254, 2^254+1, 2^253,
@@ -398,7 +413,7 @@ Result: `forge test` passes 39 of 39 tests, including the existing
 ## Commands and versions
 
 ```bash
-python3 contracts/bench/gen_comb_tables.py   # regenerate PallasCombTables.sol; Python comb self-check
+python3 contracts/tools/gen_comb_tables.py   # regenerate PallasCombTables.sol; Python comb self-check
 forge build
 forge test                                   # 39 tests
 forge test --match-test testGasVerification -vv
@@ -425,3 +440,4 @@ development accounts. The Sepolia script signs and broadcasts nothing, but it
 does send the benchmark bytecode to the RPC provider.
 
 [ef]: https://blog.ethereum.org/2026/09/17/glamsterdam-testnet-announcement
+[eip8037]: https://eips.ethereum.org/EIPS/eip-8037

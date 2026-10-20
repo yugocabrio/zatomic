@@ -22,6 +22,7 @@ import owned_process
 import peer_workspace
 import signal
 import run_native_evm_gate as evm
+import escrow_abi
 import fee_policy
 from evm_journal import checkpoint, order_state, verify_contract, InjectedStop
 from evm_participant import agreement_digest
@@ -134,13 +135,15 @@ def setup_eth(directory, addresses, terms, mode):
             pass
         else:
             raise RuntimeError('node could sign for owner')
-    artifact = read(ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json')
-    deployed = evm.send({'from': accounts[0], 'data': artifact['bytecode']['object'], 'gas': hex(5_000_000)})
+    version = escrow_abi.local_default()
+    deployed = evm.send({'from': accounts[0], 'data': escrow_abi.creation_code(version), 'gas': hex(5_000_000)})
     expiry = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16) + 3600
     agreement = {'native': terms, 'eth_chain_id': evm.CHAIN, 'contract': deployed['contractAddress'],
         'maker': addresses['bob'], 'recipient': addresses['alice'], 'amount_wei': 10**16,
         'eth_expiry': expiry, 'fee_policy': fee_policy.default(),
         'scope': 'owner-held keys on controlled local chains; not public-network timing policy'}
+    if version != 1:
+        agreement['escrow_version'] = version
     for role in ('alice', 'bob'):
         accepted = client('accept', directory / 'owners' / role, agreement)
         if accepted['agreement_digest'] != agreement_digest(agreement):
@@ -266,10 +269,8 @@ def finish(directory, agreement, order, recovered=False, fault=None):
     transactions += int(withdrawn['new_transaction'])
     receipt = evm.rpc('eth_getTransactionReceipt', [withdrawn['txid']])
     # Verify the actual fixed-owner transfer even on a repeated invocation.
-    address_topic = '0x' + address[2:].rjust(64, '0')
-    withdrawals = [log for log in receipt['logs'] if log['address'].lower() == agreement['contract'].lower()
-        and log['topics'] == [topic('Withdrawn(address,address,uint256)'), address_topic, address_topic]
-        and int(log['data'], 16) == agreement['amount_wei']]
+    withdrawals = [log for log in receipt['logs'] if escrow_abi.withdrawn_event(escrow_abi.version(agreement),
+        log, agreement['contract'], order, address, address, agreement['amount_wei'])]
     if len(withdrawals) != 1:
         raise RuntimeError('exact owner withdrawal event unavailable')
     if withdrawn['new_transaction']:
@@ -278,7 +279,7 @@ def finish(directory, agreement, order, recovered=False, fault=None):
         if after - before + fee != agreement['amount_wei']:
             raise RuntimeError('owner ETH balance delta differs')
     result = {'scope': 'actual isolated chains; owner-held keys on one host', 'driver': VERSION,
-        'mode': mode, 'native_txid': txid, 'native_amount_zatoshi': terms['payout_zatoshi'],
+        'escrow_version': escrow_abi.version(agreement), 'mode': mode, 'native_txid': txid, 'native_amount_zatoshi': terms['payout_zatoshi'],
         'eth_wei_received': agreement['amount_wei'], 'eth_withdraw_tx': withdrawn['txid'],
         'owner_signed_eth': True, 'node_cannot_sign_for_owners': True,
         'peer_offline_during_native_exit': True, 'coordinator_native_files_offline': True,

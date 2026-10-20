@@ -18,7 +18,7 @@ import secrets
 import subprocess
 import time
 
-from escrow_bench import (AMOUNT, HERE, MAIN, REFUND_SCALARS, SWEEP, SWEEP_SCALARS, cast, empty_steps,
+from escrow_bench import (AMOUNT, HERE, MAIN, escrow_abi, REFUND_SCALARS, SWEEP, SWEEP_SCALARS, cast, empty_steps,
                           escrow_initcode, key, order_id, scalars, summary, swap_calldata, table_initcode)
 
 CHAIN_ID = 11155111
@@ -92,6 +92,8 @@ def one(rpc, block, now, who, name, teeth, k, path):
     # shipped runtime against its pin and that the swap calls ran inside the escrow.
     if name == 'shipped' and cast('keccak', deployed['returnData']) != SHIPPED_RUNTIME_HASH:
         raise RuntimeError('shipped runtime hash mismatch')
+    if name == 'v2' and deployed['returnData'].removeprefix('0x') != escrow_abi.runtime_code(2):
+        raise RuntimeError('v2 runtime differs from the built artifact')
     later = first[2 if teeth else 1:] + (res[1] if len(res) > 1 else [])
     for c in later:
         if not any(log['address'].lower() == escrow for log in c['logs']):

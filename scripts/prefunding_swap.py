@@ -15,14 +15,17 @@ import sys
 import time
 import owned_process
 import run_native_evm_gate as evm
+import escrow_abi
 import evm_wallet
 import fee_policy
+import native_owner
 import owner_swap as owners
 from evm_participant import agreement_digest
 from evm_journal import checkpoint, send, InjectedStop
 from funding_wallet import authorize
 from regtest_node import ROOT, rpc as zrpc, status
 from regtest_wallet import native, fund, capture, funding_capture, save, require_capacity, FUNDING_ANCHOR_LAG
+from recover_regtest_swap import native_exit
 from run_regtest_swap import event, reject_native, require_aux_unspent, reserve_aux, broadcast
 from run_tls_swap import configure, services
 from run_client_swap import client
@@ -138,8 +141,8 @@ def offer(directory, pins, terms, fault=None):
             pass
         else:
             raise RuntimeError('node could sign for an owner')
-    artifact = owners.read(ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json')
-    deployed = send(directory, {'from': accounts[0], 'data': artifact['bytecode']['object'],
+    version = escrow_abi.local_default()
+    deployed = send(directory, {'from': accounts[0], 'data': escrow_abi.creation_code(version),
         'gas': hex(5_000_000)}, kind='deploy')
     stop(fault, 'eth-deployed')
     now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
@@ -148,6 +151,8 @@ def offer(directory, pins, terms, fault=None):
         'eth_expiry': now + 3600, 'fee_policy': fee_policy.default(), 'consent_version': 1, 'eth_salt': '0x' + os.urandom(32).hex(),
         'eth_code_hash': evm_wallet.keccak(bytes.fromhex(evm.rpc('eth_getCode', [deployed['contractAddress'],'latest'])[2:])).hex(),
         'scope': 'signed prefunding consent on isolated chains; locally provisioned owner pins'}
+    if version != 1:
+        agreement['escrow_version'] = version
     save(directory / 'agreement.json', agreement)
     save(directory / 'owner-flow.json', {'version': owners.VERSION, 'mode': owners.read(directory / 'setup.json')['mode'],
         'addresses': {role: pin['address'] for role, pin in pins.items()}, 'agreement_digest': agreement_digest(agreement)})
@@ -295,7 +300,12 @@ def recover_locked(directory, fault=None):
             zrpc('generate', [blocks], timeout=300)
         with owners.peer_offline(directory / 'owners', 'bob'):
             owners.crash(directory, fault, 'native-peer-offline')
-            refunded, sent = owners.native_exit(directory / 'owners/alice/recovery', 'refund')
+            # Alice's own accepted workspace, checked as her owner client does.
+            # (owner_swap stopped re-exporting native_exit in 3543669.)
+            alice = directory / 'owners/alice'
+            root = native_owner.workspace(alice, 'alice', agreement['native'],
+                owners.read(alice / 'native/recovery-bundle.json'), owners.read(alice / 'native/recovery-receipt.json'))
+            refunded, sent = native_exit(root, 'refund')
             owners.crash(directory, fault, 'native-exit-confirmed')
         observed = capture(directory / 'owners/alice/recovery/alice')
         if not any(n['txid'] == refunded and n['value'] == agreement['native']['payout_zatoshi'] for n in owners.read(Path(observed['file']))['notes']):

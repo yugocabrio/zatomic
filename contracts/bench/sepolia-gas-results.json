@@ -1,17 +1,17 @@
 {
  "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
  "client": "reth/v2.7.0-3d592ec/x86_64-unknown-linux-gnu",
- "block": 11943536,
- "block_timestamp": 1792356432,
+ "block": 11943742,
+ "block_timestamp": 1792358928,
  "fork": {
   "activation_time": 1791294816,
   "fork_id": "0x6c1d9423"
  },
  "method": "eth_simulateV1 (validation false) at the pinned block; fresh addresses with balance overrides; each simulation deploys its own table and escrow",
  "addresses_without_keys": {
-  "deployer": "0x6ba1c7b1f2568a94420a3f2c8fa22bbeb0302144",
-  "maker": "0xeecc017172b40219543aa84938cfb6d8d8f400aa",
-  "recipient": "0xda8ad7c87d130b93a3a972e810328b95a7badb3e"
+  "deployer": "0xee2bfd8140e501463c6e82ef61883fc861a8fac8",
+  "maker": "0x2633c85520476fbb35c24b10de518403586d8f71",
+  "recipient": "0xb39d39b78b6c6c12b433c18b81eb5f98ff2a7a20"
  },
  "gas_limits_per_call": {
   "table": 40000000,
@@ -48,7 +48,7 @@
    "claim_worst_case_2^254-1": 768210,
    "random_scalars": 8,
    "withdraw": [
-    31206,
+    31216,
     31216
    ],
    "swap_random_median": 1435758,
@@ -57,59 +57,84 @@
     143831,
     143831
    ],
-   "refund_path": 974496
+   "refund_path": 974506
   },
   "fast_t8": {
    "deploy_escrow": 5312498,
    "lock": [
-    799422,
+    799434,
     799446
    ],
-   "claim_random_median": 191660,
+   "claim_random_median": 191654,
    "claim_random_range": [
-    190884,
+    190860,
     191660
    ],
    "claim_worst_case_2^254-1": 191660,
    "random_scalars": 8,
    "withdraw": [
-    31208,
+    31218,
     31218
    ],
    "deploy_table": 25490376,
-   "swap_random_median": 1022324,
+   "swap_random_median": 1022318,
    "swap_worst_case": 1022324,
    "refund": [
     143825,
     143825
    ],
-   "refund_path": 974479
+   "refund_path": 974489
   },
   "hashed_t8": {
-   "deploy_escrow": 5576975,
+   "deploy_escrow": 5576987,
    "lock": [
     139079,
     139103
    ],
-   "claim_random_median": 186614,
+   "claim_random_median": 186626,
    "claim_random_range": [
-    185835,
-    186626
+    185871,
+    186638
    ],
-   "claim_worst_case_2^254-1": 186626,
+   "claim_worst_case_2^254-1": 186638,
    "random_scalars": 8,
    "withdraw": [
-    31244,
+    31253,
     31253
    ],
    "deploy_table": 25490376,
-   "swap_random_median": 356970,
-   "swap_worst_case": 356982,
+   "swap_random_median": 356982,
+   "swap_worst_case": 356994,
    "refund": [
     143217,
-    143217
+    143229
    ],
-   "refund_path": 313564
+   "refund_path": 313585
+  },
+  "v2": {
+   "deploy_escrow": 7100182,
+   "lock": [
+    139122,
+    139146
+   ],
+   "claim_random_median": 112688,
+   "claim_random_range": [
+    109549,
+    114383
+   ],
+   "claim_worst_case_2^254-1": 115893,
+   "random_scalars": 8,
+   "withdraw": [
+    43526,
+    43586
+   ],
+   "swap_random_median": 295420,
+   "swap_worst_case": 298625,
+   "refund": [
+    32981,
+    32981
+   ],
+   "refund_path": 215713
   },
   "fast_t4": {
    "deploy_escrow": 5311195,
@@ -133,35 +158,35 @@
    "swap_worst_case": 1061812
   },
   "hashed_t4": {
-   "deploy_escrow": 5575672,
+   "deploy_escrow": 5575684,
    "lock": [
-    139091,
+    139103,
     139103
    ],
-   "claim_random_median": 221479,
+   "claim_random_median": 221497,
    "claim_random_range": [
-    219446,
-    223513
+    219458,
+    223537
    ],
-   "claim_worst_case_2^254-1": 225826,
+   "claim_worst_case_2^254-1": 225838,
    "random_scalars": 2,
    "withdraw": [
     31253,
     31253
    ],
    "deploy_table": 1696604,
-   "swap_random_median": 391835,
-   "swap_worst_case": 396182
+   "swap_random_median": 391853,
+   "swap_worst_case": 396194
   },
   "fast_t5": {
    "deploy_escrow": 5311522,
    "lock": [
-    799446,
+    799434,
     799446
    ],
-   "claim_random_median": 214318,
+   "claim_random_median": 214324,
    "claim_random_range": [
-    214306,
+    214318,
     214330
    ],
    "claim_worst_case_2^254-1": 215106,
@@ -171,40 +196,40 @@
     31218
    ],
    "deploy_table": 3282865,
-   "swap_random_median": 1044982,
+   "swap_random_median": 1044988,
    "swap_worst_case": 1045770
   },
   "hashed_t5": {
-   "deploy_escrow": 5575999,
+   "deploy_escrow": 5576011,
    "lock": [
     139103,
     139103
    ],
-   "claim_random_median": 209128,
+   "claim_random_median": 209140,
    "claim_random_range": [
-    209122,
-    209134
+    209134,
+    209146
    ],
-   "claim_worst_case_2^254-1": 209901,
+   "claim_worst_case_2^254-1": 209913,
    "random_scalars": 2,
    "withdraw": [
     31253,
     31253
    ],
    "deploy_table": 3282865,
-   "swap_random_median": 379484,
-   "swap_worst_case": 380257
+   "swap_random_median": 379496,
+   "swap_worst_case": 380269
   },
   "fast_t6": {
    "deploy_escrow": 5311849,
    "lock": [
-    799422,
+    799434,
     799446
    ],
-   "claim_random_median": 204058,
+   "claim_random_median": 204064,
    "claim_random_range": [
     203682,
-    204434
+    204446
    ],
    "claim_worst_case_2^254-1": 205234,
    "random_scalars": 2,
@@ -213,39 +238,39 @@
     31218
    ],
    "deploy_table": 6455310,
-   "swap_random_median": 1034722,
+   "swap_random_median": 1034728,
    "swap_worst_case": 1035898
   },
   "hashed_t6": {
-   "deploy_escrow": 5576326,
+   "deploy_escrow": 5576338,
    "lock": [
-    139067,
+    139091,
     139103
    ],
-   "claim_random_median": 198944,
+   "claim_random_median": 198956,
    "claim_random_range": [
-    198567,
-    199322
+    198579,
+    199334
    ],
-   "claim_worst_case_2^254-1": 200089,
+   "claim_worst_case_2^254-1": 200101,
    "random_scalars": 2,
    "withdraw": [
     31253,
     31253
    ],
    "deploy_table": 6455310,
-   "swap_random_median": 369300,
-   "swap_worst_case": 370445
+   "swap_random_median": 369312,
+   "swap_worst_case": 370457
   },
   "fast_t7": {
    "deploy_escrow": 5312176,
    "lock": [
-    799434,
+    799446,
     799446
    ],
-   "claim_random_median": 197812,
+   "claim_random_median": 197818,
    "claim_random_range": [
-    197806,
+    197818,
     197818
    ],
    "claim_worst_case_2^254-1": 197818,
@@ -255,29 +280,29 @@
     31218
    ],
    "deploy_table": 12800212,
-   "swap_random_median": 1028476,
+   "swap_random_median": 1028482,
    "swap_worst_case": 1028482
   },
   "hashed_t7": {
-   "deploy_escrow": 5576653,
+   "deploy_escrow": 5576665,
    "lock": [
-    139103,
+    139079,
     139103
    ],
-   "claim_random_median": 192745,
+   "claim_random_median": 192751,
    "claim_random_range": [
     192739,
-    192751
+    192763
    ],
-   "claim_worst_case_2^254-1": 192751,
+   "claim_worst_case_2^254-1": 192763,
    "random_scalars": 2,
    "withdraw": [
     31253,
     31253
    ],
    "deploy_table": 12800212,
-   "swap_random_median": 363101,
-   "swap_worst_case": 363107
+   "swap_random_median": 363107,
+   "swap_worst_case": 363119
   }
  },
  "raw": {
@@ -301,7 +326,6 @@
    "lock": [
     799459,
     799459,
-    799447,
     799459,
     799459,
     799459,
@@ -311,12 +335,13 @@
     799459,
     799447,
     799447,
-    799447
+    799447,
+    799459
    ],
    "claim": {
     "worst_case_2^254-1": 768210,
     "q_minus_1": 485307,
-    "one": 233338,
+    "one": 233350,
     "random_0": 600103,
     "random_1": 606035,
     "random_2": 610846,
@@ -344,8 +369,8 @@
     143831
    ],
    "refund_withdraw": [
-    31206,
-    31206
+    31216,
+    31216
    ]
   },
   "fast_t8": {
@@ -384,14 +409,14 @@
     799446,
     799434,
     799446,
-    799446,
+    799434,
     799446,
     799446,
     799446,
     799446,
     799446,
     799434,
-    799422,
+    799434,
     799446
    ],
    "claim": {
@@ -399,13 +424,13 @@
     "q_minus_1": 186776,
     "one": 156909,
     "random_0": 191660,
-    "random_1": 191648,
+    "random_1": 191636,
     "random_2": 191660,
     "random_3": 191660,
-    "random_4": 190884,
+    "random_4": 190860,
     "random_5": 191660,
-    "random_6": 191660,
-    "random_7": 191636
+    "random_6": 191648,
+    "random_7": 191648
    },
    "withdraw": [
     31218,
@@ -425,25 +450,25 @@
     143825
    ],
    "refund_withdraw": [
-    31208,
-    31208
+    31218,
+    31218
    ]
   },
   "hashed_t8": {
    "deploy_escrow": [
-    5576975,
-    5576975,
-    5576975,
-    5576975,
-    5576975,
-    5576975,
-    5576975,
-    5576975,
-    5576975,
-    5576975,
-    5576975,
-    5576975,
-    5576975
+    5576987,
+    5576987,
+    5576987,
+    5576987,
+    5576987,
+    5576987,
+    5576987,
+    5576987,
+    5576987,
+    5576987,
+    5576987,
+    5576987,
+    5576987
    ],
    "deploy_table": [
     25490376,
@@ -465,27 +490,27 @@
     139103,
     139103,
     139103,
-    139103,
-    139103,
-    139103,
-    139103,
-    139103,
     139079,
     139079,
     139091,
-    139103
+    139103,
+    139103,
+    139103,
+    139091,
+    139091,
+    139091
    ],
    "claim": {
-    "worst_case_2^254-1": 186626,
-    "q_minus_1": 181796,
-    "one": 152154,
-    "random_0": 186626,
-    "random_1": 186614,
+    "worst_case_2^254-1": 186638,
+    "q_minus_1": 181808,
+    "one": 152166,
+    "random_0": 186614,
+    "random_1": 186626,
     "random_2": 186626,
-    "random_3": 186626,
-    "random_4": 185835,
-    "random_5": 186602,
-    "random_6": 186614,
+    "random_3": 186638,
+    "random_4": 185871,
+    "random_5": 186626,
+    "random_6": 186626,
     "random_7": 186614
    },
    "withdraw": [
@@ -502,12 +527,79 @@
     31253
    ],
    "refund": [
-    143217,
+    143229,
     143217
    ],
    "refund_withdraw": [
-    31244,
-    31244
+    31253,
+    31253
+   ]
+  },
+  "v2": {
+   "deploy_escrow": [
+    7100182,
+    7100182,
+    7100182,
+    7100182,
+    7100182,
+    7100182,
+    7100182,
+    7100182,
+    7100182,
+    7100182,
+    7100182,
+    7100182,
+    7100182
+   ],
+   "deploy_table": [],
+   "lock": [
+    139134,
+    139146,
+    139146,
+    139146,
+    139146,
+    139146,
+    139146,
+    139146,
+    139146,
+    139134,
+    139122,
+    139134,
+    139146
+   ],
+   "claim": {
+    "worst_case_2^254-1": 115893,
+    "q_minus_1": 94980,
+    "one": 46257,
+    "random_0": 113628,
+    "random_1": 109549,
+    "random_2": 114383,
+    "random_3": 112528,
+    "random_4": 112861,
+    "random_5": 112070,
+    "random_6": 112849,
+    "random_7": 112082
+   },
+   "withdraw": [
+    43526,
+    43550,
+    43562,
+    43562,
+    43562,
+    43550,
+    43562,
+    43562,
+    43538,
+    43550,
+    43562
+   ],
+   "refund": [
+    32981,
+    32981
+   ],
+   "refund_withdraw": [
+    43586,
+    43586
    ]
   },
   "fast_t4": {
@@ -541,9 +633,9 @@
   },
   "hashed_t4": {
    "deploy_escrow": [
-    5575672,
-    5575672,
-    5575672
+    5575684,
+    5575684,
+    5575684
    ],
    "deploy_table": [
     1696604,
@@ -552,13 +644,13 @@
    ],
    "lock": [
     139103,
-    139091,
+    139103,
     139103
    ],
    "claim": {
-    "worst_case_2^254-1": 225826,
-    "random_0": 223513,
-    "random_1": 219446
+    "worst_case_2^254-1": 225838,
+    "random_0": 223537,
+    "random_1": 219458
    },
    "withdraw": [
     31253,
@@ -580,14 +672,14 @@
     3282865
    ],
    "lock": [
-    799446,
+    799434,
     799446,
     799446
    ],
    "claim": {
     "worst_case_2^254-1": 215106,
     "random_0": 214330,
-    "random_1": 214306
+    "random_1": 214318
    },
    "withdraw": [
     31218,
@@ -599,9 +691,9 @@
   },
   "hashed_t5": {
    "deploy_escrow": [
-    5575999,
-    5575999,
-    5575999
+    5576011,
+    5576011,
+    5576011
    ],
    "deploy_table": [
     3282865,
@@ -614,9 +706,9 @@
     139103
    ],
    "claim": {
-    "worst_case_2^254-1": 209901,
-    "random_0": 209134,
-    "random_1": 209122
+    "worst_case_2^254-1": 209913,
+    "random_0": 209146,
+    "random_1": 209134
    },
    "withdraw": [
     31253,
@@ -638,14 +730,14 @@
     6455310
    ],
    "lock": [
+    799434,
     799446,
-    799446,
-    799422
+    799446
    ],
    "claim": {
     "worst_case_2^254-1": 205234,
     "random_0": 203682,
-    "random_1": 204434
+    "random_1": 204446
    },
    "withdraw": [
     31218,
@@ -657,9 +749,9 @@
   },
   "hashed_t6": {
    "deploy_escrow": [
-    5576326,
-    5576326,
-    5576326
+    5576338,
+    5576338,
+    5576338
    ],
    "deploy_table": [
     6455310,
@@ -667,14 +759,14 @@
     6455310
    ],
    "lock": [
-    139067,
+    139091,
     139103,
     139103
    ],
    "claim": {
-    "worst_case_2^254-1": 200089,
-    "random_0": 198567,
-    "random_1": 199322
+    "worst_case_2^254-1": 200101,
+    "random_0": 198579,
+    "random_1": 199334
    },
    "withdraw": [
     31253,
@@ -697,13 +789,13 @@
    ],
    "lock": [
     799446,
-    799434,
+    799446,
     799446
    ],
    "claim": {
     "worst_case_2^254-1": 197818,
     "random_0": 197818,
-    "random_1": 197806
+    "random_1": 197818
    },
    "withdraw": [
     31218,
@@ -715,9 +807,9 @@
   },
   "hashed_t7": {
    "deploy_escrow": [
-    5576653,
-    5576653,
-    5576653
+    5576665,
+    5576665,
+    5576665
    ],
    "deploy_table": [
     12800212,
@@ -727,11 +819,11 @@
    "lock": [
     139103,
     139103,
-    139103
+    139079
    ],
    "claim": {
-    "worst_case_2^254-1": 192751,
-    "random_0": 192751,
+    "worst_case_2^254-1": 192763,
+    "random_0": 192763,
     "random_1": 192739
    },
    "withdraw": [

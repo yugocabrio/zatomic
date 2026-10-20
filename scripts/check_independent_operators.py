@@ -16,6 +16,7 @@ import sys
 import owned_process
 import owner_swap as flow
 import run_native_evm_gate as evm
+import escrow_abi
 import evm_wallet
 import fee_policy
 from evm_journal import checkpoint, send
@@ -109,8 +110,8 @@ def setup(actors, harness, quote=None):
     accounts = evm.rpc('eth_accounts')
     for pin in pins.values():
         evm.rpc('anvil_setBalance', [pin['address'], hex(10**18 + (trade['offer']['payload']['eth_amount_wei'] if trade else 10**16))])
-    artifact = flow.read(ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json')
-    contract = send(harness, {'from': accounts[0], 'data': artifact['bytecode']['object'],
+    version = escrow_abi.local_default()
+    contract = send(harness, {'from': accounts[0], 'data': escrow_abi.creation_code(version),
         'gas': hex(5_000_000)}, kind='deploy')['contractAddress']
     now = int(evm.rpc('eth_getBlockByNumber', ['latest', False])['timestamp'], 16)
     agreement = {'native': terms, 'eth_chain_id': evm.CHAIN, 'contract': contract,
@@ -118,6 +119,8 @@ def setup(actors, harness, quote=None):
         'eth_expiry': now + 3600, 'fee_policy': fee_policy.default(), 'consent_version': 1, 'eth_salt': '0x' + os.urandom(32).hex(),
         'eth_code_hash': evm_wallet.keccak(bytes.fromhex(evm.rpc('eth_getCode', [contract, 'latest'])[2:])).hex(),
         'scope': 'same-host OS-isolated operators; actual owned chain fixture'}
+    if version != 1:
+        agreement['escrow_version'] = version
     changed = copy.deepcopy(agreement)
     changed['native']['owner_pins']['bob']['address'] = '0x' + '11' * 20
     actors.invoke('alice', 'consent', changed, reject=True)
@@ -183,11 +186,8 @@ def complete(actors, harness, agreement, consents, mode):
     checkpoint(harness)
     receipt = evm.rpc('eth_getTransactionReceipt', [withdrawn['txid']])
     target = agreement['recipient' if mode == 'success' else 'maker']
-    topic = '0x' + evm_wallet.keccak(b'Withdrawn(address,address,uint256)').hex()
-    address_topic = '0x' + target[2:].rjust(64, '0')
-    if not any(log['address'].lower() == agreement['contract'].lower()
-               and log['topics'] == [topic, address_topic, address_topic]
-               and int(log['data'], 16) == agreement['amount_wei'] for log in receipt['logs']):
+    if not any(escrow_abi.withdrawn_event(escrow_abi.version(agreement), log, agreement['contract'], order,
+               target, target, agreement['amount_wei']) for log in receipt['logs']):
         raise RuntimeError('independent ETH withdrawal mismatch')
     return {'scope': 'same-host OS file isolation, actual owned chains; not independent administration',
         'mode': mode, 'funding_txid': terms['funding_txid'], 'native_exit': confirmed, 'native_repeat': repeat,

@@ -17,6 +17,7 @@ import sys
 import time
 import owned_process
 import run_native_evm_gate as evm
+import escrow_abi
 import fee_policy
 from regtest_node import ROOT, rpc as zrpc, status
 from regtest_wallet import native, capture, save
@@ -94,13 +95,15 @@ def run(directory, mode, bank, relay_pending=False):
                         pass
                     else:
                         raise RuntimeError('node could sign for owner')
-                artifact=json.loads((ROOT/'.local/forge-out/PointEscrow.sol/PointEscrow.json').read_text())
-                deployed=evm.send({'from':accounts[0],'data':artifact['bytecode']['object'],'gas':hex(5_000_000)})
+                version=escrow_abi.local_default()
+                deployed=evm.send({'from':accounts[0],'data':escrow_abi.creation_code(version),'gas':hex(5_000_000)})
                 expiry=int(evm.rpc('eth_getBlockByNumber',['latest',False])['timestamp'],16)+3600
                 agreement={'native':terms,'eth_chain_id':evm.CHAIN,'contract':deployed['contractAddress'],
                     'maker':addresses['bob'],'recipient':addresses['alice'],'amount_wei':10**16,'eth_expiry':expiry,
                     'fee_policy':fee_policy.default(),
                     'scope':'owner-held keys on controlled local chains; not public-network timing policy'}
+                if version!=1:
+                    agreement['escrow_version']=version
                 rejected=[]
                 for name, role, mutate in [
                     ('own ETH recipient replaced','alice',lambda a:a.update(recipient=accounts[0])),
@@ -150,8 +153,18 @@ def run(directory, mode, bank, relay_pending=False):
                             raise RuntimeError('claim not actually pending before restart')
                         mempool_hash=pending[0]['hash']
                         # No private journal is read to discover the pending call.
-                        if pending[0]['input'][:10] != evm.calldata('claim(bytes32,uint256)',order,0)[:10]:
+                        if escrow_abi.shape(pending[0]['input']) != (version,'claim'):
                             raise RuntimeError('pending transaction is not the claim')
+                        altered_hash=None
+                        if relay_pending and version==2:
+                            # A front-runner copies t but rewrites the order's
+                            # recipient (word 3 of the calldata) to itself.
+                            data=pending[0]['input']
+                            at=10+64*2
+                            altered=data[:at]+escrow_abi.address_word(accounts[0])+data[at+64:]
+                            altered_hash=evm.rpc('eth_sendTransaction',[{'from':accounts[0],
+                                'to':agreement['contract'],'gas':hex(1_000_000),
+                                'gasPrice':hex(3*int(pending[0]['gasPrice'],16)),'data':altered}])
                         if relay_pending:
                             # The competing relayer sees only public mempool
                             # calldata, submits at a higher fee, and cannot
@@ -168,15 +181,24 @@ def run(directory, mode, bank, relay_pending=False):
                             raise RuntimeError('restart did not reconcile original pending claim')
                         if relay_pending:
                             original=evm.rpc('eth_getTransactionReceipt',[mempool_hash])
-                            thief=int(evm.rpc('eth_call',[{'to':agreement['contract'],
-                                'data':evm.calldata('credits(address)',accounts[0])},'latest']),16)
+                            if version==1:
+                                thief=int(evm.rpc('eth_call',[{'to':agreement['contract'],
+                                    'data':evm.calldata('credits(address)',accounts[0])},'latest']),16)
+                            else:
+                                # The order slot still commits to Alice; the
+                                # altered front-run reverted without effect.
+                                from evm_journal import order_slot
+                                altered_receipt=evm.rpc('eth_getTransactionReceipt',[altered_hash])
+                                thief=0 if (altered_receipt['status']=='0x0'
+                                    and order_slot(agreement,terms,order)==(2,False)) else 1
+                                rejected.append('front-run claim with altered recipient')
                             if original['status']!='0x0' or thief!=0 or not claimed['settlement_via_other_relayer']:
                                 raise RuntimeError('competing relay did not exercise fixed-recipient reconciliation')
                     finally:
                         (owners/'bob-offline').rename(owners/'bob')
                     event(directory,'05-client-claimed',claimed)
                     logs=evm.rpc('eth_getLogs',[{'address':agreement['contract'],'fromBlock':'0x0',
-                        'toBlock':'latest','topics':[topic('Claimed(bytes32,uint256)'),order]}])
+                        'toBlock':'latest','topics':[topic(escrow_abi.CLAIMED),order]}])
                     if len(logs)!=1:
                         raise RuntimeError('unique public witness unavailable')
                     witness=int(logs[0]['data'],16).to_bytes(32,'little').hex()

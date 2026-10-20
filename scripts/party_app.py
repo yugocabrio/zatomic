@@ -19,7 +19,9 @@ import threading
 import time
 from http.server import ThreadingHTTPServer
 import run_native_evm_gate as evm
+import escrow_abi
 import fee_policy
+from evm_journal import order_slot
 from latch_operator import manifest_digest
 from regtest_node import rpc as zrpc, status
 from regtest_wallet import demo_amounts
@@ -182,7 +184,10 @@ class App:
                 'orderId(address,bytes32)', agreement['maker'], agreement['eth_salt'])}, 'latest'])
             words = evm.rpc('eth_call', [{'to': agreement['contract'], 'data': evm.calldata('orders(bytes32)', order)}, 'latest'])
             seen['order'] = order
-            seen['order_state'] = int(words[2 + 64 * 4: 2 + 64 * 5], 16) if len(words) > 2 + 64 * 5 else 0
+            if escrow_abi.version(agreement) == 2:
+                seen['order_state'] = order_slot(agreement, agreement['native'], order)[0]
+            else:
+                seen['order_state'] = int(words[2 + 64 * 4: 2 + 64 * 5], 16) if len(words) > 2 + 64 * 5 else 0
             seen['eth_expired'] = seen['eth_time'] >= agreement['eth_expiry']
             seen['native_refund_ready'] = seen['zcash_height'] > agreement['native']['refund_height']
         return seen
@@ -327,6 +332,8 @@ class App:
                 'amount_wei': trade['offer']['payload']['eth_amount_wei'], 'eth_expiry': now + 3600,
                 'fee_policy': fee_policy.default(), 'consent_version': 1, 'eth_salt': '0x' + os.urandom(32).hex(),
                 'eth_code_hash': escrow['code_hash'], 'scope': 'two-party local demo; each owner in its own sandboxed app'}
+            if escrow.get('version', 1) != 1:
+                agreement['escrow_version'] = escrow['version']
             self.publish('agreement', agreement)
             self.save(agreement=agreement)
 

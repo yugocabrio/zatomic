@@ -93,6 +93,9 @@ def expected_event(agreement, value, decoded):
         signature = b'Claimed(bytes32,uint256)'; topics = [identifier]; data = '0x'+decoded['input'][-64:]
     elif kind == 'refund':
         signature = b'Refunded(bytes32)'; topics = [identifier]; data = '0x'
+    elif kind == 'withdraw' and agreement.get('escrow_version', 1) == 2:
+        signature = b'Withdrawn(bytes32,address,address,uint256)'
+        topics = [identifier]+['0x'+word(int(owner, 16))]*2; data = '0x'+word(agreement['amount_wei'])
     elif kind == 'withdraw':
         signature = b'Withdrawn(address,address,uint256)'
         topics = ['0x'+word(int(owner, 16))]*2; data = '0x'+word(agreement['amount_wei'])

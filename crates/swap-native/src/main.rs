@@ -514,13 +514,18 @@ fn main() -> Result<()> {
             Path::new(&a[5]),
             a.get(6).map(Path::new),
         )?,
-        Some("testnet-stage-agreement") if a.len() == 7 => public_consent::stage(
-            Path::new(&a[2]),
-            Path::new(&a[3]),
-            &a[4],
-            &a[5],
-            Path::new(&a[6]),
-        )?,
+        Some("testnet-stage-agreement")
+            if a.len() == 7 || a.len() == 8 && a[7] == "escrow-v2" =>
+        {
+            public_consent::stage(
+                Path::new(&a[2]),
+                Path::new(&a[3]),
+                &a[4],
+                &a[5],
+                Path::new(&a[6]),
+                if a.len() == 8 { 2 } else { 1 },
+            )?
+        }
         Some("testnet-owner-consent") if a.len() == 4 => {
             public_consent::sign(Path::new(&a[2]), Path::new(&a[3]))?
         }

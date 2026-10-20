@@ -32,12 +32,18 @@ import urllib.error
 import urllib.parse
 from http.server import ThreadingHTTPServer
 import run_native_evm_gate as evm
+import escrow_abi
 import evm_wallet
 from regtest_node import rpc as zrpc, status
 from regtest_wallet import MAX_CAPTURE_HEIGHT, demo_amounts, native
 from two_party_http import ROOT, Handler, atomic, call, public_origins
 
-PORTS = {'network': 8790, 'alice': 8791, 'bob': 8792}
+# A second local network (another checkout's demo already on 8790-8792) can
+# take three consecutive loopback ports from LATCH_TWO_PARTY_PORT_BASE.
+_BASE = os.environ.get('LATCH_TWO_PARTY_PORT_BASE', '8790')
+if not _BASE.isascii() or not _BASE.isdecimal() or not 1024 <= int(_BASE) <= 65533:
+    raise RuntimeError('LATCH_TWO_PARTY_PORT_BASE must be an unprivileged port')
+PORTS = {'network': int(_BASE), 'alice': int(_BASE) + 1, 'bob': int(_BASE) + 2}
 TOPICS = ('manifest', 'sealed')
 HEX = set('0123456789abcdef')
 PRIVATE = {'alice': ('alice', 'alice-source', 'alice-app'), 'bob': ('bob', 'bob-app')}
@@ -102,9 +108,9 @@ def topic(signature):
     return '0x' + evm_wallet.keccak(signature.encode()).hex()
 
 
-EVENTS = {topic('Locked(bytes32,address,address,uint256,uint64,uint256,uint256,bytes32)'): 'locked',
-          topic('Claimed(bytes32,uint256)'): 'claimed', topic('Refunded(bytes32)'): 'refunded',
-          topic('Withdrawn(address,address,uint256)'): 'withdrawn'}
+EVENTS = {topic(escrow_abi.LOCKED): 'locked', topic(escrow_abi.CLAIMED): 'claimed',
+          topic(escrow_abi.REFUNDED): 'refunded', topic(escrow_abi.WITHDRAWN[1]): 'withdrawn',
+          topic(escrow_abi.WITHDRAWN[2]): 'withdrawn'}
 
 
 class PublicView:
@@ -154,7 +160,8 @@ class PublicView:
             elif kind == 'claimed':
                 event.update(witness=hex(words[0]))
             elif kind == 'withdrawn':
-                event.update(owner=address(log['topics'][1]), amount_wei=str(words[0]))
+                # v1 topics: owner, to; v2 topics: order id, owner, to.
+                event.update(owner=address(log['topics'][-2]), amount_wei=str(words[0]))
             events.append(event)
         return events
 
@@ -212,19 +219,22 @@ class Network:
         else:
             raise RuntimeError('local Anvil did not start')
         escrow = self.root / 'network/escrow.json'
-        artifact = json.loads((ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json').read_text())
+        get_code = lambda address: evm.rpc('eth_getCode', [address, 'latest'])
         if escrow.exists():
             deployed = json.loads(escrow.read_text())
-            code = evm.rpc('eth_getCode', [deployed['address'], 'latest'])
-            if code.removeprefix('0x') != artifact['deployedBytecode']['object'].removeprefix('0x'):
-                raise RuntimeError('saved escrow missing from restored Anvil state')
+            try:
+                escrow_abi.verify_code({'contract': deployed['address'],
+                    'escrow_version': deployed.get('version', 1)}, get_code)
+            except RuntimeError:
+                raise RuntimeError('saved escrow missing from restored Anvil state') from None
         else:
             # One public contract for every trade, as on a real network.
-            receipt = evm.send({'from': evm.rpc('eth_accounts')[0], 'data': artifact['bytecode']['object'],
+            version = escrow_abi.local_default()
+            receipt = evm.send({'from': evm.rpc('eth_accounts')[0], 'data': escrow_abi.creation_code(version),
                 'gas': hex(5_000_000)})
-            code = evm.rpc('eth_getCode', [receipt['contractAddress'], 'latest'])
+            code = get_code(receipt['contractAddress'])
             atomic(escrow, {'address': receipt['contractAddress'], 'block': int(receipt['blockNumber'], 16),
-                'code_hash': evm_wallet.keccak(bytes.fromhex(code[2:])).hex()})
+                'code_hash': evm_wallet.keccak(bytes.fromhex(code[2:])).hex(), 'version': version})
         self.escrow = json.loads(escrow.read_text())
         tip = status()
         if tip['blocks'] < 2:  # A brand-new chain (a hosted reset): activate NU7.

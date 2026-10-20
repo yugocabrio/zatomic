@@ -14,7 +14,8 @@ from pathlib import Path
 import owner_swap as flow
 import prefunding_swap
 import run_native_evm_gate as evm
-from evm_journal import checkpoint
+import escrow_abi
+from evm_journal import checkpoint, local_order, order_slot
 from regtest_node import status, rpc as zrpc
 from regtest_wallet import save
 from run_client_swap import client
@@ -67,8 +68,10 @@ def check(directory, expect_collision=False):
         if state()!=1 or (bob/'eth-intent-refund.json').exists():
             raise RuntimeError('expired exposed claim incorrectly became refund')
         refund_relayer = evm.rpc('eth_accounts')[0]
+        v = escrow_abi.version(agreement)
         refund = evm.send({'from': refund_relayer, 'to': agreement['contract'],
-            'data': evm.calldata('refund(bytes32)', order), 'gas': hex(200_000)})
+            'data': escrow_abi.calldata(v, 'refund', order, local_order(agreement, agreement['native']) if v == 2 else None),
+            'gas': hex(200_000)})
         if state() != 3:
             raise RuntimeError('competing ETH refund was not canonical')
         client('native-claim', bob, {'order': order}, reject=True)
@@ -116,9 +119,14 @@ def check(directory, expect_collision=False):
                 raise RuntimeError('canonical observation history was not retained')
         if digest(intent_path)!=original_intent or status()['tip']!=native_tip:
             raise RuntimeError('fork checks mutated owner intent or native funding')
-        credit = lambda address:int(evm.rpc('eth_call',[{'to':agreement['contract'],
-            'data':evm.calldata('credits(address)',address)},'latest']),16)
-        if credit(agreement['recipient'])!=agreement['amount_wei'] or credit(relayer)!=0:
+        if escrow_abi.version(agreement) == 1:
+            credit = lambda address:int(evm.rpc('eth_call',[{'to':agreement['contract'],
+                'data':evm.calldata('credits(address)',address)},'latest']),16)
+            fixed = credit(agreement['recipient'])==agreement['amount_wei'] and credit(relayer)==0
+        else:
+            # v2 credits the committed order, whose recipient is fixed.
+            fixed = order_slot(agreement, agreement['native'], order) == (2, False)
+        if not fixed:
             raise RuntimeError('relayer changed fixed ETH recipient')
         # Commit only the chosen replacement history, then settle the native
         # leg using its public claim event and the owner's accepted exit bundle.

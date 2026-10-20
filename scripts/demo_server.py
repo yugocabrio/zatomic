@@ -12,6 +12,7 @@ import subprocess
 import threading
 import time
 import demo_otc
+import escrow_abi
 from otc_offer import decimal_amount
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
@@ -140,7 +141,7 @@ class Manager:
         with self.lock:
             self.check_node()
             jobs = [self.one(p) for p in self.records()[:30]]
-            ready = self.node['available'] and (ROOT / 'target/release/shielded-swap-native').is_file() and (ROOT / '.local/forge-out/PointEscrow.sol/PointEscrow.json').is_file() and bool(shutil.which('anvil')) and bool(shutil.which('cast'))
+            ready = self.node['available'] and (ROOT / 'target/release/shielded-swap-native').is_file() and (ROOT / '.local/forge-out' / escrow_abi.ARTIFACT[escrow_abi.local_default()]).is_file() and bool(shutil.which('anvil')) and bool(shutil.which('cast'))
             # Probing takes the driver flock for an instant; never do it while our
             # own runner may be acquiring it, or that runner could fail to start.
             busy = (self.worker is not None and self.worker.is_alive()) or driver_busy()
