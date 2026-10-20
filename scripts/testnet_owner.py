@@ -76,7 +76,7 @@ def execute(directory, action, packet, role=None, incoming=None):
     accepted = otc_offer.read(directory/'accepted-trade.json')
     otc_offer.verify(directory,accepted,True)
     if action == 'graph-review':
-        timestamp_policy.validate(packet['plan'])
+        timestamp_policy.validate(packet['plan']); timestamp_policy.require_opt_in(packet['plan'])
         result = native('testnet-owner-review',directory,incoming)
         return dict(result, candidate_clock_bounds_validated=True,
             live_clock_or_chain_checked=False)
@@ -86,7 +86,7 @@ def execute(directory, action, packet, role=None, incoming=None):
     if action == 'consent':
         from public_agreement import validate_policy
         validate_policy()
-        timestamp_policy.validate(packet['agreement']['execution_plan'])
+        timestamp_policy.validate(packet['agreement']['execution_plan']); timestamp_policy.require_opt_in(packet['agreement']['execution_plan'])
         return native('testnet-owner-consent',directory,incoming)
     if action == 'verify-destinations':
         if packet['trade'] != accepted:

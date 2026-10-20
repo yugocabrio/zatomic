@@ -27,6 +27,11 @@ def main():
     if len(table) != 1:
         raise SystemExit('width-4 table hash not found')
     policy = dict(v1, format='latch-public-agreement-policy-v2')
+    # v2 also pins the reviewed short public-testnet timing profile.
+    import sys
+    sys.path.insert(0, str(ROOT / 'scripts'))
+    import timestamp_policy
+    policy['timestamp_policy_short'] = timestamp_policy.SHORT
     policy['escrow'] = {
         'version': 2,
         'contract_name': 'PointEscrowV2',

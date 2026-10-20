@@ -465,7 +465,8 @@ def execute(directory, action, request, fault_after_send=False):
             # Before the first exposure only: the pinned bytecode must accept t
             # on a private throwaway node, so a verifier rejection cannot
             # publish t in a reverted claim. Never sent to the agreed chain.
-            claim_precheck.verify(2, secret, terms['point_x'], terms['point_y'])
+            claim_precheck.verify(2, secret, terms['point_x'], terms['point_y'], directory,
+                gas=fee_policy.policy(agreement)['gas_limits']['claim'])
         data = escrow_abi.calldata(v, 'claim', order, local_order(agreement, terms) if v == 2 else None,
             witness=secret)
         gas, value = fee_policy.policy(agreement)['gas_limits']['claim'], 0

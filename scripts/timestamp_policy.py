@@ -34,6 +34,13 @@ SHORT = dict(POLICY, profile='candidate-testnet-timestamp-short-v1',
 PROFILES = {POLICY['profile']: POLICY, SHORT['profile']: SHORT}
 
 
+def require_opt_in(plan):
+    # An owner accepts a short-profile plan only with its own explicit opt-in
+    # (review L-3); a proposer cannot impose the thinner margins.
+    if plan['policy'].get('profile') == SHORT['profile'] and os.environ.get('LATCH_TIMING_PROFILE') != 'short':
+        raise RuntimeError('short timing profile needs LATCH_TIMING_PROFILE=short for this owner')
+
+
 def selected():
     value = os.environ.get('LATCH_TIMING_PROFILE', 'default')
     if value not in ('default', 'short'):

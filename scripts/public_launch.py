@@ -71,12 +71,12 @@ def owners(root,zec,eth):
         'owner_pair_sha256':testnet_owner.fingerprint(identities),'public_transactions':0}
 
 
-def prepare(root,endpoint,cap):
+def prepare(root,endpoint,cap,escrow_version=1):
     packet=root/'packets'; source=root/'source'
     accepted=read(root/'alice/accepted-trade.json')
     if read(root/'bob/accepted-trade.json')!=accepted: raise RuntimeError('accepted owner quotes differ')
     # Do not start deadlines or reserve coins while deployment/funding is absent.
-    deployed=public_deploy.execute(root/'deployment-owner',cap,endpoint)
+    deployed=public_deploy.execute(root/'deployment-owner',cap,endpoint,version=escrow_version)
     if deployed['state']!='finalized-by-provider': raise RuntimeError('exact deployment must be finalized before preparation')
     command('testnet_wallet.py','sync',source,'--batches',32)
     info,current=testnet_wallet.checkpoint(source)
@@ -113,7 +113,8 @@ def prepare(root,endpoint,cap):
     native('testnet-recovery-receipts',packet/'native-recovery.json',packet/'receipts.json')
     salt=packet/'salt.json'
     if not salt.exists(): save(salt,{'salt':'0x'+os.urandom(32).hex()})
-    command('public_agreement.py',packet/'native-recovery.json',packet/'receipts.json',deployed['contract'],read(salt)['salt'],packet/'proposal.json')
+    command('public_agreement.py',packet/'native-recovery.json',packet/'receipts.json',deployed['contract'],read(salt)['salt'],packet/'proposal.json',
+        '--escrow-version',escrow_version)
     proposal=read(packet/'proposal.json')
     consents={r:owner_action(root,r,'consent',proposal) for r in ('alice','bob')}; save(packet/'consents.json',consents)
     checked=native('testnet-check-consents',packet/'native-recovery.json',packet/'proposal.json',packet/'consents.json')
@@ -174,10 +175,11 @@ def main():
     p.add_argument('--eth-rpc',default='https://sepolia.gateway.tenderly.co');p.add_argument('--gas-cap-wei',type=int,default=100_000_000)
     p.add_argument('--zec-amount',default='0.001');p.add_argument('--eth-amount',default='0.001')
     p.add_argument('--role',choices=('alice','bob'),default='bob');p.add_argument('--version')
+    p.add_argument('--escrow-version',type=int,choices=(1,2),default=1)
     a=p.parse_args(); root=a.root.resolve()
     with authority.owner_locked(root):
         if a.action=='owners': result=owners(root,a.zec_amount,a.eth_amount)
-        elif a.action=='prepare': result=prepare(root,a.eth_rpc,a.gas_cap_wei)
+        elif a.action=='prepare': result=prepare(root,a.eth_rpc,a.gas_cap_wei,a.escrow_version)
         elif a.action=='native-exit': result=native_exit(root,a.role)
         else:
             if not a.version: p.error('--version required for verify')

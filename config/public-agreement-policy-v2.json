@@ -61,5 +61,29 @@
       "contracts/src/PallasCombTables.sol": "e728d66cc58d895efc89cf53a78a195572c6728faceb4a50780a44beef61eda0",
       "contracts/src/PointEscrowV2.sol": "d6edeb684830e502457437f86f9439be3af4da0e3a8cf290b3f62a2e684b3baf"
     }
+  },
+  "timestamp_policy_short": {
+    "version": 1,
+    "profile": "candidate-testnet-timestamp-short-v1",
+    "native_genesis": "05a60a92d99d85997cce3b87616c089f6124d7342af37106edc76126334a2c38",
+    "native_branch": "77190ad9",
+    "eth_chain_id": 11155111,
+    "clock_error_seconds": 60,
+    "native_early_header_seconds": 7200,
+    "secret_observation_seconds": 300,
+    "native_proof_seconds": 600,
+    "native_inclusion_seconds": 1800,
+    "native_confirmation_seconds": 3600,
+    "native_reorg_recovery_seconds": 3600,
+    "eth_inclusion_seconds": 600,
+    "eth_settlement_seconds": 1800,
+    "eth_retry_seconds": 600,
+    "observation_max_age_seconds": 120,
+    "native_tip_max_age_seconds": 600,
+    "eth_tip_max_age_seconds": 120,
+    "eth_expiry_after_creation_seconds": 10800,
+    "funding_cutoff_before_expiry_seconds": 7200,
+    "reveal_cutoff_before_expiry_seconds": 3600,
+    "native_refund_after_eth_expiry_seconds": 21600
   }
 }

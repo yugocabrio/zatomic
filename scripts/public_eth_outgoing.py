@@ -224,10 +224,6 @@ def finish(owner, directory, binding, files, checked, kind, inspect=False):
             witness = read(owner/'setup-round1.json')['witness_le']
             check_opening(action, files, checked, witness)
             scalar = int.from_bytes(bytes.fromhex(witness), 'little')
-            if escrow_abi.version(agreement) == 2:
-                # The pinned v2 bytecode must accept t on a private throwaway
-                # node before any signature exists; no provider sees t here.
-                claim_precheck.verify(2, scalar, agreement['point_x'], agreement['point_y'])
             payload += scalar.to_bytes(32, 'big').hex()
         raw = sign(owner, dict(value['transaction_base'], data=payload))
         verify_raw(action, value, files, checked, raw)
@@ -273,6 +269,15 @@ def operate(operation, owner, consents, endpoint=probe_sepolia.ENDPOINT, action=
                 observed = Path(report['observation_directory'])
             if authority.bind_owner(owner, files, checked, action_phase(kind, role)) != caller or read(consents) != files['consents']:
                 raise RuntimeError('owner acceptance changed before ETH decision')
+            agreement = files['proposal']['agreement']
+            if kind == 'claim' and escrow_abi.version(agreement) == 2:
+                # Before the durable claim decision (review M-1): the pinned v2
+                # bytecode must accept t on a private node reached only over a
+                # Unix socket in this owner's directory (review H-1). A failure
+                # here leaves exposure history clean, so the refund stays open.
+                witness = read(owner/'setup-round1.json')['witness_le']
+                claim_precheck.verify(2, int.from_bytes(bytes.fromhex(witness), 'little'), agreement['point_x'],
+                    agreement['point_y'], owner, gas=fee_policy.policy(agreement)['gas_limits']['claim'])
             commit(directory, binding, files['proposal']['agreement'], kind, reserve,
                 {'directory': str(observed.relative_to(owner)), 'report_digest': eth.digest(report), 'live_checks_in_this_invocation': True})
         elif not existing:

@@ -37,6 +37,8 @@ def validate_policy(version=1):
                 for path,digest in sources.items()):
             raise RuntimeError('escrow source differs from pinned agreement policy')
         policies[v]=policy
+    if 'timestamp_policy_short' in policies[1] or policies[2].get('timestamp_policy_short')!=timestamp_policy.SHORT:
+        raise RuntimeError('short timing profile is pinned only by the v2 policy')
     if policies[1]['observation_policy']!=policies[2]['observation_policy'] or policies[2]['escrow'].get('version')!=2:
         raise RuntimeError('v2 escrow policy diverged from v1 profile')
     if version not in policies:

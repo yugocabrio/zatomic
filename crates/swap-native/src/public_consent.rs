@@ -55,8 +55,25 @@ fn hex_field(v: &str, length: usize) -> Result<()> {
 
 /// Recompute the exact fixed candidate clock/fee policy even for direct native
 /// callers. Current-time and chain observations are deliberately not fabricated.
+fn timestamp_profile<'a>(plan: &Value, policy: &'a Value) -> Result<&'a Value> {
+    // The plan names its profile; only the pinned default or, where the policy
+    // pins one, the reviewed short profile is accepted, each with its exact values.
+    let name = plan["policy"]["profile"]
+        .as_str()
+        .ok_or("plan timing profile")?;
+    let default = &policy["timestamp_policy"];
+    if default["profile"].as_str() == Some(name) {
+        return Ok(default);
+    }
+    let short = &policy["timestamp_policy_short"];
+    if short.is_object() && short["profile"].as_str() == Some(name) {
+        return Ok(short);
+    }
+    Err("unsupported timing profile".into())
+}
+
 fn validate_plan(plan: &Value, policy: &Value) -> Result<()> {
-    let p = &policy["timestamp_policy"];
+    let p = timestamp_profile(plan, policy)?;
     let created = u32_value(plan, "created_at")?;
     let expiry = created
         .checked_add(u32_value(p, "eth_expiry_after_creation_seconds")?)
@@ -138,8 +155,7 @@ fn agreement(
     {
         return Err("funding fee differs from fixed public profile".into());
     }
-    let mut value =
-        json!({"format":"latch-public-cross-chain-agreement-v1","policy_digest":hash(&policy)?,
+    let mut value = json!({"format":"latch-public-cross-chain-agreement-v1","policy_digest":hash(&policy)?,
         "native_genesis":packet["graph"]["native_genesis"],"native_branch":packet["graph"]["native_branch"],
         "eth_chain_id":policy["escrow"]["chain_id"],"eth_genesis":policy["escrow"]["genesis"],
         "quote_digest":hash(quote)?,"owners":quote["owners"],"bundle_digest":checked["bundle_digest"],
@@ -332,7 +348,14 @@ mod tests {
     fn escrow_versions_parse_strictly() {
         assert_eq!(agreement_version(&json!({})).unwrap(), 1);
         assert_eq!(agreement_version(&json!({"escrow_version": 2})).unwrap(), 2);
-        for bad in [json!(1), json!(3), json!("2"), json!(2.0), json!(null), json!(-2)] {
+        for bad in [
+            json!(1),
+            json!(3),
+            json!("2"),
+            json!(2.0),
+            json!(null),
+            json!(-2),
+        ] {
             assert!(agreement_version(&json!({ "escrow_version": bad })).is_err());
         }
     }
@@ -353,5 +376,41 @@ mod tests {
         );
         assert!(v2["escrow"]["table_code_hash"].as_str().unwrap().len() == 66);
         assert!(v1["escrow"].get("table_code_hash").is_none());
+        assert!(v1.get("timestamp_policy_short").is_none());
+        assert_eq!(
+            v2["timestamp_policy_short"]["profile"],
+            "candidate-testnet-timestamp-short-v1"
+        );
+    }
+
+    fn plan_for(p: &Value, policy: &Value, created: u32) -> Value {
+        let expiry = created + p["eth_expiry_after_creation_seconds"].as_u64().unwrap() as u32;
+        let refund = expiry
+            + p["native_refund_after_eth_expiry_seconds"]
+                .as_u64()
+                .unwrap() as u32;
+        json!({"policy": p, "created_at": created, "eth_expiry": expiry,
+            "fund_before": expiry - p["funding_cutoff_before_expiry_seconds"].as_u64().unwrap() as u32,
+            "first_reveal_before": expiry - p["reveal_cutoff_before_expiry_seconds"].as_u64().unwrap() as u32,
+            "native_refund_lock": {"kind": "timestamp", "value": refund},
+            "fee_policy": policy["fee_policy"]})
+    }
+
+    #[test]
+    fn short_profile_only_under_v2_and_only_exact() {
+        let v1 = escrow_policy(1).unwrap();
+        let v2 = escrow_policy(2).unwrap();
+        let default = plan_for(&v2["timestamp_policy"], &v2, 1_800_000_000);
+        let short = plan_for(&v2["timestamp_policy_short"], &v2, 1_800_000_000);
+        assert!(validate_plan(&default, &v1).is_ok());
+        assert!(validate_plan(&default, &v2).is_ok());
+        assert!(validate_plan(&short, &v2).is_ok());
+        assert!(validate_plan(&short, &v1).is_err());
+        let mut edited = short.clone();
+        edited["policy"]["native_refund_after_eth_expiry_seconds"] = json!(17_000);
+        assert!(validate_plan(&edited, &v2).is_err());
+        let mut late = short.clone();
+        late["native_refund_lock"]["value"] = json!(1_800_000_000u64 + 40_000);
+        assert!(validate_plan(&late, &v2).is_err());
     }
 }
