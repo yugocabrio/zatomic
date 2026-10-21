@@ -1,5 +1,12 @@
 # Gas optimization benchmark: claim verifier and order storage
 
+**Update (2026-10-21): the comb + hash design shipped** as PointEscrowV2, at
+width 4, after its own review ([review](review-escrow-v2.md)). Its Sepolia
+receipts: deployment with table 7,100,182, lock 139,146, claim 112,528,
+refund 32,981, withdrawal 43,562 to 43,586
+([record](../evidence/2026-10-21-public-testnet-v2.json)). The text below is the
+2026-10-18 benchmark, unchanged.
+
 **Status: benchmark only (2026-10-18).** Nothing here is deployed or broadcast,
 and the shipped contracts are unchanged. `contracts/src/Pallas.sol` and
 `contracts/src/PointEscrow.sol` are untouched. After `forge build` the

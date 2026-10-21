@@ -90,7 +90,21 @@ On 2026-10-18 dRPC's free plan stopped serving Sepolia, and publicnode has
 pruned the genesis block that the clients verify; Tenderly's public gateway
 passed the read-only genesis and finality probe.
 
-Pinned PointEscrow, no constructor arguments/value:
+Shipped escrow: PointEscrowV2 (`--escrow-version 2`, pinned in
+`config/public-agreement-policy-v2.json`), no constructor arguments/value. Its
+constructor creates the comb table contract at CREATE nonce 1 and pins its code
+hash. Deploy limit 8,500,000 gas.
+
+- Creation Keccak: `0x48a31442fd020004759491cab577aeed81aebf116c7541accfbc515c13db3221`.
+- Runtime Keccak: `0x031f9898eaec991f176d9bd5aac1cb97252ec9e9b92a6de8684f8b6c38557c8e`.
+- Table runtime Keccak: `0x3e3813213a5519b8c68bf7eb007136799c2aac064e57fe0515bc52752c1a5a0e`.
+- Deployed on 2026-10-21 at `0x468170aee858eec2a445c1a37970de28adea4e3b`
+  (7,100,182 gas). Receipts from its two runs: lock 139,146, claim 112,528,
+  refund 32,981, withdrawal 43,562 to 43,586
+  ([record](../evidence/2026-10-21-public-testnet-v2.json)).
+
+The first PointEscrow (v1 agreements, `config/public-agreement-policy-v1.json`)
+still verifies; its simulated gas is the table above:
 
 - Creation Keccak: `0x3d5bdd90ec5db993616ce4af134cff0f8fbed34c250c5039e3fd6d949ebe1113`.
 - Runtime Keccak: `0x6267f59be4896a2d311e0eb7bdf9bfb5ada76fcecb140ac6589aaee8a85b569a`.
@@ -248,12 +262,21 @@ restore an old filesystem snapshot over current exposure history.
   Alice must reconcile/rebroadcast the same claim within the allowed policy;
   later absence never authorizes a no-reveal refund fallback. Recovery can mean
   receiving the counter-asset, not both original assets.
-  The current sender only retries an unobserved claim before `first_reveal_before`,
-  even if a prior transport attempt was ambiguous. Do not initiate at the end of
-  that window: this execution checklist requires **30 minutes of additional
-  operating margin** before its cutoff. A lost/dropped claim after the cutoff
-  needs manual reconciliation; there is no general late fee-bump rescue. A
-  successful preparation check alone does not establish first exposure.
+  After an uncertain claim send, rerun `public_eth_execute.py ... claim
+  --broadcast-testnet` at once: while the provider has no receipt it resends
+  the same signed bytes. A first claim send must start before
+  `first_reveal_before`; a resend of those bytes after a recorded attempt is
+  accepted until `first_reveal_before + eth_retry_seconds` (10 minutes in both
+  profiles), the retry time the reveal cutoff already reserves. Do not initiate
+  at the end of the window: this execution checklist requires **30 minutes of
+  additional operating margin** before its cutoff. A lost/dropped claim after
+  the retry time needs manual reconciliation; there is no general late fee-bump
+  rescue. A successful preparation check alone does not establish first
+  exposure. On 2026-10-21 the V2 success run's first claim send through
+  Tenderly came back uncertain and the run script did not retry it for 73
+  minutes; the operator then resent the identical bytes through publicnode with
+  curl, 9 seconds before `first_reveal_before`, and the claim was mined
+  ([record](../evidence/2026-10-21-public-testnet-v2.json)).
 - **Lost anchor, deep source rollback, censorship, depleted fee reserve or
   missed monitoring bound:** stop new commitments and preserve all data. These
   exceed the demonstrated conditional guarantees; no automatic reset is safe.

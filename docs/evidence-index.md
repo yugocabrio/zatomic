@@ -35,6 +35,14 @@ a browser refund recovery and a timelock check ran on chain. The public path
 was ported too (synthetic-input checks; funded refund not yet exercised).
 [Record](../evidence/2026-10-17-deferred-auxiliary.json).
 
+**Public testnet runs on the V2 escrow, 2026-10-21:** the shipped
+PointEscrowV2 deployed to Sepolia (7,100,182 gas with its comb table) and
+settled a funded swap under the short timing profile: lock 139,146, claim
+112,528, withdrawal 43,562 gas. F and C are fully shielded. A no-reveal run has
+its ETH refund (32,981 gas) and withdrawal on chain and Alice's A sent. Two
+tool defects found and fixed on the way (claim resend window, stale action
+directory). [Record](../evidence/2026-10-21-public-testnet-v2.json).
+
 **Sepolia gas, 2026-10-18:** current Sepolia rules need far more gas for new
 state; the planned public deployment and lock would have run out of gas. Limits
 were re-measured by simulation and raised (fee profile v2).

@@ -1,0 +1,204 @@
+{
+  "date": "2026-10-21",
+  "scope": "Funded public-testnet runs of the shipped PointEscrowV2 (comb verifier, one-slot order) under the short timing profile: Zcash public testnet (Ironwood, NU7 branch 77190ad9) and Ethereum Sepolia. Run 004 settled; run 005 had nobody reveal t, so both sides refund. One host runs both owner clients; observations use trusted RPC providers. Not a consensus or finality proof, not independent hosts, not mainnet.",
+  "escrow": {
+    "version": 2,
+    "contract": "0x468170aee858eec2a445c1a37970de28adea4e3b",
+    "deploy_txid": "0xc30a74d487632fb8768002fda91f902ef3cba3bf07987451dd9c84ebf7cb7dd8",
+    "deploy_block": 11958586,
+    "deploy_gas_used": 7100182,
+    "creation_code_hash": "0x48a31442fd020004759491cab577aeed81aebf116c7541accfbc515c13db3221",
+    "runtime_code_hash": "0x031f9898eaec991f176d9bd5aac1cb97252ec9e9b92a6de8684f8b6c38557c8e",
+    "table_code_hash": "0x3e3813213a5519b8c68bf7eb007136799c2aac064e57fe0515bc52752c1a5a0e",
+    "runtime_verified_against_pin": true,
+    "note": "One deployment (escrow plus its comb table) serves both runs. Hashes are pinned in config/public-agreement-policy-v2.json.",
+    "explorer": "https://sepolia.etherscan.io/tx/0xc30a74d487632fb8768002fda91f902ef3cba3bf07987451dd9c84ebf7cb7dd8"
+  },
+  "timing_profile": {
+    "name": "candidate-testnet-timestamp-short-v1",
+    "eth_expiry_after_creation_seconds": 10800,
+    "native_refund_after_eth_expiry_seconds": 21600,
+    "opt_in": "LATCH_TIMING_PROFILE=short at graph review and consent; v2 agreements only"
+  },
+  "runs": [
+    {
+      "run": "004",
+      "outcome": "settled",
+      "trade": {
+        "zec_payout_zatoshi": 100000,
+        "zec_principal_zatoshi": 110000,
+        "eth_amount_wei": 1000000000000000,
+        "agreement_digest": "4ee42202523b8c2522c9a2fb2cccc05041edcab748081ead0c3935d312f9d70f",
+        "plan": {
+          "created_at": 1792540838,
+          "first_reveal_before": 1792548038,
+          "eth_expiry": 1792551638,
+          "native_refund_lock_timestamp": 1792573238,
+          "refund_auxiliary": "deferred",
+          "fee_profile": "bounded-legacy-eth-v2",
+          "gas_price_ceiling_wei": 100000000
+        }
+      },
+      "transactions": [
+        {
+          "step": "F: source note to the shared note",
+          "chain": "zcash-testnet",
+          "txid": "f7f837c78b8fce3bf6b209c6efbe2c9e231b65eaeb9b92b16b0304c1c3356b1b",
+          "height": 4523750,
+          "transparent_inputs": 0,
+          "transparent_outputs": 0,
+          "ironwood_actions": 2,
+          "expiry_height": 0,
+          "explorer": "https://testnet.zecblock.com/tx/f7f837c78b8fce3bf6b209c6efbe2c9e231b65eaeb9b92b16b0304c1c3356b1b"
+        },
+        {
+          "step": "Bob locks ETH (one storage slot holds the order commitment)",
+          "chain": "sepolia",
+          "txid": "0x50df988d4b22b9caa7120f967ac33c1bb52e108d3884c985f30f367ff13da86c",
+          "block": 11958852,
+          "gas_used": 139146,
+          "expected_event_verified": true,
+          "finalized": true,
+          "explorer": "https://sepolia.etherscan.io/tx/0x50df988d4b22b9caa7120f967ac33c1bb52e108d3884c985f30f367ff13da86c"
+        },
+        {
+          "step": "Alice claims, revealing t (comb verifier checks t·G = T on Pallas); the pinned v2 bytecode accepted t on a private node first",
+          "chain": "sepolia",
+          "txid": "0x86221a6af9fb80498bbc9a146624a2c1b7dc403cbaf969ea73bae6e53ec29e3a",
+          "block": 11959308,
+          "gas_used": 112528,
+          "expected_event_verified": true,
+          "finalized": true,
+          "first_send_utc": "00:47:22 through Tenderly; transport error, recorded as uncertain, not seen by any provider",
+          "resend_utc": "02:00:29 through publicnode with curl, the identical signed bytes (SHA-256 checked against the recorded attempt), 9 s before first_reveal_before",
+          "explorer": "https://sepolia.etherscan.io/tx/0x86221a6af9fb80498bbc9a146624a2c1b7dc403cbaf969ea73bae6e53ec29e3a"
+        },
+        {
+          "step": "C: Bob completes his shielded claim with t",
+          "chain": "zcash-testnet",
+          "txid": "4e9e560d897e154daa448186e742b1022d1a9f70e332a0d7ca06ea34d2ba7dc9",
+          "height": 4524018,
+          "transparent_inputs": 0,
+          "transparent_outputs": 0,
+          "ironwood_actions": 2,
+          "expiry_height": 0,
+          "recipient_decrypted_zatoshi": 100000,
+          "explorer": "https://testnet.zecblock.com/tx/4e9e560d897e154daa448186e742b1022d1a9f70e332a0d7ca06ea34d2ba7dc9"
+        },
+        {
+          "step": "Alice withdraws her ETH",
+          "chain": "sepolia",
+          "txid": "0xdfc3984adfb4553666e91f4db2cc404f1d954e0fa45cfeb5779fc27a54ab154d",
+          "block": 11959562,
+          "gas_used": 43562,
+          "withdrawal_verified": true,
+          "finalized": true,
+          "explorer": "https://sepolia.etherscan.io/tx/0xdfc3984adfb4553666e91f4db2cc404f1d954e0fa45cfeb5779fc27a54ab154d"
+        }
+      ],
+      "zcash_footprint": "F and C only, both with no transparent input or output. A and R were never broadcast.",
+      "final_verify": {
+        "command": "python3 scripts/public_launch.py verify .local/public-launch-004 --version 5e18ebf96e2a87d9111788cf888fd5ac5dd172e64c787accb0d67dba12c93d77 --eth-rpc https://sepolia.gateway.tenderly.co --escrow-version 2",
+        "result": {
+          "public_swap_succeeded": true,
+          "native_confirmations": 150,
+          "recipient_decrypted_zatoshi": 100000,
+          "eth_amount_wei": 1000000000000000,
+          "broadcast_in_this_command": false
+        }
+      }
+    },
+    {
+      "run": "005",
+      "outcome": "no reveal; both refund",
+      "status": "ETH side complete; Alice's R becomes valid at 08:50:53 UTC",
+      "trade": {
+        "zec_payout_zatoshi": 100000,
+        "zec_principal_zatoshi": 110000,
+        "eth_amount_wei": 1000000000000000,
+        "agreement_digest": "93c2374c1db2d79858dd1d2f7f3477ff230ce6afb1ec89f23586b0b8116ea698",
+        "plan": {
+          "created_at": 1792540253,
+          "first_reveal_before": 1792547453,
+          "eth_expiry": 1792551053,
+          "native_refund_lock_timestamp": 1792572653,
+          "refund_auxiliary": "deferred",
+          "fee_profile": "bounded-legacy-eth-v2",
+          "gas_price_ceiling_wei": 100000000
+        }
+      },
+      "transactions": [
+        {
+          "step": "F: source note to the shared note",
+          "chain": "zcash-testnet",
+          "txid": "58de551b23bad2fe0e501b9ce5e08570340b69fb2bdcfbffa24b401f691d33b9",
+          "height": 4523733,
+          "transparent_inputs": 0,
+          "transparent_outputs": 0,
+          "expiry_height": 0,
+          "explorer": "https://testnet.zecblock.com/tx/58de551b23bad2fe0e501b9ce5e08570340b69fb2bdcfbffa24b401f691d33b9"
+        },
+        {
+          "step": "Bob locks ETH",
+          "chain": "sepolia",
+          "txid": "0xc602d03ba4efcfc026bc3cc2f70465ffa7d62a823b9c8e771ceded1383e3c86b",
+          "block": 11958806,
+          "gas_used": 139146,
+          "expected_event_verified": true,
+          "finalized": true,
+          "explorer": "https://sepolia.etherscan.io/tx/0xc602d03ba4efcfc026bc3cc2f70465ffa7d62a823b9c8e771ceded1383e3c86b"
+        },
+        {
+          "step": "Bob refunds the order after the ETH deadline (no claim, t never published)",
+          "chain": "sepolia",
+          "txid": "0x83af549b669e2cfec954640f7991941fb79d61c695ec0dfc68296a4aafb1645b",
+          "block": 11959661,
+          "gas_used": 32981,
+          "expected_event_verified": true,
+          "explorer": "https://sepolia.etherscan.io/tx/0x83af549b669e2cfec954640f7991941fb79d61c695ec0dfc68296a4aafb1645b"
+        },
+        {
+          "step": "Bob withdraws his ETH",
+          "chain": "sepolia",
+          "txid": "0x878c1357d91a340b393b90c2cead020f284c7149e6c08ce2f33463ab4760697b",
+          "block": 11959999,
+          "gas_used": 43586,
+          "first_send": "through Tenderly; transport error, recorded as uncertain",
+          "resend": "public_eth_execute.py rerun: no receipt, so it resent the identical bytes (same hash)",
+          "explorer": "https://sepolia.etherscan.io/tx/0x878c1357d91a340b393b90c2cead020f284c7149e6c08ce2f33463ab4760697b"
+        },
+        {
+          "step": "A: Alice's pre-signed auxiliary transaction creates the refund coin from her own change",
+          "chain": "zcash-testnet",
+          "txid": "487de8134e142621411f54751aa576af47e0ca61d89e68ed5123ae905b989537",
+          "explorer": "https://testnet.zecblock.com/tx/487de8134e142621411f54751aa576af47e0ca61d89e68ed5123ae905b989537"
+        }
+      ]
+    }
+  ],
+  "gas_v1_vs_v2_on_sepolia": {
+    "note": "Receipts. V1 figures are the 2026-10-18 and 2026-10-20 public runs.",
+    "deploy_once": {"v1": 5090645, "v2_including_table": 7100182},
+    "lock": {"v1": 799447, "v2": 139146},
+    "claim": {"v1": 589726, "v2": 112528},
+    "refund": {"v1": 143831, "v2": 32981},
+    "withdraw": {"v1": 31216, "v2": [43562, 43586]},
+    "settled_swap_lock_claim_withdraw": {"v1": 1420389, "v2": 295236},
+    "no_reveal_lock_refund_withdraw": {"v1": 974494, "v2": 215713}
+  },
+  "defects_found_and_fixed_during_the_runs": [
+    "The claim send check applied first_reveal_before to every attempt, so an identical resend just after the cutoff was refused although the reveal cutoff reserves eth_retry_seconds for it; a claim with a recorded attempt may now be resent until first_reveal_before + eth_retry_seconds (commit 125897a).",
+    "decision() created the ETH action directory before reading decision.json, and prepare treats an existing directory as a committed decision; a withdraw send attempted before any withdraw decision left an empty directory that blocked every later withdraw prepare. Readers no longer create it and an empty one no longer counts (commit 81994c2, scripts/check_eth_action_directory.py)."
+  ],
+  "operational_notes": [
+    "Tenderly's gateway failed two of the night's sends (the claim and run 005's withdraw); each was recorded as uncertain and later mined with its original hash.",
+    "Bob's opening monitor stopped on a provider error before the claim was mined; it was restarted with the claim hash and found the opening at once.",
+    "The run script did not retry the uncertain claim for 73 minutes. The resend landed 9 s before first_reveal_before and 60 minutes before the ETH expiry; Bob's C confirmed 6 h 50 min before Alice's native refund became valid."
+  ],
+  "limits": [
+    "Both owners ran on one host and OS account; not independent administration.",
+    "Trusted RPC providers (Tenderly, publicnode, testnet.zec.rocks); provider finality labels are not local consensus verification.",
+    "The claim resend was done by the operator with curl, outside the tool; the rule now in the tool would have accepted it."
+  ],
+  "private_material_committed": false
+}

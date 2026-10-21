@@ -1,9 +1,10 @@
 # Zatomic — atomic swaps of shielded ZEC for ETH (Cross-chain submission draft)
 
 Draft only. No contest submission or announcement has been made. On the public
-Zcash testnet and Sepolia, one funded exchange settled (2026-10-18) and one
-funded no-reveal trade refunded both sides (2026-10-20); everything else below
-ran on isolated local chains and is labelled so.
+Zcash testnet and Sepolia, funded exchanges settled on the first escrow
+(2026-10-18) and on the shipped V2 escrow (2026-10-21), and one funded
+no-reveal trade refunded both sides (2026-10-20); everything else below ran on
+isolated local chains and is labelled so.
 
 ## One sentence
 
@@ -132,7 +133,10 @@ One funded exchange settled on the public Zcash testnet and Sepolia on
 2026-10-18 ([record](../evidence/2026-10-18-public-testnet-swap.json)): F and C
 are fully shielded and the refund auxiliary was never broadcast. A funded
 no-reveal trade then refunded both sides on the same networks on 2026-10-20
-([record](../evidence/2026-10-20-public-testnet-refund.json)). Crash recovery was exercised on isolated chains.
+([record](../evidence/2026-10-20-public-testnet-refund.json)). On 2026-10-21 the
+shipped V2 escrow settled a second funded swap under the short timing profile;
+its first claim send failed at the provider and was resent with the same bytes
+([record](../evidence/2026-10-21-public-testnet-v2.json)). Crash recovery was exercised on isolated chains.
 A second internal review found and fixed a release-order flaw in the custom adaptor
 signing (see the review above). It is not an external audit. Independently
 administered hosts have not been demonstrated. The custom adaptor composition is unaudited; the arithmetic
@@ -142,11 +146,14 @@ The swap requires bounded monitoring, inclusion and reorg assumptions. Arbitrary
 outages or source-conflicting deep forks are outside its demonstrated guarantees.
 Public chain data in the funded run came from third-party RPC providers
 (Tenderly and publicnode for Sepolia, testnet.zec.rocks for Zcash), not from
-consensus verified by our own nodes. Ethereum gas is notable: on Sepolia the
-deployment used 5,090,645 gas (once per escrow), the lock 799,447 (mostly new
-state, which Sepolia now prices high; 183,719 on a local Anvil), the claim
-589,726 (it checks t·G = T on Pallas) and the withdrawal 31,216
-([gas record](../evidence/2026-10-18-sepolia-gas.json)).
+consensus verified by our own nodes. Ethereum gas: the shipped V2 escrow checks
+t·G = T on Pallas with a precomputed comb table and keeps each order in one
+storage slot. Its Sepolia receipts on 2026-10-21 were 7,100,182 gas for the
+deployment with its table (once), 139,146 for the lock, 112,528 for the claim
+and 43,562 for the withdrawal: 295,236 for a settled swap, against 1,420,389 on
+the first escrow, whose lock alone took 799,447 because Sepolia now prices new
+state high ([record](../evidence/2026-10-21-public-testnet-v2.json),
+[benchmark](gas-optimization.md)).
 ETH addresses, amounts, witness and timing are public. A settled swap is fully
 shielded on Zcash; only a refund creates a transparent auxiliary coin, which R
 spends, returning 15,000 zatoshi of change to the same address. The ZEC exchange principal remains shielded either way. This is not a claim that the entire exchange is anonymous or mainnet
@@ -157,5 +164,5 @@ ready.
 Settlement code `9b978e3` passed [fresh-checkout reproduction](../evidence/2026-10-15-clean-reproduction.json).
 The [two-minute presentation file](demo/latch-2min.mp4) and its reviewed source
 images are included. It is a captioned edit of actual screen checkpoints, not a
-continuous recording. The public testnet settlement and refund are recorded
-above, six transactions each. Submission itself still requires the user's instruction.
+continuous recording. The public testnet settlements and refund are recorded
+above, with every transaction linked. Submission itself still requires the user's instruction.

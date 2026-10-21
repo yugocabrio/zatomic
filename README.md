@@ -17,9 +17,10 @@ ETH stays on Ethereum; Zatomic exchanges ownership without minting wrapped asset
 The local demo runs **real Zebra NU7 and Anvil transactions**. It includes a
 successful exchange, interruption after secret reveal, and interruption before
 reveal. Recovery resumes from durable state; replay checks produce no second
-payment. On the public testnets, one funded swap settled (2026-10-18) and one
-funded no-reveal trade refunded both sides (2026-10-20). This is a working
-prototype, not an audited protocol or a mainnet release.
+payment. On the public testnets, funded swaps settled (2026-10-18, and
+2026-10-21 on the shipped V2 escrow) and one funded no-reveal trade refunded
+both sides (2026-10-20). This is a working prototype, not an audited protocol
+or a mainnet release.
 
 [Previous local-release walkthrough](docs/demo/latch-2min.mp4) — recorded before
 the browser OTC update and the rename from Latch; waits omitted. The user will
@@ -42,6 +43,13 @@ revealed t: F, Bob's ETH lock, then after the ETH deadline Bob's refund and
 withdrawal, and after the later Zcash refund height Alice's auxiliary A and her
 time-locked refund R. Alice's own wallet decrypted her returned 0.001 ZEC; Bob
 withdrew exactly his 0.001 ETH. [Record with transaction links](evidence/2026-10-20-public-testnet-refund.json).
+**Public testnet swap on the V2 escrow (2026-10-21):** the shipped
+PointEscrowV2 (comb verifier, one storage slot per order) was deployed to
+Sepolia and settled another funded trade under the short timing profile (3 h
+ETH expiry, native refund 6 h later). Lock 139,146, claim 112,528 and withdrawal
+43,562 gas: 295,236 in total, against 1,420,389 on the first escrow. F and C
+again have no transparent input or output, and Bob's wallet decrypted his 0.001
+ZEC. [Record with transaction links](evidence/2026-10-21-public-testnet-v2.json).
 The [execution checklist](docs/public-execution.md) connects deployment,
 owner preparation, both senders, monitoring and final verification.
 
