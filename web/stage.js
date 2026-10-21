@@ -109,7 +109,9 @@ function summary(state, story) {
     `Zcash: ${zcash.length} shielded transactions. No amount, no address, nothing transparent.`,
   ];
   lines.push(`Relay: ${relay.length} messages, ${sealed} sealed. It never saw the amounts.`);
-  if ((state.interrupted || []).includes('bob')) lines.push('Bob’s app was killed mid-swap. It resumed from its own journal and claimed with t from Ethereum, needing nothing from Alice.');
+  if ((state.interrupted || []).includes('bob')) lines.push(story.refund
+    ? 'Bob’s app was stopped during the trade. Neither refund needed anything from the other side.'
+    : 'Bob’s app was killed mid-swap. It resumed from its own journal and claimed with t from Ethereum, needing nothing from Alice.');
   lines.push('Each app shows what its owner received. The exact ZEC amount appears only there, though the public ETH amount hints at it via the market price.');
   return {title: (story.refund ? 'Both refunded' : 'Swap settled') + took, lines};
 }

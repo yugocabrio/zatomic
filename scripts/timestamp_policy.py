@@ -106,8 +106,12 @@ def validate(plan):
 
 def require_window(plan, phase, now):
     validate(plan); now=uint(now)
-    field={'funding':'fund_before','first_reveal':'first_reveal_before'}.get(phase)
-    if field is None or now < plan['created_at'] or now >= plan[field]:
+    field={'funding':'fund_before','first_reveal':'first_reveal_before','claim_rebroadcast':'first_reveal_before'}.get(phase)
+    # Resending the identical claim bytes after an attempt that may have reached
+    # the network adds no exposure; the reveal cutoff already reserves
+    # eth_retry_seconds after it for exactly this retry.
+    extra = plan['policy']['eth_retry_seconds'] if phase == 'claim_rebroadcast' else 0
+    if field is None or now < plan['created_at'] or now >= plan[field]+extra:
         raise RuntimeError('candidate phase outside strict clock window')
 
 

@@ -80,12 +80,17 @@ def execute(owner, consents, kind, endpoint=sepolia.ENDPOINT, broadcast=False):
                 'receipt': receipt, 'new_submission': False, 'send_authorized': False,
                 'next': 'preserve-exposure-and-recover-native' if kind == 'claim' else 'reconcile-next-action'}
         result = {}
+        # A recorded attempt may have exposed t: the same bytes may be resent
+        # within the retry time the policy reserves after the reveal cutoff.
+        attempts = action/'send-attempts'
+        rebroadcast = kind == 'claim' and attempts.is_dir() and any(
+            (p/'intent.json').is_file() for p in attempts.iterdir() if p.is_dir())
         def fresh_guard(saved, actual):
             if saved != value or actual != verified: raise RuntimeError('retained ETH action changed')
             observed = action/('send-check-'+uuid.uuid4().hex)
             if kind in out.PHASE:
                 report = preflight.observe_verified(directory/'bundle.json', agreement, checked,
-                    out.PHASE[kind], observed, endpoint, None)
+                    out.PHASE[kind], observed, endpoint, None, rebroadcast=rebroadcast)
                 publish(observed/'report.json', report)
                 ethereum = read(observed/'eth.json')
                 reserve = ethereum['reserves'][role]
@@ -102,7 +107,7 @@ def execute(owner, consents, kind, endpoint=sepolia.ENDPOINT, broadcast=False):
                 raise RuntimeError('ETH send observation became stale')
             if kind in out.PHASE:
                 timestamp_policy.require_window(agreement['execution_plan'],
-                    'first_reveal' if kind == 'claim' else 'funding', now)
+                    ('claim_rebroadcast' if rebroadcast else 'first_reveal') if kind == 'claim' else 'funding', now)
             result.update(txid=verified['txid'], kind=kind, checked_in_this_invocation=True,
                 observation_digest=eth.digest(report), native_recovery_required_if_claim_exposed=kind == 'claim',
                 provider_trusted=True, broadcast=False, send_authorized=False)

@@ -123,9 +123,13 @@ def preflight(bundle, proposal, consents, phase, directory, endpoint, source_wal
         return result
 
 
-def observe_verified(bundle, agreement, verified, phase, directory, endpoint, source_wallet, source_released=False):
+def observe_verified(bundle, agreement, verified, phase, directory, endpoint, source_wallet, source_released=False,
+        rebroadcast=False):
     plan = agreement['execution_plan']
     window = 'first_reveal' if phase == 'first_reveal' else 'funding'
+    if rebroadcast:
+        if phase != 'first_reveal': raise RuntimeError('only a claim may be rebroadcast past its window')
+        window = 'claim_rebroadcast'
     timestamp_policy.require_window(plan, window, int(time.time()))
     directory.mkdir(mode=0o700)
     save(directory/'verified-consents.json', verified)

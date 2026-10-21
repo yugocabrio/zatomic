@@ -20,6 +20,13 @@ def check():
         policy.require_window(plan,phase,plan[field]-1)
         rejects(lambda:policy.require_window(plan,phase,plan[field]))
     rejects(lambda:policy.require_window(plan,'recovery',now))
+    # An identical claim resend gets exactly the reserved retry time, and the
+    # rest still covers inclusion and settlement before the ETH expiry.
+    p=plan['policy'];edge=plan['first_reveal_before']+p['eth_retry_seconds']
+    policy.require_window(plan,'claim_rebroadcast',edge-1)
+    rejects(lambda:policy.require_window(plan,'claim_rebroadcast',edge))
+    rejects(lambda:policy.require_window(plan,'claim_rebroadcast',now-1))
+    assert plan['eth_expiry']-edge>2*p['clock_error_seconds']+p['eth_inclusion_seconds']+p['eth_settlement_seconds']
     rejects(lambda:policy.build(0xffffffff))
     for alter in [lambda p:p['native_refund_lock'].update(kind='height'),
             lambda p:p['native_refund_lock'].update(value=p['eth_expiry']+7200),
