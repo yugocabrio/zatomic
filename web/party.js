@@ -17,6 +17,17 @@ const NAMES = {alice: 'Alice · sells ZEC', bob: 'Bob · sells ETH'};
 // Inside the network's stage view the app drops its chrome and privacy panel.
 const EMBED = new URLSearchParams(location.search).has('embed');
 if (EMBED) document.documentElement.classList.add('embed');
+// In the stage, report this page's height so the stage sizes the frame to fit
+// and the whole stage scrolls once, instead of each column on its own.
+if (EMBED && window.parent !== window) {
+  let reported = 0;
+  const report = () => {
+    const height = Math.ceil(document.body.getBoundingClientRect().height);
+    if (height !== reported) { reported = height; window.parent.postMessage({zatomic: 'height', height}, '*'); }
+  };
+  new ResizeObserver(report).observe(document.body);
+  addEventListener('load', report);
+}
 // Hosted demo: the stage passes the driver's lease; without it this page only watches.
 const LEASE = new URLSearchParams(location.search).get('lease') || '';
 const NOTES = {alice: ['shielded, from my own wallet', 'on Ethereum, after I reveal t'],

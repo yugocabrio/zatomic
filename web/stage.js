@@ -88,6 +88,17 @@ function narrate(events) {
 const SCENARIOS = {success: 'The swap', crash: 'Bob’s app crashes', refund: 'Both refund'};
 const RECORD = new URLSearchParams(location.search).has('record');
 if (RECORD) document.body.classList.add('record');
+// Each app reports its page height; outside ?record its frame takes that height,
+// so the page scrolls once and no column scrolls on its own.
+addEventListener('message', (event) => {
+  if (RECORD || !event.data || event.data.zatomic !== 'height') return;
+  for (const role of ['alice', 'bob']) {
+    const frame = $(`#${role}-frame`);
+    if (event.source !== frame.contentWindow || !frame.src || event.origin !== new URL(frame.src).origin) continue;
+    const height = Number(event.data.height);
+    if (Number.isFinite(height) && height > 0) frame.style.height = `${Math.min(Math.max(height, 320), 8000)}px`;
+  }
+});
 const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
 // The end of a trade, from public data only: the ZEC amount and receive

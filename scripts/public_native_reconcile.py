@@ -153,7 +153,21 @@ def observe(owner, fingerprint, wallet=None, batches=4):
 
 
 def observe_locked(owner, fingerprint, wallet=None, batches=4):
-    """Caller holds the owner's operator.lock for the complete observation."""
+    """Caller holds the owner's operator.lock for the complete observation.
+
+    When a Zcash block lands between the watch scan and its canonical check,
+    observe again in a new record (at most three times), as the source
+    preflight does, rather than skip the new block's nullifiers.
+    """
+    for attempt in range(3):
+        try:
+            return observe_once_locked(owner, fingerprint, wallet, batches)
+        except RuntimeError as error:
+            if 'synchronized to the current provider tip' not in str(error) or attempt == 2:
+                raise
+
+
+def observe_once_locked(owner, fingerprint, wallet=None, batches=4):
     if not re.fullmatch('[0-9a-f]{64}', fingerprint) or not 1 <= batches <= 32:
         raise RuntimeError('exact retained version fingerprint and bounded sync required')
     journal = outgoing.verified_journal_locked(owner)
