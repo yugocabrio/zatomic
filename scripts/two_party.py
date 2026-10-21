@@ -407,8 +407,11 @@ class Network:
     def policy(self, role):
         denied = [self.root / name for name in ('network', 'relay')]
         denied += [self.root / name for other, names in PRIVATE.items() if other != role for name in names]
+        # File access alone does not stop connect() to a Unix socket inside a
+        # denied directory (the v2 claim pre-check's private node), so deny that too.
         return '(version 1)(allow default)' + ''.join(
-            f'(deny file-read* file-write* (subpath {json.dumps(str(p))}))' for p in denied)
+            f'(deny file-read* file-write* (subpath {json.dumps(str(p))}))'
+            f'(deny network-outbound (remote unix-socket (subpath {json.dumps(str(p))})))' for p in denied)
 
     def prove_isolation(self):
         # Under each app's exact policy, reading the other owner's identity
