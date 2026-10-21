@@ -146,7 +146,11 @@ def commit(directory, binding, agreement, kind, reserve, observation):
 
 
 def decision(directory, binding, agreement, kind):
-    action = directory/kind; outgoing.private_directory(action)
+    action = directory/kind
+    # Reading must not create the action directory: prepare treats an existing
+    # one as a committed decision.
+    if not action.exists() and not action.is_symlink(): raise RuntimeError('no committed ETH action')
+    outgoing.private_directory(action)
     value = read(action/'decision.json'); tx = value['transaction_base']; p = fee_policy.policy(agreement)
     role = action_role(kind, binding['role'])
     if (value['format'] != 'latch-public-eth-decision-v1' or value['kind'] != kind
@@ -252,6 +256,10 @@ def operate(operation, owner, consents, endpoint=probe_sepolia.ENDPOINT, action=
         directory, binding = workspace(owner, files, checked, role)
         if operation == 'init': return exposure(owner, files, checked)
         existing = (directory/kind).exists() or (directory/kind).is_symlink()
+        # An empty action directory holds no decision, bytes or attempt (older
+        # readers created one), so it does not block a fresh decision.
+        if existing and not (directory/kind).is_symlink() and (directory/kind).is_dir() and not any((directory/kind).iterdir()):
+            existing = False
         if operation == 'prepare' and not existing:
             observed = directory/('observation-'+uuid.uuid4().hex)
             if kind in PHASE:
