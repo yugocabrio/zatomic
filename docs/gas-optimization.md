@@ -7,8 +7,9 @@ refund 32,981, withdrawal 43,562 to 43,586
 ([record](../evidence/2026-10-21-public-testnet-v2.json)). The text below is the
 2026-10-18 benchmark, unchanged.
 
-**Status: benchmark only (2026-10-18).** Nothing here is deployed or broadcast,
-and the shipped contracts are unchanged. `contracts/src/Pallas.sol` and
+**Original status, kept for the record: benchmark only (2026-10-18).** At the
+time nothing here was deployed or broadcast,
+and the shipped contracts were unchanged. `contracts/src/Pallas.sol` and
 `contracts/src/PointEscrow.sol` are untouched. After `forge build` the
 PointEscrow runtime hash is still
 `0x6267f59be4896a2d311e0eb7bdf9bfb5ada76fcecb140ac6589aaee8a85b569a`, the value

@@ -70,7 +70,7 @@ shielded; the refund auxiliary was never broadcast. One host.
 
 **Public testnet refund, 2026-10-20:** a second funded trade where nobody
 revealed t. After the ETH deadline Bob refunded and withdrew exactly 0.001 ETH;
-after the Zcash refund height Alice sent A (the 20,000-zatoshi coin) and her
+after the Zcash refund time Alice sent A (the 20,000-zatoshi coin) and her
 time-locked R, and her own wallet decrypted the returned 0.001 ZEC. Same pinned
 escrow, one host. [Record](../evidence/2026-10-20-public-testnet-refund.json).
 
@@ -94,7 +94,7 @@ budget. These 2026-10-15 additions included no funded public swap; that came on
 | Public-profile ETH preparation and recovery decisions | Actual Sepolia-domain lock/claim signatures survive decision-before-signing interruption; native recovery policy retains exposure and checks refund prerequisites. | [ETH journal](../evidence/2026-10-15-public-eth-outgoing.json), [recovery decision](../evidence/2026-10-15-public-recovery-decision.json) | Public inclusion/withdrawal, funded live integration or permission to send. Reserves and chain states are explicit transcripts. |
 | Public-profile ETH delivery primitives on an isolated EVM | Real signed lock/claim/refund/withdrawal, post-submit SIGKILL and exact receipt recovery; both recipients' balance changes equal credit minus gas. | [ETH delivery](../evidence/2026-10-15-public-eth-delivery.json) | Public deployment/settlement or a complete sender. Native inputs are synthetic, runtime is installed locally, finality labels are modeled. |
 | Public settlement, success path | **Executed 2026-10-18:** deploy, F, lock, claim, C, withdraw on Zcash testnet and Sepolia; final verify passed; F and C fully shielded; refund auxiliary never broadcast. | [Public swap](../evidence/2026-10-18-public-testnet-swap.json) | Independent hosts; local consensus verification (trusted RPC providers). |
-| Public no-reveal refund | **Executed 2026-10-20:** F, lock, Bob's refund and withdrawal after the ETH deadline, Alice's A and time-locked R after the Zcash refund height; Alice's wallet decrypted her 0.001 ZEC, Bob's withdrawal verified. | [Public refund](../evidence/2026-10-20-public-testnet-refund.json) | Independent hosts; local consensus verification (trusted RPC providers). |
+| Public no-reveal refund | **Executed 2026-10-20:** F, lock, Bob's refund and withdrawal after the ETH deadline, Alice's A and time-locked R after the Zcash refund time; Alice's wallet decrypted her 0.001 ZEC, Bob's withdrawal verified. | [Public refund](../evidence/2026-10-20-public-testnet-refund.json) | Independent hosts; local consensus verification (trusted RPC providers). |
 | Independent-host operation | **Not executed.** Both owners ran on one host. | [Hosting](hosting.md) | Do not present any row as separately administered. |
 
 The latest [explicit sender candidate checks](../evidence/2026-10-15-public-execution.json)
