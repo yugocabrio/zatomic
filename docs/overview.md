@@ -1,7 +1,6 @@
-# Zatomic — atomic swaps of shielded ZEC for ETH (Cross-chain submission draft)
+# Zatomic: atomic swaps of shielded ZEC for ETH
 
-Draft only. No contest submission or announcement has been made. On the public
-Zcash testnet and Sepolia, funded exchanges settled on the first escrow
+On the public Zcash testnet and Sepolia, funded exchanges settled on the first escrow
 (2026-10-18) and on the shipped V2 escrow (2026-10-21), and funded no-reveal
 trades refunded both sides on each (2026-10-20, 2026-10-21); everything else below ran on
 isolated local chains and is labelled so.

@@ -53,7 +53,7 @@ More: [two-party mode](docs/two-party.md), [reproduction](docs/reproduce.md),
 
 ## Read more
 
-- [Submission](docs/submission.md): what is new and how it compares
+- [Overview](docs/overview.md): what is new and how it compares
 - [Protocol](docs/protocol.md): transactions, deadlines and assumptions
 - [Security](docs/security.md) and [privacy](docs/privacy.md)
 - [Evidence index](docs/evidence-index.md): every recorded run
