@@ -76,6 +76,7 @@ More: [two-party mode](docs/two-party.md), [reproduction](docs/reproduce.md),
 - [Evidence index](docs/evidence-index.md): every recorded run
 - [Architecture](docs/architecture.md), [escrow gas](docs/gas-optimization.md)
   and [dependencies](docs/dependencies.md)
+- [Slides](docs/zatomic-slides.pdf) from the two-minute video
 
 ## Limits
 
