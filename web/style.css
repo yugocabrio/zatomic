@@ -696,3 +696,35 @@ body.landing { --paper: #ffffff; --surface: #ffffff; --sunken: #f3f4f3; --ink: #
 .landing .steps-result { background: #ffffff; border: 1px solid var(--line); border-left: 3px solid #e0a51b; }
 .landing .evidence-grid a[href*="public-testnet"] { border-color: #e0a51b; }
 .landing .tag-strong { background: #f4b728; border-color: #c98f0a; color: #3a2a00; }
+
+/* Front page story: the problem, the idea and its math, then the results.
+   Neutral cards; gold marks only Zatomic's own design and results. */
+.points { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.points li { border-top: 2px solid var(--line-strong); padding-top: 14px; }
+.point-n { font: 600 12px var(--mono); color: var(--muted); }
+.points h3 { margin: 6px 0 8px; font-size: 18px; letter-spacing: -.01em; }
+.points p { font-size: 15px; line-height: 1.6; color: var(--ink-2); }
+.idea-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.idea-cards li { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid #e0a51b; border-radius: 12px; padding: 18px 20px; }
+.idea-cards h3 { margin-bottom: 6px; font-size: 17px; }
+.idea-cards p { font-size: 15px; line-height: 1.6; color: var(--ink-2); }
+.explain { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.explain-block { display: grid; gap: 10px; align-content: start; background: var(--sunken); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+.explain-block h3 { font-size: 17px; }
+.explain-block p { font-size: 15px; line-height: 1.6; color: var(--ink-2); }
+.formula { font: 500 15px var(--mono); color: var(--ink) !important; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; overflow-x: auto; white-space: nowrap; }
+.runs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.run { display: grid; gap: 8px; align-content: start; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid #e0a51b; border-radius: 12px; padding: 18px 22px; }
+.run-tag { font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.run h3 { font-size: 19px; letter-spacing: -.01em; }
+.run ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+.run-links { display: flex; flex-wrap: wrap; gap: 8px 16px; font: 600 13px var(--mono); }
+.run-links a { color: var(--ink); }
+.tx-details { margin-top: 18px; }
+.tx-details > summary { cursor: pointer; width: fit-content; font-weight: 650; font-size: 15px; color: var(--ink); padding: 8px 0; }
+.tx-details[open] > summary { margin-bottom: 6px; }
+@media (max-width: 860px) {
+  .points, .idea-cards, .explain, .runs { grid-template-columns: 1fr; }
+}
+.problem, .idea { padding-top: 56px; }
+.landing .proof { padding-top: 56px; }

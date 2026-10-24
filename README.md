@@ -9,14 +9,31 @@
 Zatomic swaps native shielded ZEC for ETH between two parties who have already
 agreed a trade. There is no bridge, no wrapped ZEC and no custodian or solver.
 
-- A 2-of-2 FROST key controls the ZEC in a shielded Ironwood note.
-- Before Alice funds that note, Bob holds his claim C pre-signed with a RedPallas
+## The problem
+
+Alice has ZEC and wants ETH; Bob has ETH and wants ZEC. Whoever pays first can be
+cheated, so the two payments must be linked. Bitcoin-style swaps use hash and time
+locks in scripts, but a shielded Zcash note has no scripts: it moves only with a
+valid signature from its key. Other routes avoid this by proving Zcash history to
+Ethereum, routing through solvers and public viewing keys, or using transparent ZEC.
+
+## The idea: one secret, two exits
+
+- A 2-of-2 FROST key controls the shared shielded note, so neither side can spend
+  it alone.
+- Before Alice funds the note, Bob holds his claim C pre-signed with a RedPallas
   adaptor signature, and Alice holds her refund R fully signed and time-locked.
-- Bob locks ETH in an escrow bound to a Pallas point T. Alice claims it with t;
-  the escrow checks t·G = T on Pallas, and the same t completes Bob's Zcash
-  signature for C.
+- Bob locks ETH in an escrow bound to T = t·G on Pallas. Alice claims it with t;
+  the escrow checks t·G = T, and the same t completes Bob's signature: the
+  pre-signature satisfies ŝ·G = R̂ − T + c·X′, so s = ŝ + t gives an ordinary
+  signature, s·G = R̂ + c·X′.
+- The exits can be signed before the note exists because v6 transactions keep the
+  anchor and proofs outside what spend signatures sign
+  ([ZIP 229](https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6)).
 - If nobody reveals t, Bob takes his ETH back after the deadline, and Zcash's own
   lock time lets R return Alice's ZEC.
+
+The [protocol in one page](docs/protocol.md) explains each step.
 
 **Live demo:** https://162-55-186-88.sslip.io runs separate apps for Alice and
 Bob on private test chains: a swap, a crash after the claim, or a refund.

@@ -1,10 +1,72 @@
-# ZEC / ETH point-lock swap — draft v1
+# Zatomic protocol
 
-Status: isolated-chain success and refund demonstrated; no public-network or
-audited security claim. Setup uses separate participant processes on the same host.
-Target: native Ironwood ZEC (v6, NU7 isolated regtest/public testnet) ↔ ETH
-(local Anvil, then Sepolia). No token approvals or wrapped ZEC. One fixed pair,
-two parties, one immutable escrow contract. Mainnet is not supported by the demo.
+**Status:** settled and refunded on the public Zcash testnet and Sepolia, with the
+first escrow (2026-10-18, 2026-10-20) and with the shipped V2 escrow (2026-10-21);
+every transaction is in the [evidence index](evidence-index.md). Both owners ran
+on one host. The adaptor extension and the Solidity Pallas check are unaudited,
+and mainnet is unsupported.
+
+## In one page
+
+**The problem.** Alice has ZEC and wants ETH; Bob has ETH and wants ZEC. Whoever
+pays first can be cheated, so the two payments must be linked. Bitcoin-style
+swaps do this with hash and time locks in scripts, but a shielded Zcash note has
+no scripts: it moves only with a valid spend signature from its key.
+
+**One key, two exits.** A FROST DKG gives Alice and Bob a fresh 2-of-2 spend key,
+so neither can spend the shared note alone. Before Alice funds it, both exits
+from that note are prepared and checked by both sides:
+
+| Transaction | What it does | When it can be used |
+|---|---|---|
+| F | Moves Alice's ZEC into the joint note; no transparent part | Alice sends it after checking both exits |
+| C | Pays the joint note to Bob; adaptor pre-signed | Once t is public |
+| R | Returns the joint note to Alice; fully signed | After the native refund time |
+| A | Turns some of Alice's own change into a 20,000-zatoshi transparent coin that R spends | Only on the refund path |
+
+On Ethereum, PointEscrowV2's `lock` binds the amount, Alice's fixed recipient,
+the expiry and the Pallas point T. `claim(t)` credits Alice if t·G = T, `refund`
+returns the ETH to Bob after the expiry, and `withdraw` pays out a credit
+separately.
+
+**Why t completes C.** A RedPallas signature (R, s) on key X and message m, with
+challenge c = H(R, X, m), verifies when s·G = R + c·X. Alice picks t and shares
+only T = t·G, where G is the RedPallas SpendAuth base. The two signers produce a
+pre-signature for C that is one secret short, for the randomized spend key X′:
+
+    ŝ·G = R̂ − T + c·X′
+
+Adding t gives s = ŝ + t, and s·G = R̂ + c·X′ is an ordinary valid signature.
+Claiming the ETH publishes t, and the escrow checks t·G = T on Pallas itself, so
+no cross-curve proof is needed.
+
+**Why the exits can be signed before the note exists.** In the v6 transaction
+format ([ZIP 229](https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6)),
+the anchor and the zero-knowledge proofs are authorizing data, outside the digest
+that spend signatures sign. So C, R and A are signed before F is mined, checked
+against a temporary tree that contains the pending note, and proved against the
+real anchor afterwards without new signatures. C and R spend the same note, so
+they share a nullifier: only one of them can ever be mined.
+
+**Why the refund needs a transparent coin.** Zcash enforces a lock time only when
+a transaction has a transparent input with a non-final sequence number. R
+therefore also spends the coin from A, which Alice creates from her own change
+only if she refunds. A settled swap puts only F and C on chain, both fully
+shielded.
+
+**Deadlines.** The ETH expiry comes first and the native refund time later, so
+that after Alice reveals t, Bob still has time to complete C before R becomes
+valid. Alice must reveal t early enough for her claim to be mined well before
+the ETH expiry. Both sides watch their deadlines, and recovery assumes that
+inclusion and reorgs stay within the timing window.
+
+**Outcomes.** If t is revealed, Alice withdraws the ETH and Bob completes C, even
+with Alice offline. If nobody reveals t, Bob refunds his ETH after the expiry,
+and after the native refund time Alice sends A and R and gets her ZEC back,
+shielded.
+
+The rest of this document gives the full construction, the transaction order,
+the recovery cases and what each observer sees.
 
 ## Construction
 
