@@ -17,12 +17,14 @@ const NAMES = {alice: 'Alice · sells ZEC', bob: 'Bob · sells ETH'};
 // Inside the network's stage view the app drops its chrome and privacy panel.
 const EMBED = new URLSearchParams(location.search).has('embed');
 if (EMBED) document.documentElement.classList.add('embed');
-// In the stage, report this page's height so the stage sizes the frame to fit
-// and the whole stage scrolls once, instead of each column on its own.
-if (EMBED && window.parent !== window) {
+// In the stage (outside ?record), the frame fits this page: report its height
+// so the whole stage scrolls once, and show no scrollbar of its own.
+const FIT = EMBED && new URLSearchParams(location.search).has('fit');
+if (FIT) document.documentElement.classList.add('fit');
+if (FIT && window.parent !== window) {
   let reported = 0;
   const report = () => {
-    const height = Math.ceil(document.body.getBoundingClientRect().height);
+    const height = Math.ceil(Math.max(document.body.scrollHeight, document.body.getBoundingClientRect().height)) + 4;
     if (height !== reported) { reported = height; window.parent.postMessage({zatomic: 'height', height}, '*'); }
   };
   new ResizeObserver(report).observe(document.body);

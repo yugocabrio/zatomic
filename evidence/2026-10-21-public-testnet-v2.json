@@ -111,7 +111,6 @@
     {
       "run": "005",
       "outcome": "no reveal; both refund",
-      "status": "ETH side complete; Alice's R becomes valid at 08:50:53 UTC",
       "trade": {
         "zec_payout_zatoshi": 100000,
         "zec_principal_zatoshi": 110000,
@@ -155,7 +154,8 @@
           "block": 11959661,
           "gas_used": 32981,
           "expected_event_verified": true,
-          "explorer": "https://sepolia.etherscan.io/tx/0x83af549b669e2cfec954640f7991941fb79d61c695ec0dfc68296a4aafb1645b"
+          "explorer": "https://sepolia.etherscan.io/tx/0x83af549b669e2cfec954640f7991941fb79d61c695ec0dfc68296a4aafb1645b",
+          "finalized": true
         },
         {
           "step": "Bob withdraws his ETH",
@@ -165,35 +165,90 @@
           "gas_used": 43586,
           "first_send": "through Tenderly; transport error, recorded as uncertain",
           "resend": "public_eth_execute.py rerun: no receipt, so it resent the identical bytes (same hash)",
-          "explorer": "https://sepolia.etherscan.io/tx/0x878c1357d91a340b393b90c2cead020f284c7149e6c08ce2f33463ab4760697b"
+          "explorer": "https://sepolia.etherscan.io/tx/0x878c1357d91a340b393b90c2cead020f284c7149e6c08ce2f33463ab4760697b",
+          "withdrawal_verified": true,
+          "finalized": true
         },
         {
           "step": "A: Alice's pre-signed auxiliary transaction creates the refund coin from her own change",
           "chain": "zcash-testnet",
           "txid": "487de8134e142621411f54751aa576af47e0ca61d89e68ed5123ae905b989537",
+          "height": 4524258,
+          "transparent_inputs": 0,
+          "transparent_output_zatoshi": 20000,
+          "expiry_height": 0,
           "explorer": "https://testnet.zecblock.com/tx/487de8134e142621411f54751aa576af47e0ca61d89e68ed5123ae905b989537"
+        },
+        {
+          "step": "R: Alice's time-locked refund spends the joint note and A's coin",
+          "chain": "zcash-testnet",
+          "txid": "9975ba99fd49458396b74d025df051111c0ce8e35469c1919349e96f8878b774",
+          "height": 4525161,
+          "lock_time": 1792572653,
+          "transparent_input_zatoshi": 20000,
+          "transparent_change_zatoshi": 15000,
+          "expiry_height": 0,
+          "recipient_decrypted_zatoshi": 100000,
+          "send_retries": "Sends from 09:05 UTC refused: testnet blocks arrived every few seconds and the tip moved between the watch scan and its canonical check. Sent at 09:56 once the reconcile observed again on a moved tip (commit f0181bb).",
+          "explorer": "https://testnet.zecblock.com/tx/9975ba99fd49458396b74d025df051111c0ce8e35469c1919349e96f8878b774"
         }
-      ]
+      ],
+      "zcash_footprint": "F (shielded), A (one 20,000-zatoshi transparent output from Alice's own change) and R (spends that coin, 15,000 zatoshi change to the same address); the returned ZEC is shielded.",
+      "final_check": {
+        "alice_native_wallet_notes": [
+          {
+            "value_zatoshi": 100000,
+            "height": 4525161
+          }
+        ],
+        "bob_withdrawal_verified": true
+      }
     }
   ],
   "gas_v1_vs_v2_on_sepolia": {
     "note": "Receipts. V1 figures are the 2026-10-18 and 2026-10-20 public runs.",
-    "deploy_once": {"v1": 5090645, "v2_including_table": 7100182},
-    "lock": {"v1": 799447, "v2": 139146},
-    "claim": {"v1": 589726, "v2": 112528},
-    "refund": {"v1": 143831, "v2": 32981},
-    "withdraw": {"v1": 31216, "v2": [43562, 43586]},
-    "settled_swap_lock_claim_withdraw": {"v1": 1420389, "v2": 295236},
-    "no_reveal_lock_refund_withdraw": {"v1": 974494, "v2": 215713}
+    "deploy_once": {
+      "v1": 5090645,
+      "v2_including_table": 7100182
+    },
+    "lock": {
+      "v1": 799447,
+      "v2": 139146
+    },
+    "claim": {
+      "v1": 589726,
+      "v2": 112528
+    },
+    "refund": {
+      "v1": 143831,
+      "v2": 32981
+    },
+    "withdraw": {
+      "v1": 31216,
+      "v2": [
+        43562,
+        43586
+      ]
+    },
+    "settled_swap_lock_claim_withdraw": {
+      "v1": 1420389,
+      "v2": 295236
+    },
+    "no_reveal_lock_refund_withdraw": {
+      "v1": 974494,
+      "v2": 215713
+    }
   },
   "defects_found_and_fixed_during_the_runs": [
     "The claim send check applied first_reveal_before to every attempt, so an identical resend just after the cutoff was refused although the reveal cutoff reserves eth_retry_seconds for it; a claim with a recorded attempt may now be resent until first_reveal_before + eth_retry_seconds (commit 125897a).",
-    "decision() created the ETH action directory before reading decision.json, and prepare treats an existing directory as a committed decision; a withdraw send attempted before any withdraw decision left an empty directory that blocked every later withdraw prepare. Readers no longer create it and an empty one no longer counts (commit 81994c2, scripts/check_eth_action_directory.py)."
+    "decision() created the ETH action directory before reading decision.json, and prepare treats an existing directory as a committed decision; a withdraw send attempted before any withdraw decision left an empty directory that blocked every later withdraw prepare. Readers no longer create it and an empty one no longer counts (commit 81994c2, scripts/check_eth_action_directory.py).",
+    "The native reconcile failed whenever a Zcash block landed between the watch scan and its canonical check; with testnet blocks every few seconds Alice's R send refused for 50 minutes. Like the source preflight, it now observes again in a new record, at most three times (commit f0181bb, scripts/check_native_tip_retry.py)."
   ],
   "operational_notes": [
     "Tenderly's gateway failed two of the night's sends (the claim and run 005's withdraw); each was recorded as uncertain and later mined with its original hash.",
     "Bob's opening monitor stopped on a provider error before the claim was mined; it was restarted with the claim hash and found the opening at once.",
-    "The run script did not retry the uncertain claim for 73 minutes. The resend landed 9 s before first_reveal_before and 60 minutes before the ETH expiry; Bob's C confirmed 6 h 50 min before Alice's native refund became valid."
+    "The run script did not retry the uncertain claim for 73 minutes. The resend landed 9 s before first_reveal_before and 60 minutes before the ETH expiry; Bob's C confirmed 6 h 50 min before Alice's native refund became valid.",
+    "The run 005 script was stopped when its operator session ended, after A was sent; it was restarted as a detached process for R."
   ],
   "limits": [
     "Both owners ran on one host and OS account; not independent administration.",

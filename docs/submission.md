@@ -2,8 +2,8 @@
 
 Draft only. No contest submission or announcement has been made. On the public
 Zcash testnet and Sepolia, funded exchanges settled on the first escrow
-(2026-10-18) and on the shipped V2 escrow (2026-10-21), and one funded
-no-reveal trade refunded both sides (2026-10-20); everything else below ran on
+(2026-10-18) and on the shipped V2 escrow (2026-10-21), and funded no-reveal
+trades refunded both sides on each (2026-10-20, 2026-10-21); everything else below ran on
 isolated local chains and is labelled so.
 
 ## One sentence
@@ -104,14 +104,11 @@ also gives up price discovery: it settles a price two parties already agreed.
   one-click scenarios. One visitor drives at a time; others watch the same trade
   ([hosting](hosting.md)). Locally: `make two-party`, then
   http://127.0.0.1:8790 ([two-party mode](two-party.md)).
-- [Earlier two-minute captioned video](demo/latch-2min.mp4) — the single-window demo before the rename from Latch; real screen checkpoints, waits omitted
-- [Two-minute walkthrough](demo-walkthrough.md#two-minute-presentation)
 - [What each observer can see](privacy.md)
 - [Evidence by guarantee level](evidence-index.md)
 - [Exact reproduction commands](reproduce.md)
 - [Protocol and transaction order](protocol.md)
-- [Security review and assumptions](security.md) and the
-  [second review with its fixed signing-order flaw](review-2026-10-17.md)
+- [Security reviews and assumptions](security.md)
 - [Repository](https://github.com/yugocabrio/zatomic)
 
 The browser and the CLI both use exact peer-selected amounts. Alice signs the
@@ -134,11 +131,12 @@ One funded exchange settled on the public Zcash testnet and Sepolia on
 are fully shielded and the refund auxiliary was never broadcast. A funded
 no-reveal trade then refunded both sides on the same networks on 2026-10-20
 ([record](../evidence/2026-10-20-public-testnet-refund.json)). On 2026-10-21 the
-shipped V2 escrow settled a second funded swap under the short timing profile;
-its first claim send failed at the provider and was resent with the same bytes
+shipped V2 escrow settled a second funded swap and refunded a second no-reveal
+trade under the short timing profile; the swap's first claim send failed at the
+provider and was resent with the same bytes
 ([record](../evidence/2026-10-21-public-testnet-v2.json)). Crash recovery was exercised on isolated chains.
-A second internal review found and fixed a release-order flaw in the custom adaptor
-signing (see the review above). It is not an external audit. Independently
+An internal review found and fixed a release-order flaw in the custom adaptor
+signing ([security](security.md)). It is not an external audit. Independently
 administered hosts have not been demonstrated. The custom adaptor composition is unaudited; the arithmetic
 cross-check is not an external audit or a security proof.
 
@@ -159,10 +157,8 @@ shielded on Zcash; only a refund creates a transparent auxiliary coin, which R
 spends, returning 15,000 zatoshi of change to the same address. The ZEC exchange principal remains shielded either way. This is not a claim that the entire exchange is anonymous or mainnet
 ready.
 
-## Before submitting
+## Reproducibility
 
 Settlement code `9b978e3` passed [fresh-checkout reproduction](../evidence/2026-10-15-clean-reproduction.json).
-The [two-minute presentation file](demo/latch-2min.mp4) and its reviewed source
-images are included. It is a captioned edit of actual screen checkpoints, not a
-continuous recording. The public testnet settlements and refund are recorded
-above, with every transaction linked. Submission itself still requires the user's instruction.
+The public testnet settlements and refunds are recorded above, with every
+transaction linked.

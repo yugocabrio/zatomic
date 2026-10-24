@@ -3,7 +3,7 @@
 **Update (2026-10-21): shipped.** PointEscrowV2 is the escrow for new public
 agreements (`--escrow-version 2`), deployed on Sepolia at `0x468170ae…` and
 exercised by funded public runs ([record](../evidence/2026-10-21-public-testnet-v2.json));
-the follow-up review is [review-escrow-v2.md](review-escrow-v2.md). The packet
+the follow-up review's fixes are listed in [security](security.md). The packet
 below is unchanged from the candidate.
 
 **Status (2026-10-18): candidate.**

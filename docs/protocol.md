@@ -25,8 +25,8 @@ on the full cross-chain agreement. The source wallet verifies these against
 pre-provisioned identity pins and journals a source release decision before
 signing/releasing F. A local OS lock makes cancellation and release mutually
 exclusive; an unreleased v3 setup can be permanently cancelled. See
-[setup recovery](setup-recovery.md) and
-[funding consent](funding-consent.md). Older reproduction runners retain the
+[setup recovery](evidence-index.md) and
+[funding consent](evidence-index.md). Older reproduction runners retain the
 earlier native-funding-first sequence. Owner keys and first secret exposure stay
 in the owner clients; independent-host identity provisioning is still open.
 
@@ -37,7 +37,7 @@ signed acceptance. Each signer pins the accepted quote locally before preparing
 C/R; the source uses the same amounts. The quote is included in the final native
 terms and both full cross-chain consents. Quotes authorize preparation only;
 contract identity, salt, deadlines and the exact funding graph still require
-final consent. See [OTC offers](otc-offers.md). New browser runs use the same
+final consent. See [OTC offers](protocol.md). New browser runs use the same
 canonical quote and acceptance, exact decimal amounts and full funding consent.
 Actual browser settlement and refund remain isolated-chain demonstrations.
 The public command integration and funding checklist are in
@@ -45,7 +45,7 @@ The public command integration and funding checklist are in
 public testnets on 2026-10-18 ([record](../evidence/2026-10-18-public-testnet-swap.json)),
 and one funded no-reveal refund on 2026-10-20 ([record](../evidence/2026-10-20-public-testnet-refund.json)).
 
-The public preparation path now has a separate [owner setup](public-owner-setup.md)
+The public preparation path now has a separate [owner setup](public-execution.md)
 CLI. Independently pinned identity keys sign an exact public-profile quote,
 authenticated DKG messages and matching destination receipts. The unsigned
 testnet graph verifies those receipts and its reserved principal against the
@@ -129,7 +129,7 @@ no-reveal refund ran once on 2026-10-20 ([record](../evidence/2026-10-20-public-
 primitive behind the live preflight wrapper, not an independent verifier of live
 chain observations. Default invocation checks only; sending needs the explicit
 testnet broadcast flag. See
-[public preflight and its tested scope](public-testnet.md#agreement-bound-read-only-preflight).
+[public preflight and its tested scope](public-execution.md).
 
 ## Transaction order
 
@@ -218,7 +218,7 @@ Native timestamps use block time, not an assumed MTP rule; see pinned Zebra.
 The native-only timestamp primitive now passes an actual isolated refund and
 watch-only recovery gate. Existing source/ETH clients refuse that profile until
 its cross-chain timing and observation policy is implemented; see
-[public-network readiness](public-testnet.md). No height-to-seconds conversion
+[public-network readiness](public-execution.md). No height-to-seconds conversion
 or public reveal policy has been enabled by this primitive.
 
 scripts/check_swap_model.py reproduces theft when the refund lock is ineffective
@@ -241,7 +241,7 @@ conditional consents, as described above. Explicit senders enforce separate
 fresh checks; the funded success path ran once on 2026-10-18 and the funded
 no-reveal refund once on 2026-10-20. See
 the exact preparation thresholds and evidence limits in
-[public-testnet.md](public-testnet.md).
+[the public testnet runbook](public-execution.md).
 
 - Zcash observers: normal shielded funding/claim metadata, no public principal
   or shielded address. Only a refund exposes the auxiliary transaction A (a
@@ -300,15 +300,15 @@ disconnect. This authenticates the coordinator connection, not chain state or
 independent economic consent. The tested fixture still shares local artifact
 paths; verified native bundles are now delivered over that channel, but
 independently operated source wallets and remote owner clients remain unfinished. See
-[signer transport](signer-transport.md) for exact scope and reproduction.
+[signer transport](evidence-index.md) for exact scope and reproduction.
 
 Each participant can export its own accepted bundle into a fresh native recovery
 workspace with viewing/proving data and the correct prepared exit, without
-exporting spending keys. See [recovery bundles](recovery-bundles.md). The fixture
+exporting spending keys. See [recovery bundles](evidence-index.md). The fixture
 recovery still restores the owned EVM checkpoint and uses its shared journal;
 native bundle portability does not establish public-network independence.
 
-The newer [owner CLI path](owner-clients.md) validates each owner's ETH address
+The newer [owner CLI path](evidence-index.md) validates each owner's ETH address
 and native bundle before accepting the same ETH agreement. It signs fixed
 actions locally and stores each owner's signed intent before sending. Actual
 mempool/interruption tests pass, including a competing relay that succeeds while
@@ -322,7 +322,7 @@ intent exists. Both bind their watch-only workspace back to the accepted bundle
 and return pending/confirmation states without changing either chain's clock.
 The browser's harness invokes these same commands and separately mines its
 disposable native chain. Detached-coordinator, no-ETH-key and actual funding-fork
-gates are described in [owner-operated recovery](owner-native-recovery.md).
+gates are described in [owner-operated recovery](evidence-index.md).
 This removes a coordinator filesystem dependency from native settlement; it
 does not remove the trusted-RPC or bounded-monitoring assumptions.
 
@@ -336,10 +336,10 @@ finality or reorg mechanism. An existing claim intent blocks no-reveal refunds,
 and missing owner acceptance/identity state rejects recovery. The browser's
 normal, post-claim stop and pre-reveal stop paths use each owner's exported
 native workspace, with the peer directory unavailable during its native exit.
-Partial setup uses [source decision recovery](setup-recovery.md). Peer-directory
+Partial setup uses [source decision recovery](evidence-index.md). Peer-directory
 moves are journaled before renaming, and surviving process guardians clean the
 owned prover/node/signer workers after parent SIGKILL. Actual claim/refund and
-setup gates are recorded in [process recovery](process-recovery.md). Arbitrary
+setup gates are recorded in [process recovery](evidence-index.md). Arbitrary
 instruction-boundary failures and public-network reorg recovery remain unproven.
 
 Controlled Anvil fork tests now remove a previously observed claim receipt,
@@ -347,13 +347,13 @@ replay the exact bytes into a different block, then replace it with a different
 relayer's canonical claim. Owner settlement observations are append-only per
 block/transaction, and the original exposure intent is retained across forks.
 The replacement event completes the real native exit. See
-[EVM fork recovery](evm-reorg.md); this is before withdrawals/native settlement
+[EVM fork recovery](evidence-index.md); this is before withdrawals/native settlement
 and is not a public-network confirmation policy.
 
 The native owner gate is also exercised by actual Zebra block invalidation:
 one-confirmation or orphaned F prevents first secret exposure and new owner
 lock processing. The original branch is then reconsidered before settlement.
-See [native reorg tests](native-reorg.md). Separate actual claim/refund exit
+See [native reorg tests](evidence-index.md). Separate actual claim/refund exit
 forks retain F in the common ancestor. One-confirmation and pending exits regain
 confirmation without a new send; an exit with an orphaned anchor is re-proved
 from the accepted owner bundle with the same v6 effects txid. Native recipients
@@ -364,13 +364,13 @@ New v3 offers select a six-block older source witness while scanning nullifiers
 through the current tip and keeping the current-height refund clock. This
 reduces dependence on the newest tree without giving Bob source-wallet viewing
 data. The source release wallet rejects an orphaned agreed anchor before signing.
-See [funding anchor selection](funding-anchor.md); six blocks is an isolated
+See [funding anchor selection](evidence-index.md); six blocks is an isolated
 fixture parameter, not a public finality guarantee.
 If F becomes orphaned but its source anchor/input remain usable, Bob can replay
 the same bytes after verifying the exact canonical ETH claim. The actual gate
 also refuses restoration when the ETH claim disappears/expires or a competing
 ETH refund wins, preserves exposure intent, and restores absent or genuinely
 pending F through the normal driver.
-See [funding recovery](funding-reorg.md). Source re-proving, conflicting source
+See [funding recovery](evidence-index.md). Source re-proving, conflicting source
 spends, coordinated recovery when both settlements are absent, a refund winning
 beyond the allowed window, and public-network timing/finality remain unproven.

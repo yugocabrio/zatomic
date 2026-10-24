@@ -1,7 +1,7 @@
 # Gas optimization benchmark: claim verifier and order storage
 
 **Update (2026-10-21): the comb + hash design shipped** as PointEscrowV2, at
-width 4, after its own review ([review](review-escrow-v2.md)). Its Sepolia
+width 4, after its own review ([review](security.md)). Its Sepolia
 receipts: deployment with table 7,100,182, lock 139,146, claim 112,528,
 refund 32,981, withdrawal 43,562 to 43,586
 ([record](../evidence/2026-10-21-public-testnet-v2.json)). The text below is the
@@ -187,8 +187,8 @@ escrow is cheaper for one swap (6.53M against 7.67M) and still slightly
 cheaper for two. Only a table already deployed by someone else makes t = 8 the
 cheaper choice for a newcomer (186,626 against 225,826 per claim on Sepolia).
 
-The production candidate, `PointEscrowV2`, uses t = 4 and goes further: see
-`docs/escrow-v2-review.md`.
+The shipped `PointEscrowV2` uses t = 4 and keeps the one-slot order
+(`contracts/src/PointEscrowV2.sol`).
 
 **In both cases, use the one-slot order.** On current Sepolia, lock goes from
 799k to 139k gas. That is most of the saving, because the shipped lock creates

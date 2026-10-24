@@ -2,7 +2,7 @@
 
 Prerequisites: Rust 1.93, Node.js + npm, Python 3.11+, Foundry 1.3.1, and Docker.
 Use `make doctor` to check prerequisites and `make demo` to build/start the
-local browser demo at http://127.0.0.1:8787. See docs/demo-walkthrough.md.
+local browser demo at http://127.0.0.1:8787.
 The current node bootstrap targets Apple Silicon / Linux ARM64. No public
 endpoint, wallet seed, faucet, paid service or mainnet funds are used.
 
@@ -16,11 +16,11 @@ remained unchanged, and the reproduction node was stopped with its data retained
 
 The commands below reproduce the older native-funding-first fixtures. New
 browser runs use signed cross-chain consent before native source authorization;
-use [the current consent/recovery guide](funding-consent.md) for that driver.
+use [the current consent/recovery guide](evidence-index.md) for that driver.
 Each saved browser job selects its own matching recovery command.
 
 For the current operator-isolation gate, use
-[separate operator commands](independent-operators.md). It exercises real TLS
+[separate operator commands](evidence-index.md). It exercises real TLS
 preparation and settlement under OS private-directory denials. Its coordinator
 never migrates another owner's files. The macOS checker has its own `recover`
 command and fixture layout; it is separate from the older runners below.
@@ -164,25 +164,25 @@ intents offline and rejects relabeling, metadata corruption and invalid encoding
 Raw intents contain the claim secret before broadcast and must remain private.
 
 For the authenticated signer-channel variant, see
-[signer transport](signer-transport.md). `run_tls_swap.py` runs the same actual
+[signer transport](evidence-index.md). `run_tls_swap.py` runs the same actual
 native/EVM graph with both signer conversations carried over mutual TLS. Its
 certificate fixtures and wallet paths are still on one host.
 
 For receipt withholding, bundle corruption and recovery with the entire
 original native setup directory unavailable, see
-[participant-owned recovery bundles](recovery-bundles.md). These gates exercise
+[participant-owned recovery bundles](evidence-index.md). These gates exercise
 actual preparation and native chain recovery; no substitute signature or mock
 settlement is used. New signer checks require a fixture prepared by the current
 code: old authorized-F policies intentionally fail the new preview boundary.
 
 For a coordinator that never reads Alice's unrevealed scalar or either ETH key,
 and a live mempool test where a competing relayer mines first, use the separate
-[owner client gates](owner-clients.md). The CLI gate layout has per-owner ETH journals and should not be passed to
+[owner client gates](evidence-index.md). The CLI gate layout has per-owner ETH journals and should not be passed to
 the legacy recovery driver. New browser runs use `prefunding_swap.py recover` (which delegates after the
 owner ETH lock intent); unreleased v3 setup is permanently cancelled. See
-[setup recovery](setup-recovery.md). Meanwhile
+[setup recovery](evidence-index.md). Meanwhile
 `run_client_swap.py` remains the standalone adversarial integration gate.
 
 For SIGKILL during actual native claim/refund or during TLS preparation, use
-the [process recovery gates](process-recovery.md). They verify cleanup, durable
+the [process recovery gates](evidence-index.md). They verify cleanup, durable
 peer-directory restoration and repeated recovery without duplicate payments.

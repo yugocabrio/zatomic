@@ -415,6 +415,7 @@ body[data-role="alice"] .p-get strong, body[data-role="bob"] .p-give strong { co
 .embed .p-grid { grid-template-columns: 1fr; }
 .embed .ticket { position: static; }
 .embed body { background: var(--paper); }
+.fit, .fit body { overflow: hidden; }
 
 /* Stage: both real apps and the public wire between them, for live demos and video */
 .stage-body { height: 100vh; display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }

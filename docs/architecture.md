@@ -6,7 +6,7 @@ RedPallas native spend signature.
 
 This is P2P OTC settlement: assets stay on their native chains and ownership
 changes between Alice and Bob. There is no wrapped token or bridge minting.
-The [OTC quote](otc-offers.md) pins both amounts and owner identities before
+The [OTC quote](protocol.md) pins both amounts and owner identities before
 native preparation. It does not replace the final full transaction consent.
 
 ```mermaid
@@ -49,5 +49,5 @@ That auxiliary outpoint/value is observable; ETH addresses, amounts, witness and
 timing are also observable. Full-exchange anonymity is not claimed.
 
 Detailed invariants and limits: [protocol](protocol.md), [security](security.md).
-Operational boundaries and commands: [separate operators](independent-operators.md),
-[owner-native recovery](owner-native-recovery.md).
+Operational boundaries and commands: [separate operators](evidence-index.md),
+[owner-native recovery](evidence-index.md).

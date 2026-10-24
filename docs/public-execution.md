@@ -20,7 +20,7 @@ HTTP 429 on sends; the exact retained bytes can be resubmitted elsewhere because
 the hash is fixed.
 
 **Signer version (2026-10-17):** both owners must run a native binary that
-includes the share-release fix ([review S1](review-2026-10-17.md)). Rebuild with
+includes the share-release fix ([review S1](security.md)). Rebuild with
 `cargo build --locked --release -p shielded-swap-native` and run
 `scripts/check_share_release.py` on a synthetic review fixture before presigning.
 The new coordinator asks Bob first and passes his share to Alice. A new Alice
@@ -281,6 +281,6 @@ restore an old filesystem snapshot over current exposure history.
   missed monitoring bound:** stop new commitments and preserve all data. These
   exceed the demonstrated conditional guarantees; no automatic reset is safe.
 
-See [protocol](protocol.md) for assumptions and [public integration details](public-testnet.md)
+See [protocol](protocol.md) for assumptions
 for each command's exact validation boundary. The public positive flow can reveal
 further integration defects; it is not certified by the isolated execution.

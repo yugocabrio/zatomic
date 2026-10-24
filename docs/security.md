@@ -1,22 +1,35 @@
 # Security review and deployment limits
 
-**Second review, 2026-10-17:** [findings, fixes and verification](review-2026-10-17.md).
-It found and fixed a share-release-order flaw in the custom adaptor signing (S1).
-A coordinator run by Bob, or colluding with him, could combine a −T-shifted Bob
-nonce with Alice's raw claim share to complete claim C without the witness. Alice's
-signer now verifies Bob's share before releasing her own. See
-[the release-order rule](#adaptor-share-release-order) below.
+Neither review below is an independent external audit or a proof of the custom
+adaptor composition.
 
-Latest targeted integration pass: [public and browser review](integration-review.md).
-The older review below remains a historical record. Neither review is an
-independent external audit or a proof of the custom adaptor composition.
+**Adaptor signing, 2026-10-17.** An internal review found and fixed a
+share-release-order flaw (S1). A coordinator run by Bob, or colluding with him,
+could combine a −T-shifted Bob nonce with Alice's raw claim share to complete
+claim C without the witness. Alice's signer now verifies Bob's share before
+releasing her own; see [the release-order rule](#adaptor-share-release-order).
+[Record](../evidence/2026-10-17-second-review.json).
 
-Review date: 2026-10-15. Baseline: `3543669` (owner-operated native settlement).
-This is a focused internal implementation review, with a second
-arithmetic implementation. It is **not an independent auditor's assessment**,
-formal proof, or authorization to use real funds. No funds-theft defect was
-identified by this review within the explicitly controlled local-chain model.
-The public-network and independent-operator gates below remain open.
+**PointEscrowV2, 2026-10-21.** Before V2 replaced the first escrow, a review of
+the comb verifier, the one-slot order and their clients found and fixed:
+
+- H-1: the claim pre-check talked to its throwaway node over loopback TCP, so t
+  could reach whatever answered on that port. It now uses an IPC socket in a
+  0700 directory under the owner's private directory and checks the chain id.
+- M-1: a failed pre-check after the claim decision could leave Alice with
+  neither claim nor refund. The pre-check now runs before the decision is
+  committed.
+- M-2: the native agreement check rejected the short timing profile; it now
+  selects the profile by exact name, and only under the V2 policy.
+- L-1: the pre-check now proves it ran the pinned bytecode under the signed gas
+  limit.
+- L-3: the short profile is now opt-in for each owner.
+
+**First review, 2026-10-15.** Baseline `3543669` (owner-operated native
+settlement): a focused internal implementation review with a second arithmetic
+implementation. It is **not an independent auditor's assessment**, formal proof,
+or authorization to use real funds. No funds-theft defect was identified within
+the explicitly controlled local-chain model.
 
 ## What is enforced, and by whom
 
@@ -155,8 +168,7 @@ followed by public wallet observation/timing integration. An external review of
 the custom signer and EVM arithmetic remains desirable and unperformed. New
 fault tests should target a changed guarantee, not grow this document's count.
 
-Subsequent P1 implementation: [separate operators](independent-operators.md)
-now generate their own identities, accept authenticated manifest pins and run
+Subsequent P1 implementation: separate operators now generate their own identities, accept authenticated manifest pins and run
 through the real protocol with OS-denied cross-operator private roots. This
 closes the shared-private-path dependency for the tested workflow. It remains
 one administrator/host, uses explicitly trusted RPC, and keeps the native

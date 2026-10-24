@@ -214,7 +214,7 @@ function render(state) {
     const key = driver && driver.mine ? lease.get() : '';
     frame.closest('.stage-app').classList.toggle('is-down', !up);
     if (ready && (shown.generation !== state.generation || !shown.ready[role] || shown.lease[role] !== key)) {
-      frame.src = `${state.apps[role]}/?embed=1${key ? '&lease=' + encodeURIComponent(key) : ''}`;
+      frame.src = `${state.apps[role]}/?embed=1${RECORD ? '' : '&fit=1'}${key ? '&lease=' + encodeURIComponent(key) : ''}`;
       shown.lease[role] = key;
     }
     shown.ready[role] = ready;

@@ -1,17 +1,18 @@
 # Zatomic evidence: start here
 
 **The strongest results are both outcomes on the public Zcash testnet and
-Sepolia: one funded exchange that settled (2026-10-18) and one funded no-reveal
-trade that refunded both sides (2026-10-20), plus real isolated-chain exchanges,
-refunds and crash recoveries with separately held participant state on one
-host.** Independently administered hosts have not been demonstrated.
+Sepolia, twice: a funded exchange that settled and a funded no-reveal trade that
+refunded both sides, first with the original escrow (2026-10-18 and 10-20) and
+again with the shipped V2 escrow (2026-10-21), plus real isolated-chain
+exchanges, refunds and crash recoveries with separately held participant state
+on one host.** Independently administered hosts have not been demonstrated.
 
 These are development-run records committed with the implementation. They are
 not an auditor's attestation or a self-contained blockchain proof. Local txids
 will not resolve in a public block explorer. Reproduction requires fresh private
 test wallets; the original keys, notes and journals are deliberately excluded.
 
-**Second review, 2026-10-17:** [report](review-2026-10-17.md) and
+**Adaptor signing review, 2026-10-17:**
 [record](../evidence/2026-10-17-second-review.json). It fixed an adaptor
 share-release flaw (Alice now verifies Bob's share first) and redesigned the
 browser. It re-ran success, stop-after-reveal and stop-before-reveal runs on the
@@ -38,10 +39,11 @@ was ported too (synthetic-input checks; funded refund not yet exercised).
 **Public testnet runs on the V2 escrow, 2026-10-21:** the shipped
 PointEscrowV2 deployed to Sepolia (7,100,182 gas with its comb table) and
 settled a funded swap under the short timing profile: lock 139,146, claim
-112,528, withdrawal 43,562 gas. F and C are fully shielded. A no-reveal run has
-its ETH refund (32,981 gas) and withdrawal on chain and Alice's A sent. Two
-tool defects found and fixed on the way (claim resend window, stale action
-directory). [Record](../evidence/2026-10-21-public-testnet-v2.json).
+112,528, withdrawal 43,562 gas. F and C are fully shielded. A no-reveal run
+refunded both sides: Bob's refund (32,981 gas) and withdrawal, then Alice's A
+and R; her wallet holds the returned 0.001 ZEC. Three tool defects found and
+fixed on the way (claim resend window, stale action directory, native tip
+race). [Record](../evidence/2026-10-21-public-testnet-v2.json).
 
 **Sepolia gas, 2026-10-18:** current Sepolia rules need far more gas for new
 state; the planned public deployment and lock would have run out of gas. Limits
@@ -101,9 +103,7 @@ crash/lock retention and modeled native transport/observation boundaries. These
 2026-10-15 rows are not the funded public run; that is the 2026-10-18 record.
 
 The [fresh browser release demonstration](../evidence/2026-10-15-release-demo.json)
-reran all three scenarios on `c6e03b0`, checked zero-new-payment replay, and
-produced a [two-minute captioned video](demo/latch-2min.mp4). It shows real screen
-checkpoints with omitted waits, not a continuous recording or public swap.
+reran all three scenarios on `c6e03b0` and checked zero-new-payment replay.
 The [public launch plan](../evidence/2026-10-15-public-launch-plan.json) records
 read-only endpoint checks and an unsigned, unfunded execution budget.
 
@@ -133,10 +133,8 @@ It is same-host reproducibility, not independent-host administration.
 1. Follow [prerequisites and local reproduction](reproduce.md). `make doctor`
    only checks prerequisites; it does not execute a swap.
 2. `make verify` checks code/contract/model boundaries. It is not settlement.
-3. Follow the [OTC commands](otc-offers.md) or [operator gate](independent-operators.md#executed-isolation-gate)
-   for a fresh actual exchange and refund; preserve each output directory.
-4. Use the [two-minute presentation](demo-walkthrough.md#two-minute-presentation)
-   to show the result and one interruption. Mark all displayed runs as local.
+3. Run `make demo` or `make two-party` for a fresh actual exchange and refund;
+   preserve each output directory.
 
 Keep `.local`, wallets, private logs, PCZTs, presignatures and note witnesses
 out of the recording, repository and any evidence export.
