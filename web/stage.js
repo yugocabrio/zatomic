@@ -59,7 +59,7 @@ function narrate(events) {
   const refund = Boolean(refunded || coin || back);
   const opening = [
     [relay.some(e => e.kind === 'manifest'), 'Owners exchange identities', 'Each app posts its public keys; the owners compare fingerprints out of band.'],
-    [relay.some(e => e.kind === 'sealed'), 'Quote, terms and both exits', 'Sealed messages only. Both exits are signed before any money moves; Bob’s claim still needs t.'],
+    [relay.some(e => e.kind === 'sealed'), 'Quote, terms and both exits', 'Sealed messages only. Both exits are prepared before any money moves: Alice’s refund is fully signed; Bob’s claim still needs t.'],
     [shielded.length > 0, 'Alice funds the shared note', 'A shielded Zcash transaction: no amount or address is visible.'],
   ];
   const steps = refund ? [...opening,
@@ -162,6 +162,9 @@ function newTrade(ask) {
 }
 document.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', () => play(b.dataset.play)));
 document.querySelectorAll('[data-scenario]').forEach(b => b.addEventListener('click', () => play(b.dataset.scenario)));
+// /stage#crash (or #success, #refund) points at that scenario without starting it.
+const PICK = Object.hasOwn(SCENARIOS, location.hash.slice(1)) ? location.hash.slice(1) : '';
+document.querySelectorAll('[data-scenario], [data-play]').forEach(b => b.classList.toggle('is-pick', (b.dataset.scenario || b.dataset.play) === PICK));
 document.querySelector('[data-again]').addEventListener('click', (e) => play(e.currentTarget.dataset.again));
 document.querySelectorAll('[data-other]').forEach(b => b.addEventListener('click', () => play(b.dataset.path)));
 document.querySelector('[data-resume="success"]').addEventListener('click', () => play('success'));
@@ -257,6 +260,7 @@ function render(state) {
       const b = document.querySelector(`[data-other="${i}"]`);
       b.dataset.path = path;
       b.textContent = `Try: ${SCENARIOS[path]}`;
+      b.classList.toggle('is-pick', path === PICK);
     });
     for (const b of document.querySelectorAll('#result button')) b.disabled = watching;
   }

@@ -24,14 +24,14 @@ Ethereum, routing through solvers and public viewing keys, or using transparent 
 
 ## The idea: one secret, two exits
 
-![Two payments linked by one secret: Bob's ETH goes through the escrow to Alice and Alice's ZEC goes through the 2-of-2 FROST note to Bob; both claims need the same t, refunds open after the deadlines](docs/images/swap-diagram.png)
+![Two payments linked by one secret: off chain first, Bob's claim C is adaptor pre-signed and Alice's refund R fully signed; Alice's claim(t) takes the ETH from the escrow, and Bob adds the public t to ŝ to take the ZEC from the 2-of-2 FROST note; refunds open after the deadlines](docs/images/swap-diagram.png)
 
 - **FROST, joint custody.** Alice funds a shielded note whose spend key is a
   fresh 2-of-2 FROST key, so neither side can spend it alone.
 - **Adaptor signature, Bob claims alone.** Before Alice funds the note, both
-  sign Bob's claim C, but their partial signatures add up to a pre-signature one
-  secret short: ŝ·G = R̂ − T + c·X′, with T = t·G. Bob checks it himself, without
-  knowing t.
+  sign Bob's claim C with their nonce point shifted by T = t·G, R̂ = R + T, so
+  their partial signatures add up to a pre-signature one secret short:
+  ŝ·G = R̂ − T + c·X′. Bob checks it himself, without knowing t.
 - **Escrow on Ethereum.** Bob locks ETH to T. Alice claims it with t; the escrow
   checks t·G = T on Pallas, and the same t completes Bob's signature:
   s = ŝ + t gives s·G = R̂ + c·X′. After locking, Bob needs nothing more from Alice.

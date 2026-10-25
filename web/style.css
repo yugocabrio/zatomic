@@ -810,3 +810,8 @@ body.landing { --paper: #ffffff; --surface: #ffffff; --sunken: #f3f4f3; --ink: #
 /* The caption's step 1 badge matches the one drawn in the hero diagram. */
 .cap-badge { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--ink); color: #ffffff; font: 700 10.5px var(--mono); vertical-align: 1px; margin-right: 2px; }
 .mechanism figcaption b { color: var(--ink); font-weight: 650; }
+.svg-node-strong { fill: var(--accent); font-weight: 700; }
+.svg-strip-title { font: 700 12.5px var(--sans); fill: var(--ink); }
+.svg-strip-sub { font: 11.5px var(--sans); fill: var(--ink-2); }
+.svg-strip-who { font-weight: 700; fill: var(--ink); }
+.scenario.is-pick, .btn-ctl.is-pick { border-color: #e0a51b; box-shadow: 0 0 0 1px #e0a51b; }

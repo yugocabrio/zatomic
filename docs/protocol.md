@@ -20,7 +20,7 @@ The joint note is an ordinary Ironwood shielded note whose spend authorization k
 is that FROST key, so neither can spend it alone. Before Alice funds it, both
 exits from that note are prepared and checked by both sides:
 
-![The joint note and its two exits, both signed before F is sent](images/two-exits.png)
+![The joint note and its two exits, both prepared before F is sent](images/two-exits.png)
 
 
 | Transaction | What it does | When it can be used |
@@ -37,14 +37,17 @@ separately.
 
 **Why t completes C.** A RedPallas signature (R, s) on key X and message m, with
 challenge c = H(R, X, m), verifies when s·G = R + c·X. Alice picks t and shares
-only T = t·G, where G is the RedPallas SpendAuth base. The two signers produce a
+only T = t·G, where G is the RedPallas SpendAuth base. The two signers shift
+their aggregate FROST nonce point R by T, giving R̂ = R + T, and compute their
+partial signatures with the challenge c derived from R̂. The shares add up to a
 pre-signature for C that is one secret short, for the randomized spend key X′:
 
     ŝ·G = R̂ − T + c·X′
 
 Adding t gives s = ŝ + t, and s·G = R̂ + c·X′ is an ordinary valid signature.
 Claiming the ETH publishes t, and the escrow checks t·G = T on Pallas itself, so
-no cross-curve proof is needed.
+no cross-curve proof is needed. The full calculation, with nonces and share
+checks, is in [security.md](security.md#custom-signature-calculation).
 
 In plain FROST the two partial signatures add up to a valid signature; here they
 add up to ŝ, one secret short. Bob checks the pre-signature against C's sighash,

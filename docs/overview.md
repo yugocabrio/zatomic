@@ -79,8 +79,8 @@ bilateral trade pays for it.
   shielded destination alone does not make the payout private. NEAR's
   Confidential Intents hide order flow on NEAR; they are a different layer from
   the Zcash transactions compared here.
-- *THORChain* has offered native ZEC liquidity and market-priced swaps since
-  October 2026, with no wrapped ZEC. THORChain says its ZEC integration
+- *THORChain* integrated native ZEC in October 2026, with pool-based,
+  market-priced swaps and no wrapped ZEC. THORChain says its ZEC integration
   currently uses transparent Zcash transactions
   ([THORChain](https://blog.thorchain.org/bringing-native-zcash-to-thorchain)),
   so addresses, amounts and vault movements are public, and funds pass through
