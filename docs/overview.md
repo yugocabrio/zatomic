@@ -13,6 +13,8 @@ bridge, custodian or solver in between.
 
 ## What we built
 
+![Two payments linked by one secret](images/swap-diagram.png)
+
 Zatomic is a P2P OTC atomic-swap prototype for native Ironwood ZEC and ETH. Alice
 sets exact amounts, Bob accepts her signed quote, and both approve the complete
 exchange after verifying their prepared claim and refund transactions. ZEC stays

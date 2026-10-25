@@ -728,3 +728,80 @@ body.landing { --paper: #ffffff; --surface: #ffffff; --sunken: #f3f4f3; --ink: #
 }
 .problem, .idea { padding-top: 56px; }
 .landing .proof { padding-top: 56px; }
+/* Hero diagram: two chain lanes, steps in time order, the gold t between them. */
+.svg-band { fill: #f6f7f6; }
+.svg-lane { font: 600 10px var(--mono); letter-spacing: .08em; }
+.svg-lane-eth { fill: #4a56a0; }
+.svg-lane-zec { fill: var(--accent); }
+.svg-node { fill: #ffffff; stroke: #d3d8d4; }
+.svg-step-zec { fill: #f4b728; }
+.svg-step-eth { fill: #6f7dc4; }
+.svg-step-text { font: 700 11px var(--mono); }
+.svg-step-text-zec { fill: #3a2a00; }
+.svg-step-text-eth { fill: #ffffff; }
+.svg-tag { font: 600 11px var(--mono); fill: var(--muted); }
+.svg-node-title { font: 700 13px var(--sans); fill: var(--ink); }
+.svg-node-sub { font: 11.5px var(--mono); fill: var(--ink-2); }
+.svg-seq { stroke: #9aa19c; stroke-width: 1.4; fill: none; }
+.svg-seq-head { fill: #9aa19c; }
+.svg-gold { stroke: #c98f0a; stroke-width: 2.4; fill: none; }
+.svg-gold-head { fill: #c98f0a; }
+.svg-refund { font: 13px var(--sans); fill: var(--ink-2); }
+@media (max-width: 560px) { .landing .mechanism { padding: 12px 6px 10px; border-radius: 14px; } }
+/* The idea: one note, two exits. How it works: steps beside a sequence diagram. */
+.exits-figure { margin: 16px 0 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 12px; }
+.exits-figure svg, .how-figure svg { display: block; width: 100%; height: auto; }
+.exits-figure figcaption, .how-figure figcaption { font-size: 13px; color: var(--muted); padding: 8px 4px 0; }
+.svg-node-key { stroke: #e0a51b; stroke-width: 1.5; }
+.svg-big-title { font: 700 16px var(--sans); fill: var(--ink); }
+.svg-big-sub { font: 13px var(--mono); fill: var(--ink-2); }
+.svg-head-ink { fill: var(--ink); }
+.svg-msg { stroke: var(--ink); stroke-width: 1.6; fill: none; }
+.svg-msg-dash { stroke-dasharray: 5 4; }
+.svg-life { stroke: #c6ccc7; stroke-dasharray: 4 4; fill: none; }
+.svg-who { font: 700 13px var(--sans); fill: var(--ink); }
+.svg-badge { fill: var(--ink); }
+.svg-badge-text { font: 700 11px var(--mono); fill: #ffffff; }
+.svg-msg-label { font: 600 12px var(--sans); fill: var(--ink); paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
+.svg-msg-muted { fill: var(--muted); }
+.svg-msg-note { font: 11px var(--mono); fill: var(--muted); paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
+.steps-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); gap: 40px; align-items: start; }
+.how-figure { position: sticky; top: 88px; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px 14px 12px; }
+@media (max-width: 980px) {
+  .steps-grid { grid-template-columns: 1fr; }
+  .how-figure { position: static; order: -1; max-width: 520px; }
+}
+@media (max-width: 700px) { .exits-figure { display: none; } }
+@media (min-width: 1081px) { .landing .hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 40px; } }
+.svg-who-dot { fill: #ffffff; stroke: #c6ccc7; stroke-width: 1.5; }
+.svg-asset { stroke-width: 3.2; fill: none; stroke-linecap: round; }
+.svg-asset-zec { stroke: #e0a51b; }
+.svg-asset-eth { stroke: #6f7dc4; }
+.svg-asset-back { stroke: #b8bdb9; }
+.svg-zec-head { fill: #e0a51b; }
+.svg-eth-head { fill: #6f7dc4; }
+.svg-back-head { fill: #b8bdb9; }
+.svg-got { font-weight: 700; }
+.svg-got-dot { fill: var(--ink); }
+.svg-got-check { font: 700 10px var(--sans); fill: #ffffff; }
+.idea-cards .card-role { font: 600 11.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+/* Public runs: the escrow's gas work, in one compact block. */
+.gas-note { margin: 18px 0 12px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px 28px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid #e0a51b; border-radius: 12px; padding: 18px 22px; }
+.gas-copy h3 { font-size: 17px; margin-bottom: 6px; }
+.gas-copy p { font-size: 14.5px; line-height: 1.6; color: var(--ink-2); }
+.gas-copy var { background: var(--sunken); padding: 0 4px; border-radius: 4px; white-space: nowrap; font-style: normal; }
+.gas-stats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.gas-stats li { display: grid; gap: 2px; border-top: 2px solid #e0a51b; padding-top: 8px; }
+.gas-stats b { font-size: 24px; letter-spacing: -.02em; color: var(--ink); }
+.gas-stats span { font-size: 13px; font-weight: 600; color: var(--ink); }
+.gas-stats small { font: 11.5px var(--mono); color: var(--muted); }
+@media (max-width: 860px) { .gas-note { grid-template-columns: 1fr; } }
+/* The order that lets both exits be signed before the note exists. */
+.presign-flow { list-style: none; margin: 2px 0 0; padding: 0; counter-reset: presign; }
+.presign-flow li { position: relative; padding: 1px 0 22px 36px; font-size: 15px; line-height: 1.55; color: var(--ink-2); counter-increment: presign; }
+.presign-flow li::before { content: counter(presign); position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #ffffff; font: 600 11.5px var(--mono); display: grid; place-items: center; }
+.presign-flow li::after { content: ""; position: absolute; left: 11px; top: 26px; bottom: 2px; width: 2px; background: var(--line-strong); }
+.presign-flow li:last-child { padding-bottom: 0; }
+.presign-flow li:last-child::after { display: none; }
+.presign-flow b { color: var(--ink); }
+.explain-block .presign-result { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--ink); font-weight: 600; }

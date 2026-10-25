@@ -19,19 +19,24 @@ Ethereum, routing through solvers and public viewing keys, or using transparent 
 
 ## The idea: one secret, two exits
 
-- A 2-of-2 FROST key controls the shared shielded note, so neither side can spend
-  it alone.
-- Before Alice funds the note, Bob holds his claim C pre-signed with a RedPallas
-  adaptor signature, and Alice holds her refund R fully signed and time-locked.
-- Bob locks ETH in an escrow bound to T = t·G on Pallas. Alice claims it with t;
-  the escrow checks t·G = T, and the same t completes Bob's signature: the
-  pre-signature satisfies ŝ·G = R̂ − T + c·X′, so s = ŝ + t gives an ordinary
-  signature, s·G = R̂ + c·X′.
-- The exits can be signed before the note exists because v6 transactions keep the
-  anchor and proofs outside what spend signatures sign
-  ([ZIP 229](https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6)).
-- If nobody reveals t, Bob takes his ETH back after the deadline, and Zcash's own
-  lock time lets R return Alice's ZEC.
+![Two payments linked by one secret: Bob's ETH goes through the escrow to Alice and Alice's ZEC goes through the 2-of-2 FROST note to Bob; both claims need the same t, refunds open after the deadlines](docs/images/swap-diagram.png)
+
+- **FROST, joint custody.** Alice funds a shielded note whose spend key is a
+  fresh 2-of-2 FROST key, so neither side can spend it alone.
+- **Adaptor signature, Bob claims alone.** Before Alice funds the note, both
+  sign Bob's claim C, but their partial signatures add up to a pre-signature one
+  secret short: ŝ·G = R̂ − T + c·X′, with T = t·G. Bob checks it himself, without
+  knowing t.
+- **Escrow on Ethereum.** Bob locks ETH to T. Alice claims it with t; the escrow
+  checks t·G = T on Pallas, and the same t completes Bob's signature:
+  s = ŝ + t gives s·G = R̂ + c·X′. After locking, Bob needs nothing more from Alice.
+- **Lock time, Alice refunds alone.** Alice holds refund R, fully signed. If
+  nobody reveals t, Bob takes his ETH back after the deadline, and after the
+  Zcash deadline Alice sends A, then R, and recovers her ZEC.
+- **Signed before the note exists.** v6 transactions keep the anchor and proofs
+  outside what spend signatures sign
+  ([ZIP 229](https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6)),
+  so C and R are signed first and proved once the note is mined.
 
 The [protocol in one page](docs/protocol.md) explains each step.
 
@@ -50,7 +55,10 @@ Zcash public testnet (Ironwood) and Sepolia, 0.001 test ZEC for 0.001 Sepolia ET
 | 2026-10-18 | V1 | Settled | [record](evidence/2026-10-18-public-testnet-swap.json) |
 
 On Sepolia the V2 escrow used 295,236 gas for a settled swap (lock, claim,
-withdraw) and 215,713 for a refund, against 1,420,389 and 974,494 for V1. Both
+withdraw) and 215,713 for a refund, against 1,420,389 and 974,494 for V1. It
+checks t·G = T with a width-4 fixed-base comb table and keeps each order in one
+hashed storage slot; its one-time deployment costs more (7.1M gas against 5.1M).
+See the [gas benchmarks](docs/gas-optimization.md). Both
 owners ran on one host, and chain data came from public RPC providers.
 
 ## Run it

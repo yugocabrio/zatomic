@@ -41,7 +41,8 @@ fixed recipient and separates withdrawal from reveal. It does not verify Zcash
 headers, proofs of funding, recipient notes or chain finality. Both participants
 observe the corresponding chains through explicit trusted local nodes.
 
-F funds a fresh 2-of-2 joint note. C pays Bob's shielded recipient and R pays
+F funds a fresh shielded note whose spend key is the 2-of-2 FROST key (the
+joint note). C pays Bob's shielded recipient and R pays
 Alice's shielded recipient. Their effects are authorized before F; v6 lets
 the owner add current anchors, witnesses and proofs later. R additionally uses
 an Alice-owned transparent auxiliary input to activate the native locktime.

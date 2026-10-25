@@ -13,9 +13,15 @@ pays first can be cheated, so the two payments must be linked. Bitcoin-style
 swaps do this with hash and time locks in scripts, but a shielded Zcash note has
 no scripts: it moves only with a valid spend signature from its key.
 
-**One key, two exits.** A FROST DKG gives Alice and Bob a fresh 2-of-2 spend key,
-so neither can spend the shared note alone. Before Alice funds it, both exits
-from that note are prepared and checked by both sides:
+![Two payments linked by one secret](images/swap-diagram.png)
+
+**One key, two exits.** A FROST DKG gives Alice and Bob a fresh 2-of-2 spend key.
+The joint note is an ordinary Ironwood shielded note whose spend authorization key
+is that FROST key, so neither can spend it alone. Before Alice funds it, both
+exits from that note are prepared and checked by both sides:
+
+![The joint note and its two exits, both signed before F is sent](images/two-exits.png)
+
 
 | Transaction | What it does | When it can be used |
 |---|---|---|
@@ -40,6 +46,12 @@ Adding t gives s = ŝ + t, and s·G = R̂ + c·X′ is an ordinary valid signatu
 Claiming the ETH publishes t, and the escrow checks t·G = T on Pallas itself, so
 no cross-curve proof is needed.
 
+In plain FROST the two partial signatures add up to a valid signature; here they
+add up to ŝ, one secret short. Bob checks the pre-signature against C's sighash,
+the spend key and T himself, before Alice funds anything, and Alice releases her
+share only after verifying Bob's (see [security](security.md)). FROST provides the
+joint custody; the adaptor signature lets Bob later claim alone.
+
 **Why the exits can be signed before the note exists.** In the v6 transaction
 format ([ZIP 229](https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6)),
 the anchor and the zero-knowledge proofs are authorizing data, outside the digest
@@ -61,7 +73,10 @@ the ETH expiry. Both sides watch their deadlines, and recovery assumes that
 inclusion and reorgs stay within the timing window.
 
 **Outcomes.** If t is revealed, Alice withdraws the ETH and Bob completes C, even
-with Alice offline. If nobody reveals t, Bob refunds his ETH after the expiry,
+with Alice offline.
+
+![The five steps: thick arrows move funds, a check marks where each side receives the other's asset](images/five-steps.png)
+ If nobody reveals t, Bob refunds his ETH after the expiry,
 and after the native refund time Alice sends A and R and gets her ZEC back,
 shielded.
 
