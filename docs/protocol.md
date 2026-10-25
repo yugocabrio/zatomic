@@ -112,8 +112,11 @@ and what the implementation checks and has tested.
 Alice sells ZEC; Bob sells ETH. Alice chooses a fresh uniform nonzero Pallas
 scalar t and publishes T = t·G, with G the RedPallas SpendAuth basepoint. The EVM
 escrow checks t·G = T directly. No cross-curve DLEQ, hash/scalar correspondence
-proof, oracle or bridge light client is required. This is a composition of
-existing techniques, not a claim to have invented PTLC swaps.
+proof, oracle or bridge light client is required. The cost is Pallas arithmetic
+in the EVM, which has no Pallas precompile; the V2 escrow's fixed-base comb table
+keeps a claim at 112,528 gas on Sepolia ([benchmarks](gas-optimization.md)).
+This is a composition of existing techniques, not a claim to have invented PTLC
+swaps.
 
 Zcash funding uses a fresh 2-of-2 FROST DKG spend key. Neither party holds the
 whole spending key. Both obtain shared viewing data and can prove spends. The

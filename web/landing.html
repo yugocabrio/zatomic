@@ -140,7 +140,7 @@
         <p class="formula">s·G = R + c·X</p>
         <p>During FROST pre-signing, the aggregate nonce point R is shifted by the public adaptor point T = t·G, giving <var>R̂ = R + T</var>. Each signer computes their partial signature with the challenge c derived from <var>R̂</var>, so the shares combine into ŝ, one secret short:</p>
         <p class="formula">ŝ·G = R̂ − T + c·X′</p>
-        <p>Adding <var>t</var> gives <var>s = ŝ + t</var>, so <var>s·G = R̂ + c·X′</var>: <b>an ordinary valid signature</b> for the randomized spend key X′. Ethereum checks <var>t·G = T</var> on Pallas itself, so the same <var>t</var> needs no cross-curve proof.</p>
+        <p>Adding <var>t</var> gives <var>s = ŝ + t</var>, so <var>s·G = R̂ + c·X′</var>: <b>an ordinary valid signature</b> for the randomized spend key X′. Ethereum checks <var>t·G = T</var> on Pallas itself, so the same <var>t</var> needs no cross-curve proof (below).</p>
         <p>In plain FROST, Alice’s and Bob’s partial signatures add up to a valid signature. Here they add up to ŝ, still one secret short: <b>on its own ŝ fails the check above, so Zcash rejects C and Bob cannot spend yet.</b> Bob checks that equation himself, without knowing <var>t</var>, before Alice funds anything. So once he locks his ETH <b>he needs nothing more from Alice</b>: the only missing piece is the <var>t</var> she must publish to take the ETH. <a href="https://github.com/yugocabrio/zatomic/blob/main/docs/protocol.md#how-the-pre-signature-is-computed" target="_blank" rel="noopener">How the two signers compute ŝ ↗</a></p>
       </div>
       <div class="explain-block">
@@ -153,6 +153,10 @@
           <li><b>Broadcast one exit.</b> Both spend the same note, so they share one nullifier: once one is mined, the other never can be.</li>
         </ol>
         <p class="presign-result">So Bob locks his ETH knowing his claim is ready, and Alice funds knowing her refund is.</p>
+      </div>
+      <div class="explain-block explain-wide">
+        <h3>Why no cross-group DLEQ proof</h3>
+        <p>Some adaptor-swap protocols, including Monero–Bitcoin-style designs, use <b>cross-group discrete-log equality (DLEQ) proofs</b> to bind the same secret across two elliptic-curve groups. Zatomic instead expresses the adaptor condition on Pallas on both chains: Ethereum verifies <var>t·G = T</var> directly, so no cross-group DLEQ proof is needed. <b>The cost is Pallas arithmetic in the EVM</b>, which has no Pallas precompile; the V2 escrow’s fixed-base comb table keeps a claim at 112,528 gas on Sepolia (<a href="https://github.com/yugocabrio/zatomic/blob/main/docs/gas-optimization.md" target="_blank" rel="noopener">benchmarks ↗</a>).</p>
       </div>
     </div>
   </section>
@@ -270,6 +274,7 @@
       <li><h3>SPV, light-client or ZK bridge</h3><p><b>Strength:</b> Ethereum verifies Zcash payments and events, which supports general cross-chain apps.</p><p class="gap"><span class="gap-label">For a private trade</span>Ethereum must verify Zcash history. Skyhook’s September testnet swap <b>put the Zcash recipient and txid on Ethereum</b> (<a href="https://forum.zcashcommunity.com/t/we-just-did-a-fully-trustless-shielded-zec-to-evm-atomic-swap-with-no-new-signing-primitives-and-yes-it-is-programmable/57827" target="_blank" rel="noopener">post ↗</a>); hiding them with ZK needs extra proving infrastructure.</p></li>
       <li><h3>NEAR Intents</h3><p><b>Strength:</b> competing solvers, many assets and automatic liquidity; live today.</p><p class="gap"><span class="gap-label">For a private trade</span>Settlement runs through solvers and bridge contracts. The cited Zcash payout code uses a public outgoing viewing key, <b>exposing a shielded payout’s recipient and amount</b> (<a href="https://github.com/Near-One/btc-bridge/blob/0b02818d47/contracts/satoshi-bridge/src/zcash_utils/orchard_policy.rs#L11-L13" target="_blank" rel="noopener">code ↗</a>).</p></li>
       <li><h3>THORChain</h3><p><b>Strength:</b> a native ZEC integration with pool-based, market-priced swaps and no wrapped ZEC.</p><p class="gap"><span class="gap-label">For a private trade</span>Its ZEC integration uses transparent Zcash transactions, so <b>addresses and amounts are public</b>, and funds pass through shared vaults (<a href="https://blog.thorchain.org/bringing-native-zcash-to-thorchain" target="_blank" rel="noopener">THORChain ↗</a>).</p></li>
+      <li><h3>Cross-group adaptor swaps</h3><p><b>Strength:</b> secrets are linked across different elliptic-curve groups, so each chain keeps its native signing primitives, even a chain like Bitcoin that cannot verify another curve.</p><p class="gap"><span class="gap-label">For a private trade</span>Linking a Pallas secret to a secp256k1 one can require a <b>cross-group DLEQ proof</b>. Zatomic instead verifies the Pallas relation directly on Ethereum, avoiding cross-group DLEQ at the cost of on-chain Pallas arithmetic (112,528 gas per claim on Sepolia).</p></li>
     </ul>
     <div class="zatomic-panel">
       <div class="zp-lead">

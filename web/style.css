@@ -634,6 +634,7 @@ body[data-role="alice"] .p-get strong, body[data-role="bob"] .p-give strong { co
 .compare-cards li.is-us { background: #f4f5f4; border-color: #e0a51b; }
 .compare .fineprint { margin-top: 12px; }
 @media (max-width: 860px) { .proof-strip, .compare-cards { grid-template-columns: 1fr; } }
+@media (min-width: 861px) { .landing .compare-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .compare { padding-top: 56px; }
 
 /* Why Zatomic: three routes, then Zatomic's own panel */
@@ -715,6 +716,7 @@ body.landing { --paper: #ffffff; --surface: #ffffff; --sunken: #f3f4f3; --ink: #
 .explain { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .explain-block { display: grid; gap: 10px; align-content: start; background: var(--sunken); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
 .explain-block h3 { font-size: 17px; }
+.explain-wide { grid-column: 1 / -1; }
 .explain-block p { font-size: 15px; line-height: 1.6; color: var(--ink-2); }
 .formula { font: 500 15px var(--mono); color: var(--ink) !important; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; overflow-x: auto; white-space: nowrap; }
 .runs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }

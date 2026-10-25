@@ -50,7 +50,32 @@ Ethereum, routing through solvers and public viewing keys, or using transparent 
   ([ZIP 229](https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6)),
   so C and R are signed first and proved once the note is mined.
 
+**Why no cross-group DLEQ proof.** Some adaptor-swap protocols, including
+Monero–Bitcoin-style designs, use cross-group discrete-log equality (DLEQ) proofs
+to bind the same secret across two elliptic-curve groups. Zatomic instead
+expresses the adaptor condition on Pallas on both chains: Ethereum verifies
+t·G = T directly, so no cross-group DLEQ proof is needed. The cost is Pallas
+arithmetic in the EVM, which has no Pallas
+precompile; the V2 escrow's fixed-base comb table keeps a claim at 112,528 gas on
+Sepolia ([benchmarks](docs/gas-optimization.md)).
+
 The [protocol in one page](docs/protocol.md) explains each step.
+
+## Transaction flow
+
+1. Alice and Bob agree a quote, run a 2-of-2 FROST DKG and prepare both exits
+   before any funds move: Bob's claim C, adaptor pre-signed with their FROST
+   shares, and Alice's refund R, fully signed and time-locked.
+2. Alice funds the shared shielded note with transaction F.
+3. After checking F, Bob locks ETH in the escrow, bound to the Pallas point
+   T = t·G.
+4. Alice claims the ETH by revealing t. Bob reads t, completes C's signature with
+   s = ŝ + t and broadcasts C, receiving the ZEC shielded.
+5. If t is never revealed, Bob refunds his ETH after the ETH deadline, and after
+   the later Zcash deadline Alice sends A and then her refund R.
+
+C and R spend the same note, so they share a nullifier: only one can ever be
+mined.
 
 ## How it compares
 
@@ -76,6 +101,11 @@ who have already agreed a price pays for it.
   market-priced swaps and no wrapped ZEC, but its ZEC integration uses
   transparent Zcash transactions, so addresses, amounts and vault movements are
   public ([THORChain](https://blog.thorchain.org/bringing-native-zcash-to-thorchain)).
+- **Cross-group adaptor swaps** link secrets across different elliptic-curve
+  groups with DLEQ or related proofs, so each chain keeps its native signing
+  primitives, even a chain like Bitcoin that cannot verify another curve.
+  Zatomic instead verifies the Pallas relation directly on Ethereum: no
+  cross-group DLEQ, but Pallas arithmetic in the EVM.
 
 Zatomic needs no solver, pool or bridge, and asks Ethereum to verify no Zcash
 history: the escrow checks one Pallas relation, t·G = T. A settled swap's two
