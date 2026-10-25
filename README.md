@@ -13,8 +13,8 @@ agreed a trade. There is no bridge, no wrapped ZEC and no custodian or solver.
 
 Unlike ordinary FROST, combining Alice's and Bob's partial signatures here gives
 an adaptor pre-signature, not a valid spend signature. When Alice reveals the
-secret t to claim the ETH, Bob adds it to complete the RedPallas signature and
-claims the shielded ZEC without further help from Alice.
+secret t to claim the ETH, Bob adds it to that pre-signature to complete the
+RedPallas signature and claims the shielded ZEC without further help from Alice.
 
 ## The problem
 
@@ -36,8 +36,8 @@ Ethereum, routing through solvers and public viewing keys, or using transparent 
   ŝ·G = R̂ − T + c·X′. Bob checks it himself, without knowing t
   ([how the two signers compute ŝ](docs/protocol.md#how-the-pre-signature-is-computed)).
 - **Escrow on Ethereum.** Bob locks ETH to T. Alice claims it with t; the escrow
-  checks t·G = T on Pallas, and the same t completes Bob's signature:
-  s = ŝ + t gives s·G = R̂ + c·X′. After locking, Bob needs nothing more from Alice.
+  checks t·G = T on Pallas, and the same t completes their FROST adaptor
+  pre-signature into Bob's valid signature: s = ŝ + t gives s·G = R̂ + c·X′. After locking, Bob needs nothing more from Alice.
 - **Lock time, Alice refunds alone.** Before funding, both also fully sign
   Alice's refund R. Zcash enforces a lock time only when a transaction has a
   transparent input with a non-final sequence number, so Alice prepares a private

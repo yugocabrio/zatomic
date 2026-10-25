@@ -198,8 +198,9 @@ participants observe the chains through nodes they explicitly trust.
    separate call, so a recipient contract that rejects ETH cannot revert a valid
    claim.
 7. **Bob completes C.** He reads t from the claim's calldata or event, checks it
-   against T, completes C, proves and broadcasts it, and rebroadcasts or
-   re-anchors until it confirms.
+   against T, adds it to the FROST pre-signature ŝ to complete C's signature
+   (s = ŝ + t), proves and broadcasts C, and rebroadcasts or re-anchors until
+   it confirms.
 
 C and R have no expiry within the swap horizon; a swap that would cross a network
 upgrade must be refused. Signing before F is mined relies on v6 signatures not

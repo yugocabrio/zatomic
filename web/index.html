@@ -50,7 +50,7 @@
         <text x="220" y="106" text-anchor="middle" class="svg-small">witness</text>
         <rect x="8" y="186" width="424" height="92" rx="14" class="svg-card svg-dash"/>
         <text x="26" y="214" class="svg-eyebrow">PREPARED BEFORE FUNDING</text>
-        <text x="26" y="240" class="svg-body">Revealed: s = ŝ + t completes Bob’s ZEC claim.</text>
+        <text x="26" y="240" class="svg-body">Revealed: s = ŝ + t completes the FROST signature.</text>
         <text x="26" y="262" class="svg-body">No reveal: Bob refunds ETH, Alice’s refund R returns ZEC.</text>
         <path d="M98 150 V186" class="svg-line svg-faint"/><path d="M342 150 V186" class="svg-line svg-faint"/>
       </svg>
@@ -172,9 +172,9 @@
     <div class="section-head"><div><p class="kicker">How it works</p><h2 id="how-title">Four steps, one secret</h2></div><p class="section-note">FROST DKG and nonces come from the Zcash Foundation libraries. The adaptor extension and its Solidity check are this project’s own and are unaudited.</p></div>
     <ol class="how-grid">
       <li><span class="how-n">01</span><h3>Lock a point</h3><p>Alice picks a fresh secret scalar <var>t</var> and shares only <var>T = t·G</var> on the Pallas curve.</p></li>
-      <li><span class="how-n">02</span><h3>Sign the exits first</h3><p>A fresh 2-of-2 FROST key controls the ZEC. Bob gets an adaptor pre-signature <var>ŝ</var> for claim C. Alice gets refund R, fully signed and time-locked.</p></li>
+      <li><span class="how-n">02</span><h3>Sign the exits first</h3><p>A fresh 2-of-2 FROST key controls the ZEC. Their FROST shares give Bob an adaptor pre-signature <var>ŝ</var> for claim C, not yet a valid signature. Alice gets refund R, fully signed and time-locked.</p></li>
       <li><span class="how-n">03</span><h3>Claim ETH by revealing</h3><p>After the ZEC is funded and Bob locks ETH, Alice calls <code>claim(t)</code>. The escrow checks <var>t·G = T</var> and credits her fixed address.</p></li>
-      <li><span class="how-n">04</span><h3>Complete natively</h3><p>Bob reads <var>t</var> and computes <var>s = ŝ + t</var>, a valid RedPallas spend signature. His shielded claim needs nothing more from Alice.</p></li>
+      <li><span class="how-n">04</span><h3>Complete natively</h3><p>Bob reads <var>t</var> and computes <var>s = ŝ + t</var>, which completes their FROST pre-signature into a valid RedPallas spend signature. His shielded claim needs nothing more from Alice.</p></li>
     </ol>
   </section>
 

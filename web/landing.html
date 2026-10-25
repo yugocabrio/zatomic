@@ -33,7 +33,7 @@
     <figure class="mechanism" aria-labelledby="mechanism-caption">
       <svg viewBox="0 0 520 454" role="img" aria-labelledby="mechanism-title mechanism-desc">
         <title id="mechanism-title">Two payments linked by one secret</title>
-        <desc id="mechanism-desc">1, off chain before funds move, both sign with the 2-of-2 FROST key: C, which pays the ZEC to Bob, has a joint signature ŝ that needs t to be valid, and R, which returns it to Alice, is fully signed and time-locked. 2: Alice locks her ZEC in a shielded note whose spend key is a 2-of-2 FROST key; their partial signatures add up to the pre-signature ŝ, one secret short. 3: Bob locks his ETH in an escrow that checks t·G = T. 4: Alice calls claim(t) and takes the ETH, making t public. 5: Bob reads t from Ethereum and completes his claim C with s = ŝ + t. If nobody reveals t, both get their own asset back after the deadlines.</desc>
+        <desc id="mechanism-desc">1, off chain before funds move, both sign with the 2-of-2 FROST key: C, which pays the ZEC to Bob, has a joint signature ŝ that needs t to be valid, and R, which returns it to Alice, is fully signed and time-locked. 2: Alice locks her ZEC in a shielded note whose spend key is a 2-of-2 FROST key; their partial signatures add up to the pre-signature ŝ, one secret short. 3: Bob locks his ETH in an escrow that checks t·G = T. 4: Alice calls claim(t) and takes the ETH, making t public. 5: Bob reads t from Ethereum and adds it to ŝ, completing the FROST pre-signature on his claim C: s = ŝ + t. If nobody reveals t, both get their own asset back after the deadlines.</desc>
         <defs><marker id="pay-eth" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-eth-head"/></marker><marker id="pay-zec" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-zec-head"/></marker><marker id="read-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-gold-head"/></marker></defs>
         <rect x="0" y="0" width="520" height="78" rx="12" class="svg-band"/>
         <circle cx="22" cy="20" r="9" class="svg-badge"/><text x="22" y="24" text-anchor="middle" class="svg-badge-text">1</text>
@@ -100,13 +100,13 @@
     <div class="section-head"><div><p class="kicker">The idea</p><h2 id="idea-title">One secret, two exits prepared before funding</h2></div><p class="section-note"><b>What is new:</b> Zatomic makes <b>Zcash’s own shielded spend authorization</b> one side of an atomic swap. Neither chain verifies the other’s transactions.</p></div>
     <ul class="idea-cards">
       <li><p class="card-role">FROST · joint custody</p><h3>A key neither can use alone</h3><p>A FROST DKG gives Alice and Bob a fresh 2&#8209;of&#8209;2 spend key. Alice funds a shielded note that <b>only both together could spend</b>.</p></li>
-      <li><p class="card-role">Adaptor signature · Bob claims alone</p><h3>A claim one secret short</h3><p>Bob holds claim C, <b>the Zcash transaction that pays him the ZEC</b>, signed with a RedPallas adaptor signature that <b>becomes valid only when a secret <var>t</var> is added</b>.</p></li>
+      <li><p class="card-role">Adaptor signature · Bob claims alone</p><h3>A claim one secret short</h3><p>Bob holds claim C, <b>the Zcash transaction that pays him the ZEC</b>, co-signed with their FROST shares as a RedPallas adaptor pre-signature that <b>becomes valid only when a secret <var>t</var> is added</b>.</p></li>
       <li><p class="card-role">Lock time · Alice refunds alone</p><h3>A refund Zcash unlocks</h3><p>Alice holds refund R, <b>the transaction that returns the ZEC to her</b>, fully signed, which Zcash consensus keeps invalid until her deadline. <b>She needs nothing from Bob to use it.</b></p></li>
     </ul>
     <figure class="exits-figure" aria-labelledby="exits-caption">
       <svg viewBox="0 0 1000 236" role="img" aria-labelledby="exits-title exits-desc">
         <title id="exits-title">One note, two exits prepared before funding</title>
-        <desc id="exits-desc">Alice’s funding transaction F puts her ZEC in a shielded note held by a 2-of-2 FROST key. Before F is sent, two exits are prepared: C pays Bob once t is added to its adaptor pre-signature, and R, fully signed, returns the ZEC to Alice after the Zcash deadline. Both spend the same note, so only one can ever be mined.</desc>
+        <desc id="exits-desc">Alice’s funding transaction F puts her ZEC in a shielded note held by a 2-of-2 FROST key. Before F is sent, two exits are prepared: C pays Bob once t is added to the adaptor pre-signature both signed with their FROST shares, and R, fully signed, returns the ZEC to Alice after the Zcash deadline. Both spend the same note, so only one can ever be mined.</desc>
         <defs><marker id="ex-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-head-ink"/></marker></defs>
         <rect x="6" y="80" width="200" height="78" rx="12" class="svg-node"/>
         <text x="24" y="104" class="svg-lane svg-lane-zec">ZCASH · F</text>
@@ -123,8 +123,8 @@
         <path d="M536 132 C566 132, 576 161, 606 161" class="svg-msg" marker-end="url(#ex-head)"/>
         <rect x="610" y="44" width="364" height="72" rx="12" class="svg-node"/>
         <text x="628" y="66" class="svg-tag">C · to Bob</text>
-        <text x="628" y="88" class="svg-big-title">Adaptor pre-signed</text>
-        <text x="628" y="106" class="svg-big-sub">valid once t is added: s = ŝ + t</text>
+        <text x="628" y="88" class="svg-big-title">FROST adaptor pre-signature ŝ</text>
+        <text x="628" y="106" class="svg-big-sub">valid only once t is added: s = ŝ + t</text>
         <rect x="610" y="126" width="364" height="72" rx="12" class="svg-node"/>
         <text x="628" y="148" class="svg-tag">R · to Alice</text>
         <text x="628" y="170" class="svg-big-title">Fully signed, time-locked</text>
@@ -164,13 +164,13 @@
       <li><span class="step-n">01</span><div><h3>Agree on the trade and prepare both exits <span class="tag">Off chain</span></h3><p>Alice signs a quote with exact ZEC and ETH amounts, and Bob accepts. A FROST DKG gives them a fresh 2-of-2 spend key, so neither can spend the shared ZEC alone. Alice picks a secret scalar <var>t</var> and shares only <var>T = t·G</var> on Pallas. Alice and Bob combine their FROST partial signatures on claim C into an adaptor pre-signature <var>ŝ</var>, which is <b>not yet a valid spend signature</b>. <b>Before any funds move</b>, Bob verifies <var>ŝ</var>, Alice holds refund R fully signed and time-locked, and both sign the full terms.</p></div></li>
       <li><span class="step-n">02</span><div><h3>Alice funds the shared shielded note <span class="tag tag-zec">Zcash · F</span></h3><p>Transaction F moves Alice’s ZEC into the note the joint FROST key controls. It has <b>no transparent input or output</b>, and the note’s two pre-authorized exits, Bob’s claim and Alice’s time-locked refund, were signed before funding.</p></div></li>
       <li><span class="step-n">03</span><div><h3>Bob locks ETH in the escrow <span class="tag tag-eth">Ethereum · lock</span></h3><p>After checking F, Bob locks the agreed ETH in PointEscrow for Alice’s fixed address and the point <var>T</var>, until the ETH deadline. <b>The escrow receives no Zcash transaction ID, address or note.</b></p></div></li>
-      <li><span class="step-n">04</span><div><h3>Alice claims the ETH and reveals <var>t</var> <span class="tag tag-eth">Ethereum · claim</span></h3><p>Alice calls <code>claim(t)</code>. The escrow checks <var>t·G = T</var> and credits the ETH to Alice, who withdraws it in a separate transaction. The claim makes <var>t</var> public, and <b><var>t</var> is exactly what Bob’s signature is missing</b>.</p></div></li>
-      <li><span class="step-n">05</span><div><h3>Bob completes his shielded claim <span class="tag tag-zec">Zcash · C</span></h3><p>Bob reads <var>t</var> from Ethereum and computes <var>s = ŝ + t</var>, a valid RedPallas spend signature. He broadcasts claim C and receives the ZEC, shielded, <b>with nothing more needed from Alice</b>.</p></div></li>
+      <li><span class="step-n">04</span><div><h3>Alice claims the ETH and reveals <var>t</var> <span class="tag tag-eth">Ethereum · claim</span></h3><p>Alice calls <code>claim(t)</code>. The escrow checks <var>t·G = T</var> and credits the ETH to Alice, who withdraws it in a separate transaction. The claim makes <var>t</var> public, and <b><var>t</var> is exactly what their FROST pre-signature <var>ŝ</var> is missing</b>.</p></div></li>
+      <li><span class="step-n">05</span><div><h3>Bob completes his shielded claim <span class="tag tag-zec">Zcash · C</span></h3><p>Bob reads <var>t</var> from Ethereum and computes <var>s = ŝ + t</var>. <b>That completes the adaptor pre-signature he and Alice made with their FROST shares in step 1</b>: it is now a valid RedPallas spend signature for C, with no new signing round. He broadcasts claim C and receives the ZEC, shielded, <b>with nothing more needed from Alice</b>.</p></div></li>
     </ol>
       <figure class="how-figure" aria-labelledby="how-figure-caption">
         <svg viewBox="0 0 440 640" role="img" aria-labelledby="seq-title seq-desc">
           <title id="seq-title">The five steps: where funds move and who receives what</title>
-          <desc id="seq-desc">1: Alice and Bob agree off chain, run the FROST DKG, adaptor-presign C and fully sign R. 2: Alice locks ZEC in the joint 2-of-2 FROST note with F. 3: Bob locks ETH in the escrow. 4: Alice calls claim(t), making t public, and the ETH is credited to her; she withdraws it in a separate transaction. 5: Bob reads t, sends C with s = ŝ + t, and receives the ZEC. If nobody reveals t, the ETH goes back to Bob and the ZEC goes back to Alice through A and R.</desc>
+          <desc id="seq-desc">1: Alice and Bob agree off chain, run the FROST DKG, adaptor-presign C and fully sign R. 2: Alice locks ZEC in the joint 2-of-2 FROST note with F. 3: Bob locks ETH in the escrow. 4: Alice calls claim(t), making t public, and the ETH is credited to her; she withdraws it in a separate transaction. 5: Bob reads t, completes the FROST pre-signature with s = ŝ + t, sends C, and receives the ZEC. If nobody reveals t, the ETH goes back to Bob and the ZEC goes back to Alice through A and R.</desc>
           <defs>
             <marker id="sq-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-head-ink"/></marker>
             <marker id="sq-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-gold-head"/></marker>
@@ -211,6 +211,7 @@
           <text x="345" y="332" text-anchor="middle" class="svg-msg-label">reads t</text>
           <path d="M400 372 H184" class="svg-msg" marker-end="url(#sq-ink)"/>
           <text x="292" y="364" text-anchor="middle" class="svg-msg-label">C: s = ŝ + t</text>
+          <text x="292" y="389" text-anchor="middle" class="svg-msg-note">completes the FROST signature</text>
           <path d="M180 404 H392" class="svg-asset svg-asset-zec" marker-end="url(#sq-zec)"/>
           <text x="290" y="422" text-anchor="middle" class="svg-msg-label svg-got">Bob receives the ZEC</text>
           <circle cx="400" cy="404" r="8" class="svg-got-dot"/><text x="400" y="408" text-anchor="middle" class="svg-got-check">✓</text>
@@ -274,7 +275,7 @@
       <div class="zp-lead">
         <p class="kicker">Zatomic · direct shielded settlement</p>
         <h3>One scalar. Two native chains. No cross‑chain state proof.</h3>
-        <p>One adaptor secret connects a shielded RedPallas claim to an Ethereum escrow: the secret t that releases the ETH completes Bob’s Zcash signature. Neither chain verifies the other’s transactions.</p>
+        <p>One adaptor secret connects a shielded RedPallas claim to an Ethereum escrow: the secret t that releases the ETH completes the FROST pre-signature on Bob’s Zcash claim. Neither chain verifies the other’s transactions.</p>
       </div>
       <ul class="zp-points">
         <li><b>No third-party custodian or solver</b>A 2-of-2 FROST key controls the ZEC; the escrow pays the ETH only to Alice with t, or back to Bob after the deadline.</li>

@@ -40,7 +40,7 @@ function describe(e, names) {
     return ['zec', 'Zcash: shielded transaction', `${e.actions} actions · amount, sender and recipient hidden · block #${e.height}`];
   }
   if (e.event === 'locked') return ['eth', `Ethereum: ${who(e.maker)} locks ${eth(e.amount_wei)} for ${who(e.recipient)}`, 'Claimable only with the secret t'];
-  if (e.event === 'claimed') return ['eth key', `Ethereum: claimed. t is now public`, `t = ${short(e.witness)} · it completes Bob’s pre-signed Zcash claim`];
+  if (e.event === 'claimed') return ['eth key', `Ethereum: claimed. t is now public`, `t = ${short(e.witness)} · it completes the FROST pre-signature on Bob’s Zcash claim`];
   if (e.event === 'refunded') return ['eth', 'Ethereum: ETH refunded at expiry', 'No secret was revealed'];
   return ['eth', `Ethereum: ${eth(e.amount_wei)} withdrawn by ${who(e.owner)}`, ''];
 }
@@ -74,7 +74,7 @@ function narrate(events) {
     [Boolean(back), 'Alice’s ZEC comes back', 'Her pre-signed refund is valid only after the refund time.'],
   ] : [...opening,
     [Boolean(locked), 'Bob locks ETH', 'Public on Ethereum: amount, both addresses and the point T.'],
-    [Boolean(claimed), 'Alice claims the ETH and reveals t', 'The same t completes Bob’s pre-signed Zcash claim; t itself does not point to that transaction.'],
+    [Boolean(claimed), 'Alice claims the ETH and reveals t', 'The same t completes the FROST pre-signature on Bob’s Zcash claim; t itself does not point to that transaction.'],
     // Bob's claim is the second shielded transaction, later in the chain than the funding.
     [Boolean(claimed) && shielded.length >= 2 && shielded[1].height > shielded[0].height, 'Bob claims his ZEC', 'Another shielded transaction; Bob’s own wallet decrypts it.'],
     [Boolean(withdrawn), 'Alice withdraws the ETH', 'Settled. No transparent output ever appeared on Zcash.'],

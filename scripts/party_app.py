@@ -380,7 +380,7 @@ class App:
             step('accepted', 'Bob accepts the quote', (self.me / 'accepted-trade.json').exists())
             step('prepare', 'Prepare and verify both exits', s.get('agreement'),
                 f'My refund is signed and unlocks after block #{s["agreement"]["native"]["refund_height"]}. '
-                'Bob’s claim is an adaptor pre-signature that needs my t.' if s.get('agreement') else '')
+                'Bob’s claim is our FROST adaptor pre-signature; it needs my t to become valid.' if s.get('agreement') else '')
             step('fund', 'Both sign the full terms; ZEC funded', (seen.get('funding_confirmations') or 0) >= 2,
                 f'F {short(s["agreement"]["native"]["funding_txid"])} · {seen.get("funding_confirmations")} confirmations' if s.get('funding') else '')
             # The last two steps follow the path actually taken: reveal, or none.
@@ -413,7 +413,7 @@ class App:
                 action = {'id': 'consent', 'label': 'Sign full terms and fund ZEC', 'note': 'Your source wallet releases the funding only with both signatures.'}
             elif seen.get('order_state') == 1 and not s.get('claim') and not seen.get('eth_expired'):
                 action = {'id': 'claim', 'label': 'Claim ETH (reveals the secret)', 'danger': True,
-                    'note': 'Once sent, t is public: Bob can complete his ZEC claim with it.'}
+                    'note': 'Once sent, t is public: it completes our FROST pre-signature on Bob’s ZEC claim.'}
             elif seen.get('order_state') == 2 and not s.get('withdraw'):
                 action = {'id': 'withdraw', 'label': 'Withdraw ETH'}
             elif seen.get('order_state') in (0, 1, 3) and seen.get('eth_expired') and not s.get('claim') and not s.get('native_refund', {}).get('state') == 'confirmed':
@@ -455,7 +455,7 @@ class App:
             elif not seen.get('order_state'):
                 action = {'id': 'lock', 'label': 'Lock ETH', 'note': f'Locks {self.eth_text(s["agreement"])} for Alice, claimable only with t.'}
             elif seen.get('order_state') == 2 and not claimed:
-                action = {'id': 'native-claim', 'label': 'Claim my ZEC', 'danger': True, 'note': 'The secret is public. Claim before the native refund deadline.'}
+                action = {'id': 'native-claim', 'label': 'Claim my ZEC', 'danger': True, 'note': 't is public: adding it completes our FROST pre-signature. Claim before the native refund deadline.'}
             elif seen.get('order_state') == 1 and seen.get('eth_expired'):
                 action = {'id': 'refund', 'label': 'Refund my ETH', 'note': 'Alice never revealed the secret.'}
             elif seen.get('order_state') == 3 and not s.get('withdraw'):
