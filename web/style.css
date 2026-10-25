@@ -54,8 +54,12 @@ code, var { font-family: var(--mono); font-style: normal; font-size: .92em; }
 .brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 750; font-size: 22px; letter-spacing: -.04em; text-decoration: none; }
 .brand img { border-radius: 7px; }
 .brand-small { font-size: 18px; }
-nav { display: flex; gap: 22px; margin-right: auto; }
-nav a { text-decoration: none; color: var(--ink-2); font-size: 14px; padding: 6px 0; }
+nav { display: flex; gap: 22px; margin-right: auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+nav::-webkit-scrollbar { display: none; }
+nav a { text-decoration: none; color: var(--ink-2); font-size: 14px; padding: 6px 0; white-space: nowrap; }
+.topbar-inner > .network { flex-shrink: 1000; min-width: 34px; }
+@media (max-width: 1180px) { nav { gap: 14px; } nav a { font-size: 13px; } }
+@media (max-width: 960px) { .topbar-inner { gap: 20px; } nav { gap: 9px; } nav a { font-size: 12.5px; } }
 nav a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
 .network { min-width: 0; display: flex; align-items: center; gap: 8px; font: 12.5px var(--mono); color: var(--ink-2); border: 1px solid var(--line-strong); border-radius: 999px; padding: 6px 12px; white-space: nowrap; }
 .net-short { display: none; }

@@ -4,15 +4,17 @@
 
 **Atomic swaps of shielded ZEC for ETH, with both exits prepared before funding.**
 
+[Live demo](https://162-55-186-88.sslip.io) · [Public testnet runs](#public-testnet-runs) · [Protocol in one page](docs/protocol.md) · [Slides (PDF)](docs/zatomic-slides.pdf)
+
 ![Zatomic stage after a settled swap: Alice’s and Bob’s apps, and between them only what an outside observer saw](docs/images/stage-swap.png)
 
 Zatomic swaps native shielded ZEC for ETH between two parties who have already
 agreed a trade. There is no bridge, no wrapped ZEC and no custodian or solver.
 
 Unlike ordinary FROST, combining Alice's and Bob's partial signatures here gives
-an adaptor pre-signature, not a valid spend signature. When Alice reveals t to
-claim the ETH, Bob adds it to complete the RedPallas signature and claims the
-shielded ZEC without further help from Alice.
+an adaptor pre-signature, not a valid spend signature. When Alice reveals the
+secret t to claim the ETH, Bob adds it to complete the RedPallas signature and
+claims the shielded ZEC without further help from Alice.
 
 ## The problem
 
@@ -31,13 +33,18 @@ Ethereum, routing through solvers and public viewing keys, or using transparent 
 - **Adaptor signature, Bob claims alone.** Before Alice funds the note, both
   sign Bob's claim C with their nonce point shifted by T = t·G, R̂ = R + T, so
   their partial signatures add up to a pre-signature one secret short:
-  ŝ·G = R̂ − T + c·X′. Bob checks it himself, without knowing t.
+  ŝ·G = R̂ − T + c·X′. Bob checks it himself, without knowing t
+  ([how the two signers compute ŝ](docs/protocol.md#how-the-pre-signature-is-computed)).
 - **Escrow on Ethereum.** Bob locks ETH to T. Alice claims it with t; the escrow
   checks t·G = T on Pallas, and the same t completes Bob's signature:
   s = ŝ + t gives s·G = R̂ + c·X′. After locking, Bob needs nothing more from Alice.
-- **Lock time, Alice refunds alone.** Alice holds refund R, fully signed. If
-  nobody reveals t, Bob takes his ETH back after the deadline, and after the
-  Zcash deadline Alice sends A, then R, and recovers her ZEC.
+- **Lock time, Alice refunds alone.** Before funding, both also fully sign
+  Alice's refund R. Zcash enforces a lock time only when a transaction has a
+  transparent input with a non-final sequence number, so Alice prepares a private
+  transaction A that turns a little of her own shielded change into a small
+  transparent coin, and R spends that coin. If nobody reveals t, Bob takes his ETH
+  back after the deadline, and after the Zcash deadline Alice sends A, then R, and
+  recovers her ZEC without Bob. A settled swap sends neither A nor R.
 - **Signed before the note exists.** v6 transactions keep the anchor and proofs
   outside what spend signatures sign
   ([ZIP 229](https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6)),

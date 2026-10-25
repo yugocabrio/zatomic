@@ -46,14 +46,33 @@ pre-signature for C that is one secret short, for the randomized spend key X′:
 
 Adding t gives s = ŝ + t, and s·G = R̂ + c·X′ is an ordinary valid signature.
 Claiming the ETH publishes t, and the escrow checks t·G = T on Pallas itself, so
-no cross-curve proof is needed. The full calculation, with nonces and share
-checks, is in [security.md](security.md#custom-signature-calculation).
+no cross-curve proof is needed.
 
 In plain FROST the two partial signatures add up to a valid signature; here they
 add up to ŝ, one secret short. Bob checks the pre-signature against C's sighash,
 the spend key and T himself, before Alice funds anything, and Alice releases her
-share only after verifying Bob's (see [security](security.md)). FROST provides the
-joint custody; the adaptor signature lets Bob later claim alone.
+share only after verifying Bob's. FROST provides the joint custody; the adaptor
+signature lets Bob later claim alone.
+
+<a name="how-the-pre-signature-is-computed"></a>**How the two signers compute ŝ.** Each signer i holds a FROST key share xᵢ with
+interpolation weight λᵢ (Σλᵢ = 1), and draws two one-use nonces dᵢ, eᵢ, publishing
+Dᵢ = dᵢ·G and Eᵢ = eᵢ·G. ρᵢ is FROST's binding factor and α the randomizer Zcash
+applies to the spend key. The only change from plain FROST is the nonce point
+used for the challenge:
+
+    X′ = X + α·G
+    R  = Σ (Dᵢ + ρᵢ·Eᵢ)                 plain FROST nonce point
+    R̂  = R + T                          shifted by the adaptor point
+    c  = H(R̂ ‖ X′ ‖ sighash of C)
+    ẑᵢ = dᵢ + ρᵢ·eᵢ + λᵢ·c·(xᵢ + α)     each signer's partial signature
+    ŝ  = ẑ_A + ẑ_B                      so ŝ·G = R + c·X′ = R̂ − T + c·X′
+    s  = ŝ + t                          once Alice's claim makes t public
+
+Bob checks ŝ·G + T = R̂ + c·X′, which needs only T, not t. Alice, who knows t,
+releases her share ẑ_A only after Bob's ẑ_B verifies against the same nonce
+commitments. Otherwise Bob could shift his commitment by −T and turn Alice's share
+into a valid signature without t; [security](security.md#adaptor-share-release-order)
+describes that attack, its fix and the regression tests.
 
 **Why the exits can be signed before the note exists.** In the v6 transaction
 format ([ZIP 229](https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6)),
@@ -67,7 +86,9 @@ they share a nullifier: only one of them can ever be mined.
 a transaction has a transparent input with a non-final sequence number. R
 therefore also spends the coin from A, which Alice creates from her own change
 only if she refunds. A settled swap puts only F and C on chain, both fully
-shielded.
+shielded. The coin's 20,000 zatoshi is this implementation's choice, not a
+consensus rule: it pays R's 5,000-zatoshi incremental fee, and R returns the
+other 15,000 to Alice.
 
 **Deadlines.** The ETH expiry comes first and the native refund time later, so
 that after Alice reveals t, Bob still has time to complete C before R becomes

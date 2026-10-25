@@ -11,7 +11,7 @@
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a class="brand" href="/" aria-label="Zatomic home"><img src="/mark.svg" alt="" width="28" height="28"><span>Zatomic</span></a>
-    <nav aria-label="Sections"><a href="/stage"><b>Live demo</b></a><a href="#problem">Problem</a><a href="#idea">The idea</a><a href="#public">Public run</a><a href="#compare">Why Zatomic</a><a href="#privacy">Privacy</a><a href="#recovery-matrix">Recovery</a><a href="#evidence">Evidence</a></nav>
+    <nav aria-label="Sections"><a href="/stage"><b>Live demo</b></a><a href="#problem">Problem</a><a href="#idea">The idea</a><a href="#public">Public run</a><a href="#compare">Why Zatomic</a><a href="#privacy">Privacy</a><a href="#recovery-matrix">Recovery</a><a href="#evidence">Evidence</a><a href="https://github.com/yugocabrio/zatomic" target="_blank" rel="noopener">GitHub ↗</a></nav>
     <div class="network" role="status" aria-live="polite"><i id="network-dot" aria-hidden="true"></i><span id="network-status">Checking the demo…</span></div>
   </div>
 </header>
@@ -141,7 +141,7 @@
         <p>During FROST pre-signing, the aggregate nonce point R is shifted by the public adaptor point T = t·G, giving <var>R̂ = R + T</var>. Each signer computes their partial signature with the challenge c derived from <var>R̂</var>, so the shares combine into ŝ, one secret short:</p>
         <p class="formula">ŝ·G = R̂ − T + c·X′</p>
         <p>Adding <var>t</var> gives <var>s = ŝ + t</var>, so <var>s·G = R̂ + c·X′</var>: <b>an ordinary valid signature</b> for the randomized spend key X′. Ethereum checks <var>t·G = T</var> on Pallas itself, so the same <var>t</var> needs no cross-curve proof.</p>
-        <p>In plain FROST, Alice’s and Bob’s partial signatures add up to a valid signature. Here they add up to ŝ, still one secret short: <b>on its own ŝ fails the check above, so Zcash rejects C and Bob cannot spend yet.</b> Bob checks that equation himself, without knowing <var>t</var>, before Alice funds anything. So once he locks his ETH <b>he needs nothing more from Alice</b>: the only missing piece is the <var>t</var> she must publish to take the ETH. <a href="https://github.com/yugocabrio/zatomic/blob/main/docs/security.md#custom-signature-calculation" target="_blank" rel="noopener">Full calculation, with nonces and share checks ↗</a></p>
+        <p>In plain FROST, Alice’s and Bob’s partial signatures add up to a valid signature. Here they add up to ŝ, still one secret short: <b>on its own ŝ fails the check above, so Zcash rejects C and Bob cannot spend yet.</b> Bob checks that equation himself, without knowing <var>t</var>, before Alice funds anything. So once he locks his ETH <b>he needs nothing more from Alice</b>: the only missing piece is the <var>t</var> she must publish to take the ETH. <a href="https://github.com/yugocabrio/zatomic/blob/main/docs/protocol.md#how-the-pre-signature-is-computed" target="_blank" rel="noopener">How the two signers compute ŝ ↗</a></p>
       </div>
       <div class="explain-block">
         <h3>How both exits exist before the note does</h3>
@@ -170,7 +170,7 @@
       <figure class="how-figure" aria-labelledby="how-figure-caption">
         <svg viewBox="0 0 440 640" role="img" aria-labelledby="seq-title seq-desc">
           <title id="seq-title">The five steps: where funds move and who receives what</title>
-          <desc id="seq-desc">1: Alice and Bob agree off chain, run the FROST DKG, adaptor-presign C and fully sign R. 2: Alice locks ZEC in the joint note with F. 3: Bob locks ETH in the escrow. 4: Alice calls claim(t), making t public, and the ETH is credited to her; she withdraws it in a separate transaction. 5: Bob reads t, sends C with s = ŝ + t, and receives the ZEC. If nobody reveals t, the ETH goes back to Bob and the ZEC goes back to Alice through A and R.</desc>
+          <desc id="seq-desc">1: Alice and Bob agree off chain, run the FROST DKG, adaptor-presign C and fully sign R. 2: Alice locks ZEC in the joint 2-of-2 FROST note with F. 3: Bob locks ETH in the escrow. 4: Alice calls claim(t), making t public, and the ETH is credited to her; she withdraws it in a separate transaction. 5: Bob reads t, sends C with s = ŝ + t, and receives the ZEC. If nobody reveals t, the ETH goes back to Bob and the ZEC goes back to Alice through A and R.</desc>
           <defs>
             <marker id="sq-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-head-ink"/></marker>
             <marker id="sq-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-gold-head"/></marker>
@@ -186,12 +186,13 @@
 
           <circle cx="16" cy="78" r="11" class="svg-badge"/><text x="16" y="82" text-anchor="middle" class="svg-badge-text">1</text>
           <path d="M74 78 H396" class="svg-msg svg-msg-dash" marker-start="url(#sq-ink)" marker-end="url(#sq-ink)"/>
-          <text x="235" y="70" text-anchor="middle" class="svg-msg-label">quote · DKG · adaptor-presign C · sign R</text>
+          <text x="235" y="70" text-anchor="middle" class="svg-msg-label">quote · FROST DKG · adaptor-presign C · sign R</text>
           <text x="235" y="96" text-anchor="middle" class="svg-msg-note">off chain, before any funds move</text>
 
           <circle cx="16" cy="140" r="11" class="svg-badge"/><text x="16" y="144" text-anchor="middle" class="svg-badge-text">2</text>
           <path d="M70 140 H172" class="svg-asset svg-asset-zec" marker-end="url(#sq-zec)"/>
           <text x="125" y="130" text-anchor="middle" class="svg-msg-label">ZEC locked (F)</text>
+          <text x="125" y="158" text-anchor="middle" class="svg-msg-note">into the 2-of-2 FROST note</text>
 
           <circle cx="16" cy="196" r="11" class="svg-badge"/><text x="16" y="200" text-anchor="middle" class="svg-badge-text">3</text>
           <path d="M400 196 H298" class="svg-asset svg-asset-eth" marker-end="url(#sq-eth)"/>
@@ -230,7 +231,7 @@
     <p class="steps-result"><b>Result:</b> two native settlements, linked by one scalar. On Zcash the whole swap is F and C, both fully shielded.</p>
     <div class="steps-branch">
       <h3>If Alice never reveals <var>t</var></h3>
-      <p>Bob takes his ETH back after the ETH deadline. After the later Zcash refund deadline, Alice broadcasts her pre-signed transaction A, which turns a little of her own change into a small transparent coin. She then broadcasts her time-locked refund R, which spends that coin and returns her ZEC shielded. Zcash enforces a lock time only on a transparent input; <b>a settled swap needs neither A nor R</b>.</p>
+      <p>Bob takes his ETH back after the ETH deadline. After the later Zcash refund deadline, Alice broadcasts her pre-signed transaction A, which turns a little of her own change into a small transparent coin. She then broadcasts her time-locked refund R, which spends that coin and returns her ZEC shielded. Zcash enforces a transaction’s lock time only when it has a transparent input with a non-final sequence number, which is why R spends that coin; <b>a settled swap needs neither A nor R</b>.</p>
       <p><b>Why the ETH deadline comes first:</b> once Alice reveals <var>t</var>, Bob still has time to claim the ZEC before her refund unlocks. Each app watches its deadline; recovery assumes timely inclusion and bounded reorgs. <a href="https://github.com/yugocabrio/zatomic/blob/main/docs/protocol.md" target="_blank" rel="noopener">Protocol details ↗</a></p>
     </div>
     <p class="fineprint">FROST DKG and nonces use the Zcash Foundation libraries; the adaptor extension and the Solidity check are this project’s own.</p>
