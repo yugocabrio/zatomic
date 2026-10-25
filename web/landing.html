@@ -21,13 +21,13 @@
     <div class="hero-copy">
       <p class="kicker">Atomic swap · P2P OTC · Native Zcash ⇄ Ethereum</p>
       <h1 id="hero-title">Swap shielded ZEC for ETH.<br><em>No bridge. No wrapped ZEC.</em></h1>
-      <p class="lede">An atomic swap needs a payment that unlocks on a condition and a refund that unlocks later, but shielded Zcash notes have no scripts for either. Zatomic prepares both exits before any money moves: <b>Bob’s claim, signed except for one secret</b>, and <b>Alice’s refund, time-locked by Zcash itself</b>. When Alice reveals the secret to take the ETH, it completes Bob’s Zcash signature.</p>
+      <p class="lede">An atomic swap needs a payment that unlocks on a condition and a refund that unlocks later, but shielded Zcash notes have no scripts for either. Zatomic prepares both exits before any money moves: <b>Bob’s claim, co-signed with 2-of-2 FROST but one secret short</b>, and <b>Alice’s refund, time-locked by Zcash itself</b>. When Alice reveals the secret to take the ETH, it completes Bob’s Zcash signature.</p>
       <p class="cta-row"><a class="btn btn-primary btn-cta" href="/stage">Try the live demo <span aria-hidden="true">→</span></a><a class="btn btn-ghost btn-cta" href="#public">See the public testnet runs</a></p>
       <p class="hero-note">Live demo: run a shielded swap, a crash recovery or a refund on private test chains, with real transactions and real proofs. About two minutes each.</p>
       <ul class="facts">
-        <li><b>Atomic</b><span>If Bob vanishes before Alice reveals t, her pre-signed refund gets her ZEC back once Zcash’s lock time passes, as the public testnet showed.</span></li>
-        <li><b>Stays shielded</b><span>Principal and recipients stay in Ironwood. Ethereum never sees a Zcash address or note.</span></li>
-        <li><b>Recovers after a crash</b><span>Durable journals resume the exit without a new signature from the peer.</span></li>
+        <li><b>Atomic</b><span>If Bob vanishes before Alice reveals t, <b class="em">her pre-signed refund gets her ZEC back</b> once Zcash’s lock time passes, as the public testnet showed.</span></li>
+        <li><b>Stays shielded</b><span>Principal and recipients stay in Ironwood. <b class="em">Ethereum never sees a Zcash address or note.</b></span></li>
+        <li><b>Recovers after a crash</b><span>Durable journals resume the exit <b class="em">without a new signature from the peer</b>.</span></li>
       </ul>
     </div>
     <figure class="mechanism" aria-labelledby="mechanism-caption">
@@ -58,6 +58,8 @@
         <rect x="236" y="121" width="48" height="20" rx="10" class="svg-pill"/>
         <text x="260" y="135" text-anchor="middle" class="svg-pill-text">t</text>
         <text x="294" y="135" class="svg-msg-note">both claims need this t</text>
+        <circle cx="96" cy="131" r="9" class="svg-badge"/><text x="96" y="135" text-anchor="middle" class="svg-badge-text">1</text>
+        <text x="110" y="135" class="svg-msg-note">exits signed first</text>
 
         <path d="M452 66 H358" class="svg-asset svg-asset-eth" marker-end="url(#pay-eth)"/>
         <text x="404" y="58" text-anchor="middle" class="svg-msg-label">ETH</text>
@@ -77,25 +79,25 @@
         <text x="24" y="299" class="svg-eyebrow">IF NOBODY REVEALS t</text>
         <text x="24" y="320" class="svg-refund">After the deadlines: Bob takes his ETH back, Alice’s refund returns her ZEC.</text>
       </svg>
-      <figcaption id="mechanism-caption">Step 1 happens off chain: both exits are signed before any funds move. Alice’s ETH claim and Bob’s ZEC claim need the same t; refunds open only after the deadlines.</figcaption>
+      <figcaption id="mechanism-caption"><span class="cap-badge" aria-hidden="true">1</span> <b>Step 1 happens off chain:</b> both exits are signed before any funds move. Alice’s ETH claim and Bob’s ZEC claim need the same t; refunds open only after the deadlines.</figcaption>
     </figure>
   </section>
 
   <section id="problem" class="problem wrap" aria-labelledby="problem-title">
     <div class="section-head"><div><p class="kicker">The problem</p><h2 id="problem-title">Why a shielded atomic swap is hard</h2></div><p class="section-note">Two people want to trade ZEC for ETH without a custodian and without giving up Zcash privacy.</p></div>
     <ol class="points">
-      <li><span class="point-n">01</span><h3>Neither side wants to go first</h3><p>Whoever pays first can be cheated, so the two payments must be linked: both happen, or neither does.</p></li>
-      <li><span class="point-n">02</span><h3>Shielded notes have no scripts</h3><p>Bitcoin-style swaps lock coins behind hash and time conditions. A shielded Zcash note moves only with a valid signature from its key.</p></li>
-      <li><span class="point-n">03</span><h3>Other routes add trust or exposure</h3><p>Bridges must prove Zcash history to Ethereum; other routes rely on solvers, public viewing keys or transparent ZEC. <a href="#compare">How they compare</a></p></li>
+      <li><span class="point-n">01</span><h3>Neither side wants to go first</h3><p>Whoever pays first can be cheated, so the two payments must be linked: <b>both happen, or neither does</b>.</p></li>
+      <li><span class="point-n">02</span><h3>Shielded notes have no scripts</h3><p>Bitcoin-style swaps lock coins behind hash and time conditions. A shielded Zcash note <b>moves only with a valid signature from its key</b>.</p></li>
+      <li><span class="point-n">03</span><h3>Other routes add trust or exposure</h3><p>Bridges must <b>prove Zcash history to Ethereum</b>; other routes rely on solvers, public viewing keys or transparent ZEC. <a href="#compare">How they compare</a></p></li>
     </ol>
   </section>
 
   <section id="idea" class="idea wrap" aria-labelledby="idea-title">
     <div class="section-head"><div><p class="kicker">The idea</p><h2 id="idea-title">One secret, two exits prepared before funding</h2></div><p class="section-note"><b>What is new:</b> Zatomic makes <b>Zcash’s own shielded spend authorization</b> one side of an atomic swap. Neither chain verifies the other’s transactions.</p></div>
     <ul class="idea-cards">
-      <li><p class="card-role">FROST · joint custody</p><h3>A key neither can use alone</h3><p>A FROST DKG gives Alice and Bob a fresh 2&#8209;of&#8209;2 spend key. Alice funds a shielded note that only both together could spend.</p></li>
-      <li><p class="card-role">Adaptor signature · Bob claims alone</p><h3>A claim one secret short</h3><p>Bob holds claim C, signed with a RedPallas adaptor signature that becomes valid only when a secret <var>t</var> is added.</p></li>
-      <li><p class="card-role">Lock time · Alice refunds alone</p><h3>A refund Zcash unlocks</h3><p>Alice holds refund R, fully signed, which Zcash consensus keeps invalid until her deadline. She needs nothing from Bob to use it.</p></li>
+      <li><p class="card-role">FROST · joint custody</p><h3>A key neither can use alone</h3><p>A FROST DKG gives Alice and Bob a fresh 2&#8209;of&#8209;2 spend key. Alice funds a shielded note that <b>only both together could spend</b>.</p></li>
+      <li><p class="card-role">Adaptor signature · Bob claims alone</p><h3>A claim one secret short</h3><p>Bob holds claim C, signed with a RedPallas adaptor signature that <b>becomes valid only when a secret <var>t</var> is added</b>.</p></li>
+      <li><p class="card-role">Lock time · Alice refunds alone</p><h3>A refund Zcash unlocks</h3><p>Alice holds refund R, fully signed, which Zcash consensus keeps invalid until her deadline. <b>She needs nothing from Bob to use it.</b></p></li>
     </ul>
     <figure class="exits-figure" aria-labelledby="exits-caption">
       <svg viewBox="0 0 1000 236" role="img" aria-labelledby="exits-title exits-desc">
@@ -134,12 +136,12 @@
         <p class="formula">s·G = R + c·X</p>
         <p>Bob’s pre-signature is one secret short, with T = t·G:</p>
         <p class="formula">ŝ·G = R̂ − T + c·X′</p>
-        <p>Adding <var>t</var> gives <var>s = ŝ + t</var>, so <var>s·G = R̂ + c·X′</var>: an ordinary valid signature for the randomized spend key X′. Ethereum checks <var>t·G = T</var> on Pallas itself, so the same <var>t</var> needs no cross-curve proof.</p>
-        <p>In plain FROST, Alice’s and Bob’s partial signatures add up to a valid signature. Here they add up to ŝ, still one secret short. Bob checks that equation himself, without knowing <var>t</var>, before Alice funds anything. So once he locks his ETH he needs nothing more from Alice: the only missing piece is the <var>t</var> she must publish to take the ETH.</p>
+        <p>Adding <var>t</var> gives <var>s = ŝ + t</var>, so <var>s·G = R̂ + c·X′</var>: <b>an ordinary valid signature</b> for the randomized spend key X′. Ethereum checks <var>t·G = T</var> on Pallas itself, so the same <var>t</var> needs no cross-curve proof.</p>
+        <p>In plain FROST, Alice’s and Bob’s partial signatures add up to a valid signature. <b>Here they add up to ŝ, still one secret short.</b> Bob checks that equation himself, without knowing <var>t</var>, before Alice funds anything. So once he locks his ETH <b>he needs nothing more from Alice</b>: the only missing piece is the <var>t</var> she must publish to take the ETH.</p>
       </div>
       <div class="explain-block">
         <h3>How both exits exist before the note does</h3>
-        <p>In Zcash’s v6 transaction format (<a href="https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6" target="_blank" rel="noopener">ZIP 229</a>), the anchor and the zero-knowledge proof are authorizing data, outside what a spend signature signs. So C and R are signed before Alice funds the note, then proved against the real anchor once F is mined, with no new signature from either side.</p>
+        <p>In Zcash’s v6 transaction format (<a href="https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6" target="_blank" rel="noopener">ZIP 229</a>), the anchor and the zero-knowledge proof are authorizing data, <b>outside what a spend signature signs</b>. So C and R are signed before Alice funds the note, then proved against the real anchor once F is mined, with no new signature from either side.</p>
         <ol class="presign-flow">
           <li><b>Sign C and R</b> before the note exists: no anchor or proof is needed yet.</li>
           <li><b>Alice sends F</b>, and the joint note is mined.</li>
@@ -155,11 +157,11 @@
     <div class="section-head"><div><p class="kicker">How it works</p><h2 id="how-title">Five steps, one secret</h2></div><p class="section-note">The settled path, in the order the two apps run it. Each app holds only its owner’s keys.</p></div>
     <div class="steps-grid">
       <ol class="steps">
-      <li><span class="step-n">01</span><div><h3>Agree on the trade and prepare both exits <span class="tag">Off chain</span></h3><p>Alice signs a quote with exact ZEC and ETH amounts, and Bob accepts. A FROST DKG gives them a fresh 2-of-2 spend key, so neither can spend the shared ZEC alone. Alice picks a secret scalar <var>t</var> and shares only <var>T = t·G</var> on Pallas. Before any funds move, Bob verifies his adaptor pre-signature <var>ŝ</var> on claim C, Alice holds refund R fully signed and time-locked, and both sign the full terms.</p></div></li>
-      <li><span class="step-n">02</span><div><h3>Alice funds the shared shielded note <span class="tag tag-zec">Zcash · F</span></h3><p>Transaction F moves Alice’s ZEC into the note the joint FROST key controls. It has no transparent input or output, and the note’s two pre-authorized exits, Bob’s claim and Alice’s time-locked refund, were signed before funding.</p></div></li>
-      <li><span class="step-n">03</span><div><h3>Bob locks ETH in the escrow <span class="tag tag-eth">Ethereum · lock</span></h3><p>After checking F, Bob locks the agreed ETH in PointEscrow for Alice’s fixed address and the point <var>T</var>, until the ETH deadline. The escrow receives no Zcash transaction ID, address or note.</p></div></li>
-      <li><span class="step-n">04</span><div><h3>Alice claims the ETH and reveals <var>t</var> <span class="tag tag-eth">Ethereum · claim</span></h3><p>Alice calls <code>claim(t)</code>. The escrow checks <var>t·G = T</var> and credits the ETH to Alice, who withdraws it in a separate transaction. The claim makes <var>t</var> public, and <var>t</var> is exactly what Bob’s signature is missing.</p></div></li>
-      <li><span class="step-n">05</span><div><h3>Bob completes his shielded claim <span class="tag tag-zec">Zcash · C</span></h3><p>Bob reads <var>t</var> from Ethereum and computes <var>s = ŝ + t</var>, a valid RedPallas spend signature. He broadcasts claim C and receives the ZEC, shielded, with nothing more needed from Alice.</p></div></li>
+      <li><span class="step-n">01</span><div><h3>Agree on the trade and prepare both exits <span class="tag">Off chain</span></h3><p>Alice signs a quote with exact ZEC and ETH amounts, and Bob accepts. A FROST DKG gives them a fresh 2-of-2 spend key, so neither can spend the shared ZEC alone. Alice picks a secret scalar <var>t</var> and shares only <var>T = t·G</var> on Pallas. <b>Before any funds move</b>, Bob verifies his adaptor pre-signature <var>ŝ</var> on claim C, Alice holds refund R fully signed and time-locked, and both sign the full terms.</p></div></li>
+      <li><span class="step-n">02</span><div><h3>Alice funds the shared shielded note <span class="tag tag-zec">Zcash · F</span></h3><p>Transaction F moves Alice’s ZEC into the note the joint FROST key controls. It has <b>no transparent input or output</b>, and the note’s two pre-authorized exits, Bob’s claim and Alice’s time-locked refund, were signed before funding.</p></div></li>
+      <li><span class="step-n">03</span><div><h3>Bob locks ETH in the escrow <span class="tag tag-eth">Ethereum · lock</span></h3><p>After checking F, Bob locks the agreed ETH in PointEscrow for Alice’s fixed address and the point <var>T</var>, until the ETH deadline. <b>The escrow receives no Zcash transaction ID, address or note.</b></p></div></li>
+      <li><span class="step-n">04</span><div><h3>Alice claims the ETH and reveals <var>t</var> <span class="tag tag-eth">Ethereum · claim</span></h3><p>Alice calls <code>claim(t)</code>. The escrow checks <var>t·G = T</var> and credits the ETH to Alice, who withdraws it in a separate transaction. The claim makes <var>t</var> public, and <b><var>t</var> is exactly what Bob’s signature is missing</b>.</p></div></li>
+      <li><span class="step-n">05</span><div><h3>Bob completes his shielded claim <span class="tag tag-zec">Zcash · C</span></h3><p>Bob reads <var>t</var> from Ethereum and computes <var>s = ŝ + t</var>, a valid RedPallas spend signature. He broadcasts claim C and receives the ZEC, shielded, <b>with nothing more needed from Alice</b>.</p></div></li>
     </ol>
       <figure class="how-figure" aria-labelledby="how-figure-caption">
         <svg viewBox="0 0 440 640" role="img" aria-labelledby="seq-title seq-desc">

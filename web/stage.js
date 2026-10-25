@@ -59,7 +59,7 @@ function narrate(events) {
   const refund = Boolean(refunded || coin || back);
   const opening = [
     [relay.some(e => e.kind === 'manifest'), 'Owners exchange identities', 'Each app posts its public keys; the owners compare fingerprints out of band.'],
-    [relay.some(e => e.kind === 'sealed'), 'Quote, terms and both exits', 'Sealed messages only. Both exits are signed before any money moves.'],
+    [relay.some(e => e.kind === 'sealed'), 'Quote, terms and both exits', 'Sealed messages only. Both exits are signed before any money moves; Bob’s claim still needs t.'],
     [shielded.length > 0, 'Alice funds the shared note', 'A shielded Zcash transaction: no amount or address is visible.'],
   ];
   const steps = refund ? [...opening,

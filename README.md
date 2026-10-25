@@ -9,6 +9,11 @@
 Zatomic swaps native shielded ZEC for ETH between two parties who have already
 agreed a trade. There is no bridge, no wrapped ZEC and no custodian or solver.
 
+Unlike ordinary FROST, combining Alice's and Bob's partial signatures here gives
+an adaptor pre-signature, not a valid spend signature. When Alice reveals t to
+claim the ETH, Bob adds it to complete the RedPallas signature and claims the
+shielded ZEC without further help from Alice.
+
 ## The problem
 
 Alice has ZEC and wants ETH; Bob has ETH and wants ZEC. Whoever pays first can be

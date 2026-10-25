@@ -379,7 +379,8 @@ class App:
             step('quote', 'Sign a quote', s.get('offer'), self.quote_text(s.get('offer')))
             step('accepted', 'Bob accepts the quote', (self.me / 'accepted-trade.json').exists())
             step('prepare', 'Prepare and verify both exits', s.get('agreement'),
-                f'Refund unlocks after block #{s["agreement"]["native"]["refund_height"]}.' if s.get('agreement') else '')
+                f'My refund is signed and unlocks after block #{s["agreement"]["native"]["refund_height"]}. '
+                'Bob’s claim is an adaptor pre-signature that needs my t.' if s.get('agreement') else '')
             step('fund', 'Both sign the full terms; ZEC funded', (seen.get('funding_confirmations') or 0) >= 2,
                 f'F {short(s["agreement"]["native"]["funding_txid"])} · {seen.get("funding_confirmations")} confirmations' if s.get('funding') else '')
             # The last two steps follow the path actually taken: reveal, or none.
@@ -424,7 +425,7 @@ class App:
         else:
             step('trust', 'Trust Alice’s identity', trusted, 'Fingerprints compared out of band.' if trusted else '')
             step('accept', 'Review and accept Alice’s quote', s.get('trade'), self.quote_text(s.get('offer')))
-            step('ready', 'My exit verified and saved', (self.me / 'recovery').exists(), 'Claim pre-signed for me; Alice’s refund verified.' if (self.me / 'recovery').exists() else '')
+            step('ready', 'My exit verified and saved', (self.me / 'recovery').exists(), 'Our FROST shares give an adaptor pre-signature ŝ: I can’t spend yet. Alice’s ETH claim will reveal the missing t. Her refund is verified too.' if (self.me / 'recovery').exists() else '')
             step('consent', 'Sign the full terms', s.get('consent'))
             step('lock', 'Lock the ETH', s.get('lock'), f'Tx {short(s["lock"]["txid"])}' if s.get('lock') else '')
             claimed = s.get('native_claim', {}).get('state') == 'confirmed'

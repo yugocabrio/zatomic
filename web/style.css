@@ -805,3 +805,8 @@ body.landing { --paper: #ffffff; --surface: #ffffff; --sunken: #f3f4f3; --ink: #
 .presign-flow li:last-child::after { display: none; }
 .presign-flow b { color: var(--ink); }
 .explain-block .presign-result { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--ink); font-weight: 600; }
+.landing .facts span b.em { display: inline; margin: 0; font-size: inherit; color: var(--ink); }
+.points b, .idea-cards b, .explain-block p b, .steps p b { color: var(--ink); font-weight: 650; }
+/* The caption's step 1 badge matches the one drawn in the hero diagram. */
+.cap-badge { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--ink); color: #ffffff; font: 700 10.5px var(--mono); vertical-align: 1px; margin-right: 2px; }
+.mechanism figcaption b { color: var(--ink); font-weight: 650; }
