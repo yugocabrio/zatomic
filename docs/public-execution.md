@@ -10,8 +10,9 @@ observation, signing and recovery clients; none of the commands below silently
 substitutes a local chain or synthetic inputs. The convenience preparation
 runner controls two owners on one host, not independently administered hosts.
 
-**Public deployment, faucet requests and every public transfer need the
-human's authorization.** Read-only observations are permitted.
+**Deploying, requesting faucet funds and every public transfer are deliberate
+operator steps; nothing below does them by default.** Read-only checks are safe
+to run at any time.
 
 Practical notes from the run: Zcash testnet blocks arrived faster than the
 nominal 75 seconds, so steps that check the exact provider tip may need a rerun
@@ -152,7 +153,7 @@ python3 scripts/testnet_wallet.py sync "$LATCH_RUN/source" --batches 32
 python3 scripts/measure_sepolia_gas.py
 # Check only.
 python3 scripts/public_deploy.py "$LATCH_RUN/deployment-owner" --eth-rpc "$LATCH_RPC"
-# ONLY AFTER human public-execution authorization and funding:
+# ONLY once you have decided to run on public networks and funded the accounts:
 python3 scripts/public_deploy.py "$LATCH_RUN/deployment-owner" --eth-rpc "$LATCH_RPC" --broadcast-testnet
 # Repeat WITHOUT broadcast until finalized-by-provider; never deploy twice.
 python3 scripts/public_deploy.py "$LATCH_RUN/deployment-owner" --eth-rpc "$LATCH_RPC"
@@ -170,7 +171,7 @@ python3 scripts/public_source_execute.py "$LATCH_RUN/alice" "$LATCH_RUN/source" 
 ```
 
 Check commands that return status 2 report an observation or an incomplete
-milestone, **not** completed settlement. Read the JSON result. A refusal must be
+step, **not** completed settlement. Read the JSON result. A refusal must be
 resolved, never ignored by a blind shell loop. Prepare keeps an existing plan
 immutable; an expired reserved graph is not automatically reset.
 
@@ -178,8 +179,9 @@ Wait for **12 canonical F confirmations**. Sync both `alice-watch` and `bob-watc
 now, and again at least 11 blocks later so a confirmed historical witness exists.
 Native timestamps allow the documented 7,200-second early-header bound. Plan
 creation sets ETH expiry at 6 hours, funding cutoff at 4 hours, first-reveal
-cutoff at 5 hours, native refund at 30 hours. Observe both networks continuously
-through settlement; the paused development automation is not a trade monitor.
+cutoff at 5 hours, native refund at 30 hours (the default profile; the short
+profile used on 2026-10-21 halves the ETH expiry and sets the native refund
+6 hours after it). Watch both networks continuously until settlement.
 
 ```sh
 python3 scripts/public_recovery_watch.py sync "$LATCH_RUN/bob-watch" --batches 32

@@ -36,7 +36,7 @@ address-only setup format.
 used to carry the quote, the full terms and the consents in the clear. Its
 operator could read the exact ZEC amount, the funding txid and the joint note
 commitment. Now only the identity manifests are in the clear; everything else is
-sealed to the recipient's pinned relay key ([details](two-party.md#sealed-relay-messages)).
+sealed to the recipient's pinned relay key ([details](#sealed-relay-messages)).
 `scripts/check_relay_privacy.py` checks a finished run.
 
 **Transactions are recognisable.** Funding F, claim C and refund R use
@@ -49,23 +49,23 @@ suggests the approximate ZEC amount via the market price. Recipients and exact
 ZEC amounts stay hidden. The Ironwood pool is still small, which makes timing
 correlation easier.
 
-**Only a refund touches the transparent pool (local profiles, 2026-10-17).**
-Zcash enforces `nLockTime` only when a transaction has a non-final transparent
-input. A shielded-only refund would be valid immediately, so Alice could race
-Bob's claim. R therefore spends a 20,000-zatoshi transparent coin with a
-non-final sequence. That coin used to be created and mined before the swap, so
-even a settled swap left a transparent output on chain. Now Alice's source
-wallet signs a private auxiliary transaction A at setup: it spends her own F
-change and creates the coin. A is never sent unless Alice refunds, and only her
-own participant holds it. A settled swap puts only F and C on chain, both fully
-shielded. On a refund, A shows 20,000 zatoshi leaving the shielded pool to a
-transparent address, and R spends it and returns the remaining 15,000 zatoshi to
-that same address, where it stays until Alice sweeps it. Locally that address is
-fresh per swap;
-on the public testnet it is the source wallet's dedicated auxiliary address,
-which the provider first sees only on a refund. The public path does the same
-since 2026-10-17: its source reservation holds only the shielded note, and the
-source signer signs A together with F.
+**Only a refund touches the transparent pool.** Zcash enforces `nLockTime` only
+when a transaction has a non-final transparent input. A shielded-only refund
+would be valid immediately, so Alice could race Bob's claim. Therefore:
+
+- R spends a 20,000-zatoshi transparent coin with a non-final sequence.
+- At setup Alice's source wallet signs a private transaction A that creates that
+  coin from her own F change. A is sent only if Alice refunds, and only her own
+  participant holds it. On the public path the source reservation holds only the
+  shielded note, and the source signer signs A together with F.
+- A settled swap therefore puts only F and C on chain, both fully shielded.
+  (Before 2026-10-17 the coin was mined before the swap, so even a settled swap
+  left a transparent output.)
+- On a refund, A shows 20,000 zatoshi leaving the shielded pool to a transparent
+  address, and R spends it and returns the remaining 15,000 zatoshi to that same
+  address, where it stays until Alice sweeps it. Locally that address is fresh
+  per swap; on the public testnet it is the source wallet's dedicated auxiliary
+  address, which the provider first sees only on a refund.
 
 **ETH side.** Addresses, the amount and timing are public by design. Use fresh
 ETH addresses per trade if those must not link to other activity.
@@ -73,3 +73,28 @@ ETH addresses per trade if those must not link to other activity.
 **Not covered.** Network-level privacy (use Tor or a trusted node), the free
 option Alice holds between Bob's lock and her reveal, and anything an owner
 reveals out of band.
+
+## Sealed relay messages
+
+Each owner has a dedicated secp256k1 relay key, separate from its ETH key. Its
+public half is in the identity manifest, so the fingerprint both owners compare
+also pins it. For each message the sender draws an ephemeral key. The message key
+is SHA-256 over a header (direction, ephemeral key, both relay keys) and two
+ECDH secrets: ephemeral–recipient and sender–recipient. The body and its topic
+are encrypted with ChaCha20-Poly1305, with the header as associated data
+([`relay_envelope.rs`](../crates/swap-native/src/relay_envelope.rs)).
+
+- Only the recipient can open a message, and only the pinned sender (or the
+  recipient) can produce one that opens. A later leak of the sender's relay key
+  does not open earlier messages.
+- The relay can drop, delay or replay a message, but cannot read or alter one.
+  Each app opens only its pinned peer's envelopes and ignores anything else.
+- Order and size still show which step a message is, and when it was sent.
+
+Before this change (2026-10-17) the six messages travelled in the clear. Anyone
+running the relay could read the ZEC amount, the funding txid and the joint note
+commitment, and so pick out the swap's Zcash transactions.
+`scripts/check_relay_privacy.py` fails on such a workspace and passes on a new
+one: it requires every record to be an identity or a sealed envelope, and finds
+none of the trade's private values (funding txid, note commitment, auxiliary
+txid, receive addresses, ETH salt, quote ID) in the relay's files.

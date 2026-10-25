@@ -1,4 +1,10 @@
-# Two-party mode: each owner runs their own app
+# Run the demo
+
+The [live demo](https://162-55-186-88.sslip.io) is this two-party mode on a
+rented server. You can run the same thing locally, or host your own copy
+([below](#host-it-on-a-server)).
+
+## Locally
 
 ```sh
 make two-party
@@ -24,43 +30,20 @@ processes on their own ports:
 Each app runs under its own macOS `sandbox-exec` policy that denies reads and
 writes of the other owner's directories. At launch, the network page *proves*
 this: under each app's exact policy, reading the other owner's identity file
-fails with a permission error. Native preparation (DKG and adaptor
-pre-signatures) runs over the existing certificate-pinned TLS signer channel.
-Everything else Alice and Bob exchange goes through the relay. A trade has eight
-relay messages. Only the two identity manifests travel in the clear: public keys
+fails with a permission error.
+
+Native preparation (DKG and adaptor pre-signatures) runs over the existing
+certificate-pinned TLS signer channel. Everything else Alice and Bob exchange
+goes through the relay. A trade has eight relay messages. Only the two identity manifests travel in the clear: public keys
 and ETH addresses, which appear on Ethereum anyway once the order is locked. The
 other six (the signed quote, the acceptance, "signer online", the full terms,
-Bob's consent and the ETH order ID) are sealed to the recipient. The network page
+Bob's consent and the ETH order ID) are sealed to the recipient
+([how](privacy.md#sealed-relay-messages)). The network page
 shows exactly what the relay sees: sender, recipient, size and time.
 
 ![The network page: chains, sandbox check and what the relay sees](images/two-party-network.png)
 
-## Sealed relay messages
-
-Each owner has a dedicated secp256k1 relay key, separate from its ETH key. Its
-public half is in the identity manifest, so the fingerprint both owners compare
-also pins it. For each message the sender draws an ephemeral key. The message key
-is SHA-256 over a header (direction, ephemeral key, both relay keys) and two
-ECDH secrets: ephemeral–recipient and sender–recipient. The body and its topic
-are encrypted with ChaCha20-Poly1305, with the header as associated data
-([`relay_envelope.rs`](../crates/swap-native/src/relay_envelope.rs)).
-
-- Only the recipient can open a message, and only the pinned sender (or the
-  recipient) can produce one that opens. A later leak of the sender's relay key
-  does not open earlier messages.
-- The relay can drop, delay or replay a message, but cannot read or alter one.
-  Each app opens only its pinned peer's envelopes and ignores anything else.
-- Order and size still show which step a message is, and when it was sent.
-
-Before this change (2026-10-17) the six messages travelled in the clear. Anyone
-running the relay could read the ZEC amount, the funding txid and the joint note
-commitment, and so pick out the swap's Zcash transactions.
-`scripts/check_relay_privacy.py` fails on such a workspace and passes on a new
-one: it requires every record to be an identity or a sealed envelope, and finds
-none of the trade's private values (funding txid, note commitment, auxiliary
-txid, receive addresses, ETH salt, quote ID) in the relay's files.
-
-## Stage view (for a live demo or a video)
+## The stage
 
 Open **http://127.0.0.1:8790/stage**. It shows both real owner apps side by side
 (embedded; each still holds only its own keys) and, between them, only what an
@@ -103,8 +86,9 @@ trade, `S` / `R` stop and restart Bob's app, `E` ETH time, `Z` Zcash blocks. The
 same keys work on the normal stage. The layout fits 1920×1080 and 1280×720
 without scrolling.
 
-To run this for judges on a rented server, see [hosting](hosting.md): each app
-then runs as its own Linux user, and one visitor at a time holds the controls.
+To run this on a rented server, see [Host it on a server](#host-it-on-a-server):
+each app then runs as its own Linux user, and one visitor at a time holds the
+controls.
 
 Autoplay types the agreed amounts and accepts the fingerprints shown on screen.
 The amounts are 0.015 ZEC for 0.0293 ETH, or proportionally smaller once the
@@ -130,7 +114,7 @@ they already trust.
 
 ![Bob's app after the trade: his ZEC claim decrypted by his own wallet](images/two-party-bob.png)
 
-## Recovery that you can show
+## Recovery you can show
 
 Scenarios 2 and 3 on the stage do both of these by themselves. By hand:
 
@@ -157,3 +141,118 @@ host and one OS account. The network is a local stand-in: it mines regtest
 blocks when transactions are pending and offers labelled controls for time. Each
 workspace holds one trade, so `make two-party` starts a fresh one. Recorded
 results: [evidence](../evidence/2026-10-17-two-party.json).
+
+## Host it on a server
+
+The hosted demo is this two-party mode on one rented server,
+reachable over HTTPS. Judges open one address: `/` explains the swap, `/stage`
+runs a trade with both owner apps side by side, `/network` shows the relay's
+records and the isolation check. Everything runs on an isolated Zcash regtest
+chain and a local Anvil: no wallet, real key, public network or real value is
+involved.
+
+### What runs
+
+| Service | Unix user | Listens on |
+|---|---|---|
+| `latch-zebra` | `latch-zebra` | Zebra NU7 regtest, RPC on `127.0.0.1:30342` |
+| `latch-network` | `latch` | site `127.0.0.1:8790`, Anvil, relay |
+| Alice's app (started by the network) | `latch-alice` | `127.0.0.1:8791`, her signer `18741` |
+| Bob's app (started by the network) | `latch-bob` | `127.0.0.1:8792`, his signer `18742` |
+| Caddy | `caddy` | public `:80` and `:443`, HTTPS for all three names |
+
+The firewall opens only SSH, 80 and 443. Each owner's files live under
+`/var/lib/latch/<owner>`, mode 0700 and owned by that owner's user. The other
+owner's app gets a permission error there, and so does the network process. The
+network proves both denials at the start of every trade, and the stage footer
+shows the result. The network may start, probe and kill each app as that app's
+user and nothing else ([`deploy/sudoers`](../deploy/sudoers)).
+
+### Server
+
+- Ubuntu 24.04 on **arm64 or x86_64**. The setup picks the matching official
+  `zebrad` and Foundry builds and checks each against its pinned SHA-256.
+- 4 vCPU and 8 GB RAM is enough. Avoid 4 GB. Disk: 40 GB.
+- Running now on a Hetzner Cloud CPX32 (x86_64, 4 vCPU AMD EPYC Genoa, 8 GB,
+  Ubuntu 24.04.4): the release Rust build took 1 minute, the whole setup about
+  3 minutes, and a stage swap 1:46
+  ([record](../evidence/2026-10-18-hosted-demo.json)). Arm64 hosts (Hetzner
+  CAX21/CAX31 when available, netcup VPS 2000 ARM) use the same setup.
+- If the provider has its own firewall (Hetzner Cloud Firewall), allow inbound
+  TCP 80 and 443 as well as 22. Otherwise the certificates cannot be issued.
+
+The site needs three names that point at the server: `HOST`, `alice.HOST` and
+`bob.HOST`. Each owner app gets its own origin, so the browser keeps them apart
+as well.
+
+- Without a domain: use `HOST=<IP with dashes>.sslip.io`, for example
+  `203-0-113-7.sslip.io`. `alice.203-0-113-7.sslip.io` resolves to the same IP.
+- With a domain: add A records for all three names, or a wildcard.
+
+### Set up
+
+```sh
+ssh root@SERVER_IP
+git clone https://github.com/yugocabrio/zatomic /opt/latch
+LATCH_HOST=203-0-113-7.sslip.io bash /opt/latch/deploy/setup.sh
+```
+
+If the repository is private, give the server a read-only deploy key or copy a
+checkout to `/opt/latch` with `rsync` (the setup resets the copied files to
+root ownership). [`deploy/setup.sh`](../deploy/setup.sh)
+installs the packages, Rust 1.93 (from `rust-toolchain.toml`) and Foundry 1.3.1,
+builds the native binary and the contract, and fetches the pinned `zebrad`,
+checking its SHA-256. It then creates the four users and their private
+directories, installs the sudo rule, the systemd units and the Caddy site, turns
+on the firewall and starts everything. Running it again rebuilds and keeps the
+chain and trades. Then open `https://HOST`. The first start activates NU7 and
+prepares a trade; allow a minute or two.
+
+### One driver at a time
+
+Everyone sees the same trade. The first visitor to press a stage control gets
+the controls. That visitor can also press the buttons inside both apps. Everyone
+else watches live; their buttons are disabled and the stage says until when.
+The controls free up five minutes after the driver's last action, or two
+minutes after Autoplay stops, whichever is later. Pressing on behalf of both owners is a demo
+convenience: in a real deployment each owner runs their own app on their own
+device.
+
+### Chain capacity
+
+A swap uses about 105 regtest blocks and a refund about 180: Alice's faucet
+mines 101, and the refund path advances 72 more. The budget is a generous 400
+per trade. The local wallet scan stops at height 10,002, so New trade is refused
+when fewer than 400 blocks remain.
+
+The faucet funds Alice with one coinbase note, and the regtest block reward
+halves every 864 blocks (0.0326 ZEC from height 5,177, 0.0163 from 6,041,
+0.0081 from 6,905). Demo quotes are 0.015 ZEC for 0.0293 ETH while one reward
+covers that, and proportionally smaller after that, so trades keep working, just
+with smaller amounts. Every day at 04:00 UTC `latch-reset.timer` checks the
+height; at 6,800 or above it starts a fresh chain, before the amounts shrink. That
+deletes every demo trade, all regtest data. To reset by hand:
+`/usr/local/sbin/latch-reset --force`.
+
+### Operating
+
+```sh
+systemctl status latch-network latch-zebra caddy
+journalctl -u latch-network -f
+cd /opt/latch && git pull && LATCH_HOST=203-0-113-7.sslip.io bash deploy/setup.sh
+```
+
+The apps' stdout and stderr go to `/var/lib/latch/net/<trade>/network/`.
+
+### How it differs from the local demo
+
+| | Local (`make two-party`) | Hosted |
+|---|---|---|
+| App separation | a macOS `sandbox-exec` policy per app | a Unix user per app; the network cannot read either |
+| Zcash node | Zebra in Docker | `zebrad` as its own service; no Docker |
+| Reach | loopback only | HTTPS through Caddy; the servers still bind loopback and check Host and Origin |
+| Controls | anyone on the machine | one visitor at a time |
+
+**Not claimed:** all three roles run on one machine run by one operator. This is
+not independent administration, and the network process can start or stop
+either app.

@@ -4,7 +4,7 @@
 
 **Atomic swaps of shielded ZEC for ETH, with both exits prepared before funding.**
 
-[Live demo](https://162-55-186-88.sslip.io) · [Public testnet runs](#public-testnet-runs) · [Protocol in one page](docs/protocol.md) · [Slides (PDF)](docs/zatomic-slides.pdf)
+[Live demo](https://162-55-186-88.sslip.io) · [Public testnet runs](#public-testnet-runs) · [Protocol in one page](docs/protocol.md)
 
 ![Zatomic stage after a settled swap: Alice’s and Bob’s apps, and between them only what an outside observer saw](docs/images/stage-swap.png)
 
@@ -52,8 +52,47 @@ Ethereum, routing through solvers and public viewing keys, or using transparent 
 
 The [protocol in one page](docs/protocol.md) explains each step.
 
-**Live demo:** https://162-55-186-88.sslip.io runs separate apps for Alice and
-Bob on private test chains: a swap, a crash after the claim, or a refund.
+## How it compares
+
+Each existing route is good at its own job; a private trade between two parties
+who have already agreed a price pays for it.
+
+- **SPV, light-client and ZK bridges** let Ethereum verify Zcash payments, which
+  supports general cross-chain apps, but Ethereum must follow Zcash consensus. In
+  Skyhook's September 2026 testnet swap
+  ([post](https://forum.zcashcommunity.com/t/we-just-did-a-fully-trustless-shielded-zec-to-evm-atomic-swap-with-no-new-signing-primitives-and-yes-it-is-programmable/57827)),
+  the Ethereum order carried the Zcash recipient's address and the contract
+  checked a Zcash txid it predicted from the proposal; hiding them is planned
+  with ZK proofs, which adds proving circuits and an on-chain verifier
+  ([proposal](https://forum.zcashcommunity.com/t/skyhook-and-esmaste-cross-chain-bridging-messaging-and-execution-layer/58167)).
+- **NEAR Intents** has competing solvers, many assets and automatic liquidity,
+  and is live. It accepts shielded ZEC and can pay ZEC out to an Orchard
+  receiver ([LI.FI docs](https://docs.li.fi/introduction/zcash-ecosystem)), but
+  settlement runs through solvers and bridge contracts, and the cited Zcash
+  bridge contract funds that payout from a transparent input and checks it with
+  an all-zero outgoing viewing key, so anyone can see the amount and recover the
+  recipient ([code](https://github.com/Near-One/btc-bridge/blob/0b02818d47/contracts/satoshi-bridge/src/zcash_utils/orchard_policy.rs#L11-L13)).
+- **THORChain** integrated native ZEC in October 2026, with pool-based,
+  market-priced swaps and no wrapped ZEC, but its ZEC integration uses
+  transparent Zcash transactions, so addresses, amounts and vault movements are
+  public ([THORChain](https://blog.thorchain.org/bringing-native-zcash-to-thorchain)).
+
+Zatomic needs no solver, pool or bridge, and asks Ethereum to verify no Zcash
+history: the escrow checks one Pallas relation, t·G = T. A settled swap's two
+Zcash transactions have no transparent input or output and no outgoing viewing
+key, so only each recipient's own key decrypts its output. The trade-offs: no
+price discovery (it settles a price both parties already agreed), ZEC ⇄ ETH
+only, and each side watches until its deadline.
+
+## Live demo
+
+https://162-55-186-88.sslip.io runs Alice's and Bob's apps as separate
+processes, each holding only its own keys, on private test chains (Zebra
+regtest and Anvil): a swap, a crash right after the claim, or a refund, about two
+minutes each. Between the apps pass only pinned-TLS signing and a relay that sees
+two identity manifests and six sealed envelopes, never the amounts or the
+funding transaction. One visitor drives at a time; others watch the same trade.
+To run it yourself, see [the demo guide](docs/demo.md).
 
 ## Public testnet runs
 
@@ -70,8 +109,7 @@ On Sepolia the V2 escrow used 295,236 gas for a settled swap (lock, claim,
 withdraw) and 215,713 for a refund, against 1,420,389 and 974,494 for V1. It
 checks t·G = T with a width-4 fixed-base comb table and keeps each order in one
 hashed storage slot; its one-time deployment costs more (7.1M gas against 5.1M).
-See the [gas benchmarks](docs/gas-optimization.md). Both
-owners ran on one host, and chain data came from public RPC providers.
+See the [gas benchmarks](docs/gas-optimization.md).
 
 ## Run it
 
@@ -85,30 +123,46 @@ make two-party   # separate apps for Alice and Bob; stage at http://127.0.0.1:87
 make verify      # Rust checks, contract tests and the timing model
 ```
 
-More: [two-party mode](docs/two-party.md), [reproduction](docs/reproduce.md),
-[public testnet runbook](docs/public-execution.md), [hosting](docs/hosting.md).
+More: [the demo guide](docs/demo.md) and [command-line reproduction](docs/reproduce.md).
 
-## Read more
+## Docs
 
-- [Overview](docs/overview.md): what is new and how it compares
-- [Protocol](docs/protocol.md): transactions, deadlines and assumptions
-- [Security](docs/security.md) and [privacy](docs/privacy.md)
-- [Evidence index](docs/evidence-index.md): every recorded run
-- [Architecture](docs/architecture.md), [escrow gas](docs/gas-optimization.md)
-  and [dependencies](docs/dependencies.md)
-- [Slides](docs/zatomic-slides.pdf) from the two-minute video
+**Understand it**
+
+- [Protocol](docs/protocol.md): the transactions, components, deadlines,
+  recovery cases and what is tested
+- [Security](docs/security.md): reviews, the adaptor signing calculation and
+  open risks
+- [Privacy](docs/privacy.md): what each observer sees
+- [Evidence](docs/evidence-index.md): every recorded run, public and local
+- [Escrow gas](docs/gas-optimization.md) and the
+  [V2 escrow review](docs/escrow-v2-review.md)
+
+**Run it**
+
+- [Demo](docs/demo.md): the two-party apps and stage, locally or on a server
+- [Reproduce](docs/reproduce.md): command-line chain tests and pinned
+  dependencies
+- [Public testnet runbook](docs/public-execution.md): how the funded public runs
+  were executed
+
+Slides used in the demo video: [PDF](docs/zatomic-slides.pdf).
 
 ## Limits
 
 - A settled swap is fully shielded on Zcash. A refund adds one small transparent
   coin, created from Alice's own change, because Zcash enforces a lock time only
-  on a transparent input. The ETH side is public.
+  when a transaction has a transparent input with a non-final sequence number.
+  The ETH side is public.
 - Both owners have run on one host; independently administered hosts are not
   demonstrated.
 - The adaptor extension and the Solidity Pallas check are unaudited, and mainnet
   is unsupported.
 - Each side must watch its deadline, and inclusion and reorgs must stay within
   the timing window.
+- The public runs read chain data from third-party RPC providers, not from our
+  own verifying nodes.
 - Private keys, notes and journals stay in ignored `.local` directories.
 
-MIT licensed; upstream components keep their own licenses.
+MIT licensed; upstream components keep their own licenses
+([pinned dependencies](docs/reproduce.md#pinned-dependencies-and-licenses)).

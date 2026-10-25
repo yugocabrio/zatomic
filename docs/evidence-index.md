@@ -12,29 +12,7 @@ not an auditor's attestation or a self-contained blockchain proof. Local txids
 will not resolve in a public block explorer. Reproduction requires fresh private
 test wallets; the original keys, notes and journals are deliberately excluded.
 
-**Adaptor signing review, 2026-10-17:**
-[record](../evidence/2026-10-17-second-review.json). It fixed an adaptor
-share-release flaw (Alice now verifies Bob's share first) and redesigned the
-browser. It re-ran success, stop-after-reveal and stop-before-reveal runs on the
-rebuilt signer; every replay sent zero new transactions. Same host, isolated
-chains; not an external audit.
-
-**Two-party mode, 2026-10-17:** separate sandboxed apps for Alice and Bob
-settled a trade (with Bob's app killed and restarted after the reveal) and a
-no-reveal refund. [Record](../evidence/2026-10-17-two-party.json),
-[how to run it](two-party.md). Same host; not separate administration.
-
-**Sealed relay, 2026-10-17:** the two-party relay now sees only identity
-manifests and sealed envelopes. Before, it could read the ZEC amount, funding
-txid and joint note commitment. A fresh exchange ran over the sealed relay.
-[Record](../evidence/2026-10-17-relay-sealing.json).
-
-**Fully shielded settlement, 2026-10-17:** a settled swap now puts only F and C
-on the Zcash chain. The refund's transparent coin comes from Alice's private
-auxiliary transaction, sent only if she refunds. Two-party success and refund,
-a browser refund recovery and a timelock check ran on chain. The public path
-was ported too (synthetic-input checks; funded refund not yet exercised).
-[Record](../evidence/2026-10-17-deferred-auxiliary.json).
+## Public testnet runs
 
 **Public testnet runs on the V2 escrow, 2026-10-21:** the shipped
 PointEscrowV2 deployed to Sepolia (7,100,182 gas with its comb table) and
@@ -45,10 +23,23 @@ and R; her wallet holds the returned 0.001 ZEC. Three tool defects found and
 fixed on the way (claim resend window, stale action directory, native tip
 race). [Record](../evidence/2026-10-21-public-testnet-v2.json).
 
+**Public testnet refund, 2026-10-20:** a second funded trade where nobody
+revealed t. After the ETH deadline Bob refunded and withdrew exactly 0.001 ETH;
+after the Zcash refund time Alice sent A (the 20,000-zatoshi coin) and her
+time-locked R, and her own wallet decrypted the returned 0.001 ZEC. Same pinned
+escrow, one host. [Record](../evidence/2026-10-20-public-testnet-refund.json).
+
+**Public testnet swap, 2026-10-18:** the first funded exchange on the public
+Zcash testnet and Sepolia settled and passed the final verify. F and C are fully
+shielded; the refund auxiliary was never broadcast. One host.
+[Record](../evidence/2026-10-18-public-testnet-swap.json).
+
 **Sepolia gas, 2026-10-18:** current Sepolia rules need far more gas for new
 state; the planned public deployment and lock would have run out of gas. Limits
 were re-measured by simulation and raised (fee profile v2).
 [Record](../evidence/2026-10-18-sepolia-gas.json).
+
+## Demo and review runs
 
 **Hosted judge demo, 2026-10-18:** https://162-55-186-88.sslip.io on a
 rented x86_64 server. Each owner app runs as its own Linux user, and the network
@@ -63,24 +54,31 @@ were found and fixed (blank app frames after New trade; quotes too large for one
 regtest coinbase after the reward halved).
 [Record](../evidence/2026-10-18-stage-scenarios.json).
 
-**Public testnet swap, 2026-10-18:** the first funded exchange on the public
-Zcash testnet and Sepolia settled and passed the final verify. F and C are fully
-shielded; the refund auxiliary was never broadcast. One host.
-[Record](../evidence/2026-10-18-public-testnet-swap.json).
+**Adaptor signing review, 2026-10-17:**
+[record](../evidence/2026-10-17-second-review.json). It fixed an adaptor
+share-release flaw (Alice now verifies Bob's share first) and redesigned the
+browser. It re-ran success, stop-after-reveal and stop-before-reveal runs on the
+rebuilt signer; every replay sent zero new transactions. Same host, isolated
+chains; not an external audit.
 
-**Public testnet refund, 2026-10-20:** a second funded trade where nobody
-revealed t. After the ETH deadline Bob refunded and withdrew exactly 0.001 ETH;
-after the Zcash refund time Alice sent A (the 20,000-zatoshi coin) and her
-time-locked R, and her own wallet decrypted the returned 0.001 ZEC. Same pinned
-escrow, one host. [Record](../evidence/2026-10-20-public-testnet-refund.json).
+**Two-party mode, 2026-10-17:** separate sandboxed apps for Alice and Bob
+settled a trade (with Bob's app killed and restarted after the reveal) and a
+no-reveal refund. [Record](../evidence/2026-10-17-two-party.json),
+[how to run it](demo.md). Same host; not separate administration.
 
-Latest additions after the original local release:
-[actual browser OTC success/refund](../evidence/2026-10-15-browser-otc.json),
-[isolated pinned deployment](../evidence/2026-10-15-public-deployment-integration.json),
-[read-only public readiness and revised funding](../evidence/2026-10-15-public-integration-readiness.json).
-The [execution checklist](public-execution.md) supersedes the earlier 0.431 ETH
-budget. These 2026-10-15 additions included no funded public swap; that came on
-2026-10-18 (above).
+**Sealed relay, 2026-10-17:** the two-party relay now sees only identity
+manifests and sealed envelopes. Before, it could read the ZEC amount, funding
+txid and joint note commitment. A fresh exchange ran over the sealed relay.
+[Record](../evidence/2026-10-17-relay-sealing.json).
+
+**Fully shielded settlement, 2026-10-17:** a settled swap now puts only F and C
+on the Zcash chain. The refund's transparent coin comes from Alice's private
+auxiliary transaction, sent only if she refunds. Two-party success and refund,
+a browser refund recovery and a timelock check ran on chain. The public path
+was ported too (synthetic-input checks; funded refund not yet exercised).
+[Record](../evidence/2026-10-17-deferred-auxiliary.json).
+
+## Evidence by level
 
 | Evidence level | What actually ran | Primary record | What it does not establish |
 |---|---|---|---|
@@ -95,17 +93,26 @@ budget. These 2026-10-15 additions included no funded public swap; that came on
 | Public-profile ETH delivery primitives on an isolated EVM | Real signed lock/claim/refund/withdrawal, post-submit SIGKILL and exact receipt recovery; both recipients' balance changes equal credit minus gas. | [ETH delivery](../evidence/2026-10-15-public-eth-delivery.json) | Public deployment/settlement or a complete sender. Native inputs are synthetic, runtime is installed locally, finality labels are modeled. |
 | Public settlement, success path | **Executed 2026-10-18:** deploy, F, lock, claim, C, withdraw on Zcash testnet and Sepolia; final verify passed; F and C fully shielded; refund auxiliary never broadcast. | [Public swap](../evidence/2026-10-18-public-testnet-swap.json) | Independent hosts; local consensus verification (trusted RPC providers). |
 | Public no-reveal refund | **Executed 2026-10-20:** F, lock, Bob's refund and withdrawal after the ETH deadline, Alice's A and time-locked R after the Zcash refund time; Alice's wallet decrypted her 0.001 ZEC, Bob's withdrawal verified. | [Public refund](../evidence/2026-10-20-public-testnet-refund.json) | Independent hosts; local consensus verification (trusted RPC providers). |
-| Independent-host operation | **Not executed.** Both owners ran on one host. | [Hosting](hosting.md) | Do not present any row as separately administered. |
+| Independent-host operation | **Not executed.** Both owners ran on one host. | [Hosting](demo.md#host-it-on-a-server) | Do not present any row as separately administered. |
 
-The latest [explicit sender candidate checks](../evidence/2026-10-15-public-execution.json)
-add actual cap-priced isolated ETH settlement, retained native F/C/R validation,
-crash/lock retention and modeled native transport/observation boundaries. These
-2026-10-15 rows are not the funded public run; that is the 2026-10-18 record.
+## Earlier local records (2026-10-15)
 
-The [fresh browser release demonstration](../evidence/2026-10-15-release-demo.json)
-reran all three scenarios on `c6e03b0` and checked zero-new-payment replay.
-The [public launch plan](../evidence/2026-10-15-public-launch-plan.json) records
-read-only endpoint checks and an unsigned, unfunded execution budget.
+Before any funded public run, these records covered the public-profile pieces
+on isolated chains and read-only public endpoints:
+
+- [Actual browser OTC success and refund](../evidence/2026-10-15-browser-otc.json).
+- [Isolated pinned deployment](../evidence/2026-10-15-public-deployment-integration.json).
+- [Read-only public readiness and revised funding](../evidence/2026-10-15-public-integration-readiness.json);
+  the [execution checklist](public-execution.md) supersedes its 0.431 ETH budget.
+- [Explicit sender candidate checks](../evidence/2026-10-15-public-execution.json):
+  cap-priced isolated ETH settlement, retained native F/C/R validation,
+  crash/lock retention and modeled native transport and observation boundaries.
+- [Fresh browser release demonstration](../evidence/2026-10-15-release-demo.json):
+  all three scenarios on `c6e03b0`, with zero-new-payment replay.
+- [Public launch plan](../evidence/2026-10-15-public-launch-plan.json):
+  read-only endpoint checks and an unsigned, unfunded execution budget.
+
+None of these was a funded public swap; the first came on 2026-10-18.
 
 ## Check the headline local result
 
