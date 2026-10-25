@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Zatomic — atomic swaps of shielded ZEC for ETH</title>
-  <meta name="description" content="Peer-to-peer atomic swaps of native shielded ZEC for ETH, with no bridge, solver or wrapped ZEC. Live two-app demo, and a settled swap and a refund on public testnets.">
+  <meta name="description" content="Peer-to-peer atomic swaps of native shielded ZEC for ETH, linked by a 2-of-2 FROST adaptor signature, with no bridge, solver or wrapped ZEC. Live two-app demo, and a settled swap and a refund on public testnets.">
   <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"><script src="/landing.js" defer></script>
 </head>
 <body class="landing">
@@ -21,7 +21,7 @@
     <div class="hero-copy">
       <p class="kicker">Atomic swap · P2P OTC · Native Zcash ⇄ Ethereum</p>
       <h1 id="hero-title">Swap shielded ZEC for ETH.<br><em>No bridge. No wrapped ZEC.</em></h1>
-      <p class="lede">An atomic swap needs a payment that unlocks on a condition and a refund that unlocks later, but shielded Zcash notes have no scripts for either. Zatomic prepares both exits before any money moves: <b>Bob’s claim, co-signed with 2-of-2 FROST but one secret short</b>, and <b>Alice’s refund, time-locked by Zcash itself</b>. When Alice reveals the secret to take the ETH, it completes Bob’s Zcash signature.</p>
+      <p class="lede">An atomic swap needs a payment that unlocks on a condition and a refund that unlocks later, but shielded Zcash notes have no scripts for either. Zatomic prepares both exits before any money moves: <b>Bob’s claim, co-signed with 2-of-2 FROST as a RedPallas adaptor signature that is one secret short</b>, and <b>Alice’s refund, time-locked by Zcash itself</b>. When Alice reveals that secret to take the ETH, it completes Bob’s adaptor signature into a valid Zcash signature.</p>
       <p class="cta-row"><a class="btn btn-primary btn-cta" href="/stage">Try the live demo <span aria-hidden="true">→</span></a><a class="btn btn-ghost btn-cta" href="#public">See the public testnet runs</a></p>
       <p class="hero-note">Live demo: run a shielded swap, a crash recovery or a refund on private test chains, with real transactions and real proofs. About two minutes each.</p>
       <ul class="facts">
@@ -97,7 +97,7 @@
   </section>
 
   <section id="idea" class="idea wrap" aria-labelledby="idea-title">
-    <div class="section-head"><div><p class="kicker">The idea</p><h2 id="idea-title">One secret, two exits prepared before funding</h2></div><p class="section-note"><b>What is new:</b> Zatomic makes <b>Zcash’s own shielded spend authorization</b> one side of an atomic swap. Neither chain verifies the other’s transactions.</p></div>
+    <div class="section-head"><div><p class="kicker">The idea</p><h2 id="idea-title">One secret, two exits prepared before funding</h2></div><p class="section-note"><b>What is new:</b> Zatomic makes <b>Zcash’s own shielded spend authorization</b> one side of an atomic swap, and <b>Zcash’s own consensus enforces the refund</b>: Alice’s refund needs nothing from Bob or from Ethereum. Neither chain verifies the other’s transactions.</p></div>
     <ul class="idea-cards">
       <li><p class="card-role">FROST · joint custody</p><h3>A key neither can use alone</h3><p>A FROST DKG gives Alice and Bob a fresh 2&#8209;of&#8209;2 spend key. Alice funds a shielded note that <b>only both together could spend</b>.</p></li>
       <li><p class="card-role">Adaptor signature · Bob claims alone</p><h3>A claim one secret short</h3><p>Bob holds claim C, <b>the Zcash transaction that pays him the ZEC</b>, co-signed with their FROST shares as a RedPallas adaptor pre-signature that <b>becomes valid only when a secret <var>t</var> is added</b>.</p></li>
@@ -274,18 +274,18 @@
       <li><h3>SPV, light-client or ZK bridge</h3><p><b>Strength:</b> Ethereum verifies Zcash payments and events, which supports general cross-chain apps.</p><p class="gap"><span class="gap-label">For a private trade</span>Ethereum must verify Zcash history. Skyhook’s September testnet swap <b>put the Zcash recipient and txid on Ethereum</b> (<a href="https://forum.zcashcommunity.com/t/we-just-did-a-fully-trustless-shielded-zec-to-evm-atomic-swap-with-no-new-signing-primitives-and-yes-it-is-programmable/57827" target="_blank" rel="noopener">post ↗</a>); hiding them with ZK needs extra proving infrastructure.</p></li>
       <li><h3>NEAR Intents</h3><p><b>Strength:</b> competing solvers, many assets and automatic liquidity; live today.</p><p class="gap"><span class="gap-label">For a private trade</span>Settlement runs through solvers and bridge contracts. The cited Zcash payout code uses a public outgoing viewing key, <b>exposing a shielded payout’s recipient and amount</b> (<a href="https://github.com/Near-One/btc-bridge/blob/0b02818d47/contracts/satoshi-bridge/src/zcash_utils/orchard_policy.rs#L11-L13" target="_blank" rel="noopener">code ↗</a>).</p></li>
       <li><h3>THORChain</h3><p><b>Strength:</b> a native ZEC integration with pool-based, market-priced swaps and no wrapped ZEC.</p><p class="gap"><span class="gap-label">For a private trade</span>Its ZEC integration uses transparent Zcash transactions, so <b>addresses and amounts are public</b>, and funds pass through shared vaults (<a href="https://blog.thorchain.org/bringing-native-zcash-to-thorchain" target="_blank" rel="noopener">THORChain ↗</a>).</p></li>
-      <li><h3>Cross-group adaptor swaps</h3><p><b>Strength:</b> secrets are linked across different elliptic-curve groups, so each chain keeps its native signing primitives, even a chain like Bitcoin that cannot verify another curve.</p><p class="gap"><span class="gap-label">For a private trade</span>Linking a Pallas secret to a secp256k1 one can require a <b>cross-group DLEQ proof</b>. Zatomic instead verifies the Pallas relation directly on Ethereum, avoiding cross-group DLEQ at the cost of on-chain Pallas arithmetic (112,528 gas per claim on Sepolia).</p></li>
+      <li><h3>Cross-group adaptor swaps</h3><p><b>Strength:</b> each chain keeps its native signing primitives, even a chain like Bitcoin that cannot verify another curve, and a refund can stay fully shielded.</p><p class="gap"><span class="gap-label">For a private trade</span>Linking a Pallas secret to a secp256k1 one can require a <b>cross-group DLEQ proof</b>. Shielded notes have no lock time, so the shielded coins come back only <b>through the other chain</b>, when the counterparty’s refund there reveals a key share. If the counterparty vanishes instead, a penalty pays out their asset and <b>the shielded coins stay locked</b>.</p></li>
     </ul>
     <div class="zatomic-panel">
       <div class="zp-lead">
         <p class="kicker">Zatomic · direct shielded settlement</p>
         <h3>One scalar. Two native chains. No cross‑chain state proof.</h3>
-        <p>One adaptor secret connects a shielded RedPallas claim to an Ethereum escrow: the secret t that releases the ETH completes the FROST pre-signature on Bob’s Zcash claim. Neither chain verifies the other’s transactions.</p>
+        <p>One adaptor secret connects a shielded RedPallas claim to an Ethereum escrow: the secret t that releases the ETH completes the FROST pre-signature on Bob’s Zcash claim. Neither chain verifies the other’s transactions. Ethereum checks <var>t·G = T</var> on Pallas directly, so no cross-group DLEQ proof is needed, at the cost of on-chain Pallas arithmetic (112,528 gas per claim on Sepolia).</p>
       </div>
       <ul class="zp-points">
         <li><b>No third-party custodian or solver</b>A 2-of-2 FROST key controls the ZEC; the escrow pays the ETH only to Alice with t, or back to Bob after the deadline.</li>
         <li><b>Shielded when it settles</b>Both Zcash transactions stay shielded on a settled swap, and no Zcash transaction ID, address or note reaches Ethereum.</li>
-        <li><b>Exits before funding</b>Bob holds an adaptor pre-signature, Alice a fully signed, time-locked refund; each app resumes from its own records after a crash.</li>
+        <li><b>Exits before funding</b>Bob holds an adaptor pre-signature, Alice a fully signed refund whose lock time Zcash itself enforces, needing nothing from Bob or Ethereum; each app resumes from its own records after a crash.</li>
       </ul>
       <p class="zp-proof"><b>Proven on public testnets:</b> between the Zcash testnet (Ironwood) and Sepolia, a swap settled and a no-reveal trade refunded both sides, first on 2026-10-18 and 10-20 and again on 2026-10-21 with the shipped V2 escrow (<a href="#public">transactions</a>). The live demo runs settlement, crash recovery and refunds in your browser.</p>
       <p class="zp-cost"><b>Trade-offs:</b> built for trades two parties have already agreed, so no price discovery or matching; ZEC ⇄ ETH only; each side watches until its deadline.</p>
@@ -328,11 +328,11 @@
   </section>
 
   <section id="evidence" class="evidence wrap" aria-labelledby="evidence-title">
-    <div class="section-head"><div><p class="kicker">Evidence</p><h2 id="evidence-title">Claims you can check</h2></div><p class="section-note">Recorded runs, committed with the code: this hosted demo, the public testnet swap and the isolated-chain failure tests. Each record states its own commands and limits.</p></div>
+    <div class="section-head"><div><p class="kicker">Evidence</p><h2 id="evidence-title">Claims you can check</h2></div><p class="section-note">Recorded runs, committed with the code: this hosted demo, both public testnet outcomes on the shipped V2 escrow, and the isolated-chain failure tests. Each record states its own commands and limits.</p></div>
     <div class="evidence-grid">
-      <a href="/evidence/2026-10-18-hosted-demo.json" target="_blank" rel="noopener"><b>This hosted demo</b><span>Each app runs as its own Linux user. The three scenarios ran from a browser: 1:46, 1:55, 1:59.</span><i aria-hidden="true">↗</i></a>
-      <a href="/evidence/2026-10-18-public-testnet-swap.json" target="_blank" rel="noopener"><b>Public testnet swap</b><span>Zcash testnet and Sepolia: six transactions, final verification passed.</span><i aria-hidden="true">↗</i></a>
-      <a href="/evidence/2026-10-20-public-testnet-refund.json" target="_blank" rel="noopener"><b>Public testnet refund</b><span>Nobody revealed t: Bob withdrew his ETH and Alice's wallet decrypted her ZEC.</span><i aria-hidden="true">↗</i></a>
+      <a href="/evidence/2026-10-18-hosted-demo.json" target="_blank" rel="noopener"><b>This hosted demo</b><span>Each app runs as its own Linux user. On 2026-10-18 the three scenarios ran from a browser in 1:46, 1:55 and 1:59.</span><i aria-hidden="true">↗</i></a>
+      <a href="/evidence/2026-10-21-public-testnet-v2.json" target="_blank" rel="noopener"><b>Public testnet swap, V2 escrow</b><span>2026-10-21: F, lock, claim(t), C and withdrawal; final verification passed, and Zcash saw only F and C.</span><i aria-hidden="true">↗</i></a>
+      <a href="/evidence/2026-10-21-public-testnet-v2.json" target="_blank" rel="noopener"><b>Public testnet refund, V2 escrow</b><span>2026-10-21, nobody revealed t: Bob refunded and withdrew his ETH; Alice’s A and R returned 0.001 ZEC, decrypted by her wallet.</span><i aria-hidden="true">↗</i></a>
       <a href="/evidence/2026-10-15-owner-client-relay.json" target="_blank" rel="noopener"><b>A competing relay can’t redirect ETH</b><span>Pending claim front-run; the fixed recipient is still credited.</span><i aria-hidden="true">↗</i></a>
       <a href="/evidence/2026-10-15-bundle-validation.json" target="_blank" rel="noopener"><b>Exits are checked before funding</b><span>Changed exits and unusable recovery data are rejected.</span><i aria-hidden="true">↗</i></a>
       <a href="/evidence/2026-10-15-security-review.json" target="_blank" rel="noopener"><b>Independent arithmetic re-check</b><span>Pure-Python re-derivation of the adaptor equations and Solidity vectors.</span><i aria-hidden="true">↗</i></a>

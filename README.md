@@ -103,14 +103,21 @@ who have already agreed a price pays for it.
   public ([THORChain](https://blog.thorchain.org/bringing-native-zcash-to-thorchain)).
 - **Cross-group adaptor swaps** link secrets across different elliptic-curve
   groups with DLEQ or related proofs, so each chain keeps its native signing
-  primitives, even a chain like Bitcoin that cannot verify another curve.
-  Zatomic instead verifies the Pallas relation directly on Ethereum: no
-  cross-group DLEQ, but Pallas arithmetic in the EVM.
+  primitives, even a chain like Bitcoin that cannot verify another curve, and a
+  refund can stay fully shielded. Zatomic instead verifies the Pallas relation
+  directly on Ethereum: no cross-group DLEQ, but Pallas arithmetic in the EVM.
+  Shielded notes have no lock time, so in such designs the shielded coins come
+  back only when the counterparty's refund on the other chain reveals a key
+  share; if the counterparty vanishes, a penalty pays out their asset and the
+  shielded coins stay locked. Zatomic's refund is enforced by Zcash itself, at
+  the cost of a small transparent coin on the refund path.
 
 Zatomic needs no solver, pool or bridge, and asks Ethereum to verify no Zcash
 history: the escrow checks one Pallas relation, t·G = T. A settled swap's two
 Zcash transactions have no transparent input or output and no outgoing viewing
-key, so only each recipient's own key decrypts its output. The trade-offs: no
+key, so only each recipient's own key decrypts its output. Alice's refund is
+enforced by Zcash consensus and needs nothing from Bob or from Ethereum; both the
+settled path and the refund ran on the public testnet. The trade-offs: no
 price discovery (it settles a price both parties already agreed), ZEC ⇄ ETH
 only, and each side watches until its deadline.
 
@@ -128,12 +135,15 @@ To run it yourself, see [the demo guide](docs/demo.md).
 
 Zcash public testnet (Ironwood) and Sepolia, 0.001 test ZEC for 0.001 Sepolia ETH:
 
-| Date | Escrow | Outcome | Record |
-|---|---|---|---|
-| 2026-10-21 | V2 (shipped) | Settled; Zcash saw two fully shielded transactions | [record](evidence/2026-10-21-public-testnet-v2.json) |
-| 2026-10-21 | V2 (shipped) | Nobody revealed t; both sides refunded | same record |
-| 2026-10-20 | V1 | Nobody revealed t; both sides refunded | [record](evidence/2026-10-20-public-testnet-refund.json) |
-| 2026-10-18 | V1 | Settled | [record](evidence/2026-10-18-public-testnet-swap.json) |
+| Date | Escrow | Outcome | Transactions | Record |
+|---|---|---|---|---|
+| 2026-10-21 | V2 (shipped) | Settled; Zcash saw two fully shielded transactions | [F](https://testnet.zecblock.com/tx/f7f837c78b8fce3bf6b209c6efbe2c9e231b65eaeb9b92b16b0304c1c3356b1b) · [ETH claim(t)](https://sepolia.etherscan.io/tx/0x86221a6af9fb80498bbc9a146624a2c1b7dc403cbaf969ea73bae6e53ec29e3a) · [ZEC claim C](https://testnet.zecblock.com/tx/4e9e560d897e154daa448186e742b1022d1a9f70e332a0d7ca06ea34d2ba7dc9) | [record](evidence/2026-10-21-public-testnet-v2.json) |
+| 2026-10-21 | V2 (shipped) | Nobody revealed t; both sides refunded | [ETH refund](https://sepolia.etherscan.io/tx/0x83af549b669e2cfec954640f7991941fb79d61c695ec0dfc68296a4aafb1645b) · [A](https://testnet.zecblock.com/tx/487de8134e142621411f54751aa576af47e0ca61d89e68ed5123ae905b989537) · [ZEC refund R](https://testnet.zecblock.com/tx/9975ba99fd49458396b74d025df051111c0ce8e35469c1919349e96f8878b774) | same record |
+| 2026-10-20 | V1 | Nobody revealed t; both sides refunded | | [record](evidence/2026-10-20-public-testnet-refund.json) |
+| 2026-10-18 | V1 | Settled | | [record](evidence/2026-10-18-public-testnet-swap.json) |
+
+The Zcash explorer shows that F, C and R are shielded but not their amounts or
+recipients; each record holds the receiving wallet's own decryption.
 
 On Sepolia the V2 escrow used 295,236 gas for a settled swap (lock, claim,
 withdraw) and 215,713 for a refund, against 1,420,389 and 974,494 for V1. It
