@@ -68,8 +68,8 @@ through the apps' own page endpoints, never touching either app's keys:
 While a scenario runs, the column shows its clock and the five-step diagram
 from the landing page, lit from public events only: done, under way, still to
 come, or the branch this trade did not take; Bob's lane says "stopped" while his
-app is down. Below it, **Public receipts** list what the relay and both chains
-recorded, each numbered with its diagram step: the relay's messages fold into
+app is down. Below it, **Execution receipts · private test chains** list what the
+relay and both chains recorded, each numbered with its diagram step: the relay's messages fold into
 one row (open it to see each), and every Zcash and Ethereum entry gives its
 block, what the node checked and its transaction ID. They follow protocol order,
 since observation times on two chains do not order them reliably. At the end
@@ -93,12 +93,13 @@ Measured on an Apple M1 with 16 GiB, each from a fresh trade: the swap took
 For recording, open **/stage?record**. It hides the control bar and page links,
 enlarges the narration, and is driven by keys: `1` `2` `3` scenarios, `N` new
 trade, `S` / `R` stop and restart Bob's app, `E` ETH time, `Z` Zcash blocks. The
-same keys work on the normal stage. The layout fits 1920×1080 and 1280×720
-without scrolling.
+same keys work on the normal stage. The layout fits 1920×1080 and 1280×720: the
+middle column scrolls to each new receipt by itself, and a finished run ends on
+the **Last run** card instead of the scenario picker.
 
 To run this on a rented server, see [Host it on a server](#host-it-on-a-server):
-each app then runs as its own Linux user, and one visitor at a time holds the
-controls.
+each app then runs as its own Linux user, any visitor can start a scenario while
+none is running, and operating the apps by hand goes to one visitor at a time.
 
 Autoplay types the agreed amounts and accepts the fingerprints shown on screen.
 The amounts are 0.015 ZEC for 0.0293 ETH, or proportionally smaller once the
@@ -128,16 +129,17 @@ they already trust.
 
 Scenarios 2 and 3 on the stage do both of these by themselves. By hand:
 
-- **Crash after the reveal.** After Alice claims, click *Stop Bob's app* on the
-  stage (or *Kill app (SIGKILL)* on the network page), then *Restart*. Bob's app rebuilds its state from its
+- **Crash after the reveal.** After Alice claims, open *Advanced controls* on the
+  stage and click *Stop Bob's app* (or *Kill app (SIGKILL)* on the network page),
+  then *Restart*. Bob's app rebuilds its state from its
   own files and the chains, and offers *Claim my ZEC* again. Alice can withdraw
   meanwhile; she never needs Bob online.
-- **No reveal.** Let Bob lock and Alice not claim. *ETH +61 min* stands in for
-  waiting. Bob refunds and withdraws. *Zcash +24
+- **No reveal.** Let Bob lock and Alice not claim. *ETH +61 min* (under
+  *Advanced controls*) stands in for waiting. Bob refunds and withdraws. *Zcash +24
   blocks* passes the native refund height, and Alice's prepared refund
   returns her ZEC.
 
-![Both refunded: Bob's ETH returned, Alice's ZEC returned, and the two transparent outputs the refund path adds](images/stage-refund.png)
+![Both refunded: Bob's ETH and Alice's ZEC returned, and the receipts show the refund path's coin A and her time-locked refund R](images/stage-refund.png)
 
 ## What this does and does not show
 
@@ -262,7 +264,7 @@ The apps' stdout and stderr go to `/var/lib/latch/net/<trade>/network/`.
 | App separation | a macOS `sandbox-exec` policy per app | a Unix user per app; the network cannot read either |
 | Zcash node | Zebra in Docker | `zebrad` as its own service; no Docker |
 | Reach | loopback only | HTTPS through Caddy; the servers still bind loopback and check Host and Origin |
-| Controls | anyone on the machine | one visitor at a time |
+| Controls | anyone on the machine | one scenario at a time for everyone; manual controls for one visitor at a time |
 
 **Not claimed:** all three roles run on one machine run by one operator. This is
 not independent administration, and the network process can start or stop

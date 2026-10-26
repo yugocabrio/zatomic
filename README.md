@@ -130,7 +130,8 @@ processes, each holding only its own keys, on private test chains (Zebra
 regtest and Anvil): a swap, a crash right after the claim, or a refund, about two
 minutes each. Between the apps pass only pinned-TLS signing and a relay that sees
 two identity manifests and six sealed envelopes, never the amounts or the
-funding transaction. One visitor drives at a time; others watch the same trade.
+funding transaction. One scenario runs at a time; everyone else watches it live
+and can start the next one when it ends.
 To run it yourself, see [the demo guide](docs/demo.md).
 
 ## Public testnet runs
