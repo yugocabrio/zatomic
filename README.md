@@ -117,7 +117,8 @@ Zatomic needs no solver, pool or bridge, and asks Ethereum to verify no Zcash
 history: the escrow checks one Pallas relation, t·G = T. A settled swap's two
 Zcash transactions have no transparent input or output and no outgoing viewing
 key, so only each recipient's own key decrypts its output. Alice's refund is
-enforced by Zcash consensus and needs nothing from Bob or from Ethereum; both the
+enforced by Zcash consensus and needs no further signature from Bob and no proof
+from Ethereum; both the
 settled path and the refund ran on the public testnet. The trade-offs: no
 price discovery (it settles a price both parties already agreed), ZEC ⇄ ETH
 only, and each side watches until its deadline.
