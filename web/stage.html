@@ -15,9 +15,11 @@
 </header>
 <nav class="stage-controls" aria-label="Demo controls">
   <span class="ctl-group"><span class="ctl-label">Autoplay</span><button class="btn btn-primary btn-ctl" data-play="success">▶ Swap</button><button class="btn btn-ghost btn-ctl" data-play="crash">▶ Bob crashes</button><button class="btn btn-ghost btn-ctl" data-play="refund">▶ Both refund</button></span>
+  <details class="ctl-advanced"><summary>Advanced controls</summary><span class="ctl-advanced-body">
   <span class="ctl-group"><span class="ctl-label">Interrupt</span><button class="btn btn-ghost btn-ctl" data-control="crash" data-role="bob">Stop Bob’s app</button><button class="btn btn-ghost btn-ctl" data-control="restart" data-role="bob">Restart Bob’s app</button></span>
   <span class="ctl-group"><span class="ctl-label">Time</span><button class="btn btn-ghost btn-ctl" data-control="advance-eth">ETH +61 min</button><button class="btn btn-ghost btn-ctl" data-control="advance-zec">Zcash +24 blocks</button></span>
   <button class="btn btn-ghost btn-ctl ctl-new" data-control="new-trade">New trade</button>
+  </span></details>
   <span class="ctl-status" id="ctl-status" role="status" aria-live="polite"></span>
   <span class="ctl-driver" id="ctl-driver" role="status" hidden></span>
 </nav>
@@ -32,27 +34,104 @@
     <h1 id="stage-step" class="stage-step">Waiting for both apps</h1>
     <p id="stage-caption" class="stage-caption"></p>
     <p id="stage-clock" class="stage-clock" role="status" hidden></p>
+    <div id="watch-note" class="watch-note" hidden>
+      <p id="watch-text"></p>
+      <a href="/#public" target="_blank" rel="noopener">Or see the same flow on the public testnets ↗</a>
+    </div>
     <div id="start" class="start" hidden>
-      <p class="start-lead">Nothing has crossed between them yet. Pick what to see: each runs by itself, and both apps show every step.</p>
+      <p class="start-lead" id="start-lead">Nothing has crossed between them yet. Pick what to see: each runs by itself, and both apps show every step.</p>
       <button class="scenario" data-scenario="success"><span class="scenario-n">1</span><span class="scenario-text"><strong>The swap, start to finish</strong><span>Alice’s ZEC for Bob’s ETH. About two minutes here, mostly proving.</span></span></button>
       <button class="scenario" data-scenario="crash"><span class="scenario-n">2</span><span class="scenario-text"><strong>Bob’s app crashes mid-swap</strong><span>Killed right after Alice claims the ETH, then restarted. It finds t on Ethereum and still claims the ZEC.</span></span></button>
       <button class="scenario" data-scenario="refund"><span class="scenario-n">3</span><span class="scenario-text"><strong>Nobody reveals: both refund</strong><span>Alice never claims. Time passes; Bob takes back his ETH and Alice her ZEC.</span></span></button>
-      <p class="start-note">Or press the highlighted button in each app yourself.</p>
+      <p class="start-note" id="start-note">Or press the highlighted button in each app yourself.</p>
     </div>
     <div id="resume" class="resume" hidden>
       <span>Paused part-way.</span>
       <button class="btn btn-lime btn-ctl" data-resume="success">▶ Continue</button>
       <button class="btn btn-dark btn-ctl" data-resume="new">Start over</button>
     </div>
+    <figure class="stage-seq" id="stage-seq" aria-label="Where the trade is, from public events">
+      <svg viewBox="0 0 440 640" role="img" aria-label="The five steps: 1 prepare both exits off chain, 2 F funds the joint note, 3 Bob locks ETH, 4 claim(t) reveals t, 5 Bob completes C; or, if nobody reveals t, both refund.">
+        <defs>
+        <marker id="sq-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-head-ink"/></marker>
+        <marker id="sq-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-gold-head"/></marker>
+        <marker id="sq-zec" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-zec-head"/></marker>
+        <marker id="sq-eth" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-eth-head"/></marker>
+        <marker id="sq-back" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="svg-back-head"/></marker>
+        </defs>
+        <rect x="34" y="8" width="72" height="30" rx="8" class="svg-node"/><text x="70" y="28" text-anchor="middle" class="svg-who">Alice</text>
+        <rect x="144" y="8" width="72" height="30" rx="8" class="svg-node"/><text x="180" y="28" text-anchor="middle" class="svg-lane svg-lane-zec">ZCASH</text>
+        <rect x="248" y="8" width="84" height="30" rx="8" class="svg-node"/><text x="290" y="28" text-anchor="middle" class="svg-lane svg-lane-eth">ETHEREUM</text>
+        <rect x="364" y="8" width="72" height="30" rx="8" class="svg-node"/><text x="400" y="28" text-anchor="middle" class="svg-who">Bob</text>
+        <path d="M70 38 V628 M180 38 V628 M290 38 V628 M400 38 V628" class="svg-life"/>
+        <g class="sq-down" id="sq-bob-down" hidden><rect x="368" y="44" width="64" height="18" rx="9"/><text x="400" y="57" text-anchor="middle">stopped</text></g>
+        <g class="sq-step" data-step="1">
+          <circle cx="16" cy="78" r="11" class="svg-badge"/><text x="16" y="82" text-anchor="middle" class="svg-badge-text">1</text>
+          <path d="M74 78 H396" class="svg-msg svg-msg-dash" marker-start="url(#sq-ink)" marker-end="url(#sq-ink)"/>
+          <text x="235" y="70" text-anchor="middle" class="svg-msg-label">quote · FROST DKG · adaptor-presign C · sign R</text>
+          <text x="235" y="96" text-anchor="middle" class="svg-msg-note">off chain, before any funds move</text>
+        </g>
+        <g class="sq-step" data-step="2">
+          <circle cx="16" cy="140" r="11" class="svg-badge"/><text x="16" y="144" text-anchor="middle" class="svg-badge-text">2</text>
+          <path d="M70 140 H172" class="svg-asset svg-asset-zec" marker-end="url(#sq-zec)"/>
+          <text x="125" y="130" text-anchor="middle" class="svg-msg-label">ZEC locked (F)</text>
+          <text x="125" y="158" text-anchor="middle" class="svg-msg-note">into the 2-of-2 FROST note</text>
+        </g>
+        <g class="sq-step" data-step="3">
+          <circle cx="16" cy="196" r="11" class="svg-badge"/><text x="16" y="200" text-anchor="middle" class="svg-badge-text">3</text>
+          <path d="M400 196 H298" class="svg-asset svg-asset-eth" marker-end="url(#sq-eth)"/>
+          <text x="345" y="186" text-anchor="middle" class="svg-msg-label">ETH locked</text>
+        </g>
+        <g class="sq-step" data-step="4">
+          <circle cx="16" cy="268" r="11" class="svg-badge"/><text x="16" y="272" text-anchor="middle" class="svg-badge-text">4</text>
+          <path d="M70 252 H286" class="svg-gold" marker-end="url(#sq-gold)"/>
+          <text x="178" y="244" text-anchor="middle" class="svg-msg-label">claim(t): t is now public</text>
+          <path d="M290 286 H78" class="svg-asset svg-asset-eth" marker-end="url(#sq-eth)"/>
+          <text x="180" y="304" text-anchor="middle" class="svg-msg-label svg-got">ETH credited to Alice</text>
+          <text x="180" y="320" text-anchor="middle" class="svg-msg-note">withdrawn later, separately</text>
+          <circle cx="70" cy="286" r="8" class="svg-got-dot"/><text x="70" y="290" text-anchor="middle" class="svg-got-check">✓</text>
+        </g>
+        <g class="sq-step" data-step="5">
+          <circle cx="16" cy="372" r="11" class="svg-badge"/><text x="16" y="376" text-anchor="middle" class="svg-badge-text">5</text>
+          <path d="M290 340 H396" class="svg-gold svg-msg-dash" marker-end="url(#sq-gold)"/>
+          <text x="345" y="332" text-anchor="middle" class="svg-msg-label">reads t</text>
+          <path d="M400 372 H184" class="svg-msg" marker-end="url(#sq-ink)"/>
+          <text x="292" y="364" text-anchor="middle" class="svg-msg-label">C: s = ŝ + t</text>
+          <text x="292" y="389" text-anchor="middle" class="svg-msg-note">completes the FROST signature</text>
+          <path d="M180 404 H392" class="svg-asset svg-asset-zec" marker-end="url(#sq-zec)"/>
+          <text x="290" y="422" text-anchor="middle" class="svg-msg-label svg-got">Bob receives the ZEC</text>
+          <circle cx="400" cy="404" r="8" class="svg-got-dot"/><text x="400" y="408" text-anchor="middle" class="svg-got-check">✓</text>
+        </g>
+        <g class="sq-step" data-step="settled">
+          <text x="235" y="456" text-anchor="middle" class="svg-msg-note">Settled: Zcash saw only F and C, both shielded</text>
+        </g>
+        <g class="sq-step" data-step="refund">
+          <path d="M30 478 H430" class="svg-life"/>
+          <text x="34" y="504" class="svg-eyebrow">IF NOBODY REVEALS t</text>
+        </g>
+        <g class="sq-step" data-step="eth-back">
+          <path d="M290 540 H392" class="svg-asset svg-asset-back" marker-end="url(#sq-back)"/>
+          <text x="345" y="530" text-anchor="middle" class="svg-msg-label svg-msg-muted">ETH back to Bob</text>
+          <text x="345" y="558" text-anchor="middle" class="svg-msg-note">after the ETH deadline</text>
+        </g>
+        <g class="sq-step" data-step="zec-back">
+          <path d="M180 596 H78" class="svg-asset svg-asset-back" marker-end="url(#sq-back)"/>
+          <text x="125" y="586" text-anchor="middle" class="svg-msg-label svg-msg-muted">ZEC back to Alice</text>
+          <text x="125" y="614" text-anchor="middle" class="svg-msg-note">A after Bob’s ETH refund,</text>
+          <text x="125" y="628" text-anchor="middle" class="svg-msg-note">R after the Zcash deadline</text>
+        </g>
+      </svg>
+    </figure>
     <div id="result" class="result" hidden>
       <p class="result-title" id="result-title"></p>
       <ul class="result-list" id="result-list"></ul>
-      <div class="result-actions">
-        <button class="btn btn-lime btn-ctl" data-again="">Run it again</button>
-        <button class="btn btn-dark btn-ctl" data-other="0"></button>
-        <button class="btn btn-dark btn-ctl" data-other="1"></button>
-      </div>
+      <a class="result-link" href="/#public" target="_blank" rel="noopener">Verify the same flow on the public testnets ↗</a>
     </div>
+    <p class="receipts-head" id="receipts-head" hidden><strong>Execution receipts · private test chains</strong> Real transactions mined by Zebra and Anvil, and what the relay carried. The F, C, A and R labels come from this demo’s context: a public Zcash observer cannot tell these roles apart. Each number matches a step in the diagram.</p>
+    <details class="relay-box" id="relay-box" hidden>
+      <summary class="wire-item is-relay"><span class="wire-step">1</span><span class="wire-badge">RELAY</span><div><p class="wire-title"><span id="relay-count"></span> · <span id="relay-split"></span></p><p class="wire-detail">The relay cannot read the trade amounts or signed terms. <span class="relay-toggle"></span></p></div></summary>
+      <ol class="wire relay-list" id="relay-list"></ol>
+    </details>
     <ol class="wire" id="wire" aria-live="polite"></ol>
     <div class="observer" aria-label="What an outside observer learns">
       <div class="obs obs-zec"><span class="obs-label">Zcash</span><strong id="obs-zec">—</strong><span id="obs-zec-note">amounts and addresses hidden</span></div>

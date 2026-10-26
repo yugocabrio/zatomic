@@ -56,6 +56,7 @@ if USERS and not sys.platform.startswith('linux'):
 APP_BASE = Path(os.environ.get('LATCH_APP_BASE', '/var/lib/latch'))
 LIBEXEC = Path('/usr/local/libexec')
 LEASE_IDLE, LEASE_AUTOPLAY = 300, 120  # Seconds a driver keeps the controls.
+LEASE_AFTER_AUTOPLAY = 30  # A finished scenario passes the controls on soon.
 TRADE_BLOCKS = 400  # Generous bound per trade: funding mines 101 blocks, a refund 72 more.
 
 
@@ -312,7 +313,7 @@ class Network:
         Bob's app right after Alice's claim and restarts it a few seconds later,
         so Bob learns t only from Ethereum."""
         if self.autoplaying:
-            raise ValueError('Autoplay is already running.')
+            raise ValueError('A live demo is already running. You can watch it.')
         self.autoplaying = path
         self.scenario = {'path': path, 'started': int(time.time()), 'ended': None}
         threading.Thread(target=self.play, args=(path, self.root), daemon=True).start()
@@ -390,6 +391,9 @@ class Network:
                 self.autoplaying = None
                 if self.scenario:
                     self.scenario['ended'] = int(time.time())
+                # The driver keeps the controls only by pressing again soon.
+                if self.driver:
+                    self.driver['until'] = min(self.driver['until'], time.time() + LEASE_AFTER_AUTOPLAY)
 
     def mine(self):
         # A stand-in for block production: pending Zcash transactions get two
@@ -488,9 +492,12 @@ class Network:
         return False
 
     def drive(self, lease):
-        """Hand the controls to a visitor if nobody holds them (or renew)."""
+        """Hand the manual controls to a visitor if nobody holds them (or
+        renew). A running scenario keeps them until it ends."""
         if not ORIGINS:
             return {'lease': None, 'until': None}
+        if self.autoplaying and not self.lease_ok(lease):
+            raise ValueError('A live demo is running. You can watch it; the controls free up when it ends.')
         if not self.lease_ok(lease):
             if self.driver and self.driver['until'] > time.time():
                 raise ValueError('Another visitor has the controls until '
@@ -584,6 +591,19 @@ class Network:
             action = body.get('action')
             if action == 'drive':
                 return self.drive(body.get('lease'))
+            if action == 'autoplay' and body.get('path') in ('success', 'crash', 'refund'):
+                # Any visitor may start a scenario: one runs at a time, and
+                # none starts while someone operates the apps by hand.
+                driver = self.driver
+                if ORIGINS and driver and driver['until'] > time.time() and not self.lease_ok(body.get('lease')):
+                    raise ValueError('Someone is operating the apps by hand until '
+                        f'{time.strftime("%H:%M", time.gmtime(driver["until"]))} UTC. You can watch meanwhile.')
+                if self.autoplaying:
+                    raise ValueError('A live demo is already running. You can watch it.')
+                if body.get('fresh') is True:  # A finished trade: start a new one first.
+                    self.new_trade()
+                self.autoplay(body['path'])
+                return {'ok': True}
             if not self.lease_ok(body.get('lease')):
                 raise ValueError('Take the controls first.')
             if action == 'release':
@@ -592,12 +612,6 @@ class Network:
                 self.advance_eth()
             elif action == 'advance-zec':
                 self.advance_zec()
-            elif action == 'autoplay' and body.get('path') in ('success', 'crash', 'refund'):
-                if body.get('fresh') is True:  # "Run again": a new trade first.
-                    if self.autoplaying:
-                        raise ValueError('Autoplay is already running.')
-                    self.new_trade()
-                self.autoplay(body['path'])
             elif action == 'new-trade':
                 self.new_trade()
             elif action == 'prove-isolation':

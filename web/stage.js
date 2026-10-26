@@ -4,7 +4,7 @@
 // events. Its narration is inferred from that public data alone.
 const $ = (s) => document.querySelector(s);
 let latest = null;
-const shown = {generation: null, ready: {}, lease: {}};
+const shown = {generation: null, ready: {}, lease: {}, events: new Set()};
 // Hosted demo: one visitor drives at a time. The lease is a per-browser
 // convenience; the server decides who holds the controls.
 const lease = {
@@ -13,6 +13,17 @@ const lease = {
 };
 const utc = (seconds) => new Date(seconds * 1000).toISOString().slice(11, 16);
 
+// One wire row; rows already on screen do not animate in again. The step is
+// the diagram's number for the row (↩ for the refund branch).
+function item([kind, title, detail], seen, step) {
+  const node = el('li', `wire-item is-${kind.split(' ').join(' is-')}${seen ? ' is-seen' : ''}`);
+  if (step) node.append(el('span', 'wire-step', step));
+  node.append(el('span', 'wire-badge', kind.split(' ')[0].toUpperCase()));
+  const text = el('div'); text.append(el('p', 'wire-title', title));
+  if (detail) text.append(el('p', 'wire-detail', detail));
+  node.append(text);
+  return node;
+}
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -27,22 +38,47 @@ function eth(wei) {
 const zec = (zatoshi) => `${zatoshi / 1e8} ZEC`;
 const short = (value) => `${value.slice(0, 8)}…${value.slice(-6)}`;
 
-function describe(e, names) {
+function describe(e, names, role) {
   const who = (address) => names[(address || '').toLowerCase()] || short(address || '0x');
   if (e.chain === 'relay') {
     if (e.kind === 'manifest') return ['relay', `${who(e.from)} posts an identity: public keys only`, ''];
     return ['relay', `${who(e.from)} → ${who(e.to)}: sealed message`, `${(e.bytes || 0).toLocaleString()} bytes · the relay cannot open it`];
   }
   if (e.chain === 'zcash') {
-    if (e.transparent_inputs) return ['zec warn', 'Zcash: Alice’s refund R, time-locked by spending the coin from A',
-      `Her ZEC returns shielded${e.transparent_outputs.length ? ` · ${e.transparent_outputs.map(zec).join(', ')} change back to the coin’s transparent address` : ''}`];
-    if (e.transparent_outputs.length) return ['zec warn', `Zcash: A, the coin Alice’s refund needs, ${e.transparent_outputs.map(zec).join(', ')} to a transparent address`, 'Appears only on the refund path'];
-    return ['zec', 'Zcash: shielded transaction', `${e.actions} actions · amount, sender and recipient hidden · block #${e.height}`];
+    // A transaction is listed once Zebra has mined it, so it passed the node's
+    // proof, signature and lock-time checks.
+    const mined = `Mined in block #${e.height}`, id = `tx ${short(e.txid || '')}`;
+    if (role === 'R') return ['zec warn', 'Zcash · R: Alice’s time-locked refund',
+      `${mined} once its lock time passed, which Zebra enforces · her ZEC returns shielded${e.transparent_outputs.length ? ` · ${e.transparent_outputs.map(zec).join(', ')} change to the coin’s transparent address` : ''} · ${id}`];
+    if (role === 'A') return ['zec warn', 'Zcash · A: the coin Alice’s refund needs', `${mined} · ${e.transparent_outputs.map(zec).join(', ')} to a transparent address, from her own change · only on the refund path · ${id}`];
+    if (role === 'F') return ['zec', 'Zcash · F: Alice funds the shared note', `${mined}: Zebra checked its proof and signatures · amount, sender and recipient hidden · ${id}`];
+    if (role === 'C') return ['zec', 'Zcash · C: Bob claims the ZEC', `${mined}: Zebra checked Bob’s completed signature and the proof · amount hidden · ${id}`];
+    return ['zec', 'Zcash: shielded transaction', `${mined} · amount, sender and recipient hidden · ${id}`];
   }
-  if (e.event === 'locked') return ['eth', `Ethereum: ${who(e.maker)} locks ${eth(e.amount_wei)} for ${who(e.recipient)}`, 'Claimable only with the secret t'];
-  if (e.event === 'claimed') return ['eth key', `Ethereum: claimed. t is now public`, `t = ${short(e.witness)} · it completes the FROST pre-signature on Bob’s Zcash claim`];
-  if (e.event === 'refunded') return ['eth', 'Ethereum: ETH refunded at expiry', 'No secret was revealed'];
-  return ['eth', `Ethereum: ${eth(e.amount_wei)} withdrawn by ${who(e.owner)}`, ''];
+  const at = `Block ${e.block}`, id = `tx ${short(e.tx || '')}`;
+  if (e.event === 'locked') return ['eth', `Ethereum · lock: ${who(e.maker)} locks ${eth(e.amount_wei)} for ${who(e.recipient)}`, `${at} · claimable only with the secret t · ${id}`];
+  if (e.event === 'claimed') return ['eth key', 'Ethereum · claim(t): t is now public', `${at}: the escrow checked t·G = T on Pallas · t = ${short(e.witness)} completes the FROST pre-signature on Bob’s claim · ${id}`];
+  if (e.event === 'refunded') return ['eth', 'Ethereum · refund: Bob’s ETH back after the expiry', `${at} · no secret was revealed · ${id}`];
+  return ['eth', `Ethereum · withdraw: ${eth(e.amount_wei)} paid out to ${who(e.owner)}`, `${at} · ${id}`];
+}
+
+// When each chain's events were observed gives no reliable order across the
+// two chains, so the list follows what the protocol fixes: F before the lock,
+// claim or refund then its withdrawal, C after the claim, A and R after the
+// refund. Each entry keeps its index in events.
+function inOrder(events) {
+  const chain = events.map((e, i) => ({e, i})).filter(x => x.e.chain !== 'relay');
+  const shielded = chain.filter(x => x.e.chain === 'zcash' && !x.e.transparent_outputs.length && !x.e.transparent_inputs)
+    .sort((a, b) => a.e.height - b.e.height);
+  const claimed = chain.some(x => x.e.event === 'claimed');
+  const RANK = {F: 1, locked: 2, claimed: 3, refunded: 3, withdrawn: 4, C: 5, Z: 5, A: 6, R: 7};
+  for (const x of chain) {
+    if (x.e.chain !== 'zcash') x.role = x.e.event;
+    else if (x.e.transparent_inputs) x.role = 'R';
+    else if (x.e.transparent_outputs.length) x.role = 'A';
+    else x.role = shielded[0] === x ? 'F' : shielded[1] === x && claimed ? 'C' : 'Z';
+  }
+  return chain.sort((a, b) => (RANK[a.role] || 5) - (RANK[b.role] || 5) || a.i - b.i);
 }
 
 // The step is inferred from public events only, in protocol order. Zcash
@@ -59,8 +95,8 @@ function narrate(events) {
   const refund = Boolean(refunded || coin || back);
   const opening = [
     [relay.some(e => e.kind === 'manifest'), 'Owners exchange identities', 'Each app posts its public keys; the owners compare fingerprints out of band.'],
-    [relay.some(e => e.kind === 'sealed'), 'Quote, terms and both exits', 'Sealed messages only. Both exits are prepared before any money moves: Alice’s refund is fully signed; Bob’s claim still needs t.'],
-    [shielded.length > 0, 'Alice funds the shared note', 'A shielded Zcash transaction: no amount or address is visible.'],
+    [relay.some(e => e.kind === 'sealed'), 'Quote, terms and both exits', 'Sealed messages only. The apps run the FROST DKG and prepare both exits before any money moves: Alice’s refund is fully signed; Bob’s claim still needs t.'],
+    [shielded.length > 0, 'Alice funds the shared note', 'Alice’s app builds and proves F; Zebra checks it and mines it. No amount or address is visible.'],
   ];
   const steps = refund ? [...opening,
     ...(locked ? [
@@ -71,12 +107,12 @@ function narrate(events) {
       [true, 'Bob never locks: the ETH deadline passes', 'Nothing moved on Ethereum, so there is nothing to claim.'],
     ]),
     [Boolean(coin), 'Alice creates the coin her refund needs', 'Her private auxiliary transaction appears only now, on the refund path.'],
-    [Boolean(back), 'Alice’s ZEC comes back', 'Her pre-signed refund is valid only after the refund time.'],
+    [Boolean(back), 'Alice’s ZEC comes back', 'Her pre-signed refund R is valid only after the refund time, which Zebra enforces.'],
   ] : [...opening,
-    [Boolean(locked), 'Bob locks ETH', 'Public on Ethereum: amount, both addresses and the point T.'],
-    [Boolean(claimed), 'Alice claims the ETH and reveals t', 'The same t completes the FROST pre-signature on Bob’s Zcash claim; t itself does not point to that transaction.'],
+    [Boolean(locked), 'Bob locks ETH', 'Bob’s app checks F on Zcash, then locks the ETH in the escrow. Public: amount, both addresses and the point T.'],
+    [Boolean(claimed), 'Alice claims the ETH and reveals t', 'Alice’s app sends claim(t); the escrow checks t·G = T on Pallas. The same t completes the FROST pre-signature on Bob’s Zcash claim.'],
     // Bob's claim is the second shielded transaction, later in the chain than the funding.
-    [Boolean(claimed) && shielded.length >= 2 && shielded[1].height > shielded[0].height, 'Bob claims his ZEC', 'Another shielded transaction; Bob’s own wallet decrypts it.'],
+    [Boolean(claimed) && shielded.length >= 2 && shielded[1].height > shielded[0].height, 'Bob claims his ZEC', 'Bob’s app reads t, completes its signature (s = ŝ + t), proves C and sends it; his own wallet decrypts the payout.'],
     [Boolean(withdrawn), 'Alice withdraws the ETH', 'Settled. No transparent output ever appeared on Zcash.'],
   ];
   const done = steps.every(s => s[0]);
@@ -104,21 +140,14 @@ const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).p
 // The end of a trade, from public data only: the ZEC amount and receive
 // addresses are visible inside the apps, never here.
 function summary(state, story) {
-  const zcash = state.events.filter(e => e.chain === 'zcash');
-  const find = (kind) => state.events.find(e => e.chain === 'ethereum' && e.event === kind);
-  const locked = find('locked');
+  const locked = state.events.find(e => e.chain === 'ethereum' && e.event === 'locked');
   const relay = state.events.filter(e => e.chain === 'relay');
   const sealed = relay.filter(e => e.kind === 'sealed').length;
   const s = state.scenario;
   const took = s && s.ended && s.ended >= s.started ? ` in ${clock(s.ended - s.started)}` : '';
-  const lines = story.refund ? [
-    locked ? `Ethereum: ${eth(locked.amount_wei)} locked, then refunded to Bob after the expiry and withdrawn. t was never revealed.`
-      : 'Ethereum: Bob never locked, so nothing moved there and t was never revealed.',
-    'Zcash: Alice’s pre-signed refund returned her ZEC. Only on this path do transparent outputs appear: the 20,000-zatoshi coin her refund needs, made from her own change, and 15,000 zatoshi returned to the same address.',
-  ] : [
-    `Ethereum: ${locked ? eth(locked.amount_wei) : 'the ETH'} locked by Bob, claimed with t, withdrawn by Alice.`,
-    `Zcash: ${zcash.length} shielded transactions. No amount, no address, nothing transparent.`,
-  ];
+  // The receipts below carry each transaction; this card keeps what stayed
+  // private and what recovered.
+  const lines = story.refund && !locked ? ['Bob never locked, so nothing moved on Ethereum and t was never revealed.'] : [];
   lines.push(`Relay: ${relay.length} messages, ${sealed} sealed. It never saw the amounts.`);
   if ((state.interrupted || []).includes('bob')) lines.push(story.refund
     ? 'Bob’s app was stopped during the trade. Neither refund needed anything from the other side.'
@@ -152,9 +181,19 @@ async function control(body, label) {
   poll();
 }
 // A finished trade cannot run again: scenarios then start from a fresh trade.
-function play(path) {
+// Starting one needs no controls; the server runs one scenario at a time.
+let ownStart = 0, ownRun = 0;
+async function play(path) {
   const fresh = Boolean(latest && latest.finished);
-  control({action: 'autoplay', path, fresh}, `${SCENARIOS[path]}${fresh ? ' (new trade)' : ''}`);
+  const status = $('#ctl-status');
+  try {
+    status.textContent = `Starting: ${SCENARIOS[path]}${fresh ? ' (new trade)' : ''}…`;
+    ownStart = latest ? latest.now - 5 : 0;
+    await send({action: 'autoplay', path, fresh, lease: lease.get()});
+  } catch (error) {
+    status.textContent = error.message;
+  }
+  poll();
 }
 function newTrade(ask) {
   if (ask && !RECORD && !confirm('Start a new trade? The current one stays on disk.')) return;
@@ -165,8 +204,6 @@ document.querySelectorAll('[data-scenario]').forEach(b => b.addEventListener('cl
 // /stage#crash (or #success, #refund) points at that scenario without starting it.
 const PICK = Object.hasOwn(SCENARIOS, location.hash.slice(1)) ? location.hash.slice(1) : '';
 document.querySelectorAll('[data-scenario], [data-play]').forEach(b => b.classList.toggle('is-pick', (b.dataset.scenario || b.dataset.play) === PICK));
-document.querySelector('[data-again]').addEventListener('click', (e) => play(e.currentTarget.dataset.again));
-document.querySelectorAll('[data-other]').forEach(b => b.addEventListener('click', () => play(b.dataset.path)));
 document.querySelector('[data-resume="success"]').addEventListener('click', () => play('success'));
 document.querySelector('[data-resume="new"]').addEventListener('click', () => newTrade(false));
 document.querySelectorAll('[data-control]').forEach(b => b.addEventListener('click', () => {
@@ -189,18 +226,19 @@ document.addEventListener('keydown', (e) => {
 function render(state) {
   latest = state;
   const driver = state.driver;
-  const watching = Boolean(state.public && driver && !driver.mine);
+  // Anyone may start a scenario while none is running. Operating the apps by
+  // hand (Advanced controls) still goes to one visitor at a time.
+  const running = Boolean(state.autoplay);
+  const byHand = Boolean(state.public && driver && !driver.mine);
   if (state.public && !(driver && driver.mine)) lease.set('');
-  for (const b of document.querySelectorAll('.stage-controls button')) b.disabled = watching;
-  for (const b of document.querySelectorAll('[data-play]')) b.disabled ||= Boolean(state.autoplay);
+  for (const b of document.querySelectorAll('[data-play]')) b.disabled = running || byHand;
+  for (const b of document.querySelectorAll('.ctl-advanced button')) b.disabled = byHand || (running && !(driver && driver.mine));
   const bob = state.running ? state.running.bob : true;
   document.querySelector('[data-control="crash"]').disabled ||= !bob;
   document.querySelector('[data-control="restart"]').disabled ||= bob;
   const who = $('#ctl-driver');
-  who.hidden = !state.public;
-  who.textContent = !state.public ? '' : watching ? `Another visitor is driving until ${utc(driver.until)} UTC. You are watching live.`
-    : driver ? 'You have the controls. They free up after five idle minutes.' : 'Controls free: any button makes you the driver.';
-  who.classList.toggle('is-watching', watching);
+  who.hidden = !(state.public && driver && driver.mine && !running);
+  who.textContent = 'You are operating the apps by hand; others can watch. This frees up after five idle minutes.';
   const iso = state.isolation || {};
   $('#iso').textContent = !iso.proven ? 'Checking that neither app can read the other’s files…'
     : iso.by === 'users' ? '✓ Checked: each app runs as its own Linux user; neither can read the other’s files.'
@@ -227,7 +265,7 @@ function render(state) {
   for (const [role, address] of Object.entries(state.owners)) names[address.toLowerCase()] = role === 'alice' ? 'Alice' : 'Bob';
   names.alice = 'Alice'; names.bob = 'Bob';
   $('#network-dot').className = 'online';
-  $('#network-status').textContent = `Regtest #${state.zcash_height}`;
+  $('#network-status').textContent = `Zebra regtest #${state.zcash_height}`;
   const story = narrate(state.events);
   state.finished = story.done;
   const begun = state.events.some(e => e.chain === 'relay' && e.kind === 'sealed');
@@ -240,43 +278,53 @@ function render(state) {
   // nudge for a trade left part-way, or the result.
   const last = state.events.length ? state.events[state.events.length - 1].at : state.now;
   const s = state.scenario;
-  $('#start').hidden = watching || Boolean(state.autoplay) || begun || story.done;
-  $('#resume').hidden = watching || Boolean(state.autoplay) || !begun || story.done || state.now - last < 90;
+  // The scenario picker is the way in, also after a finished run. Someone
+  // watching a run they did not start sees why the picker is locked.
+  $('#start').hidden = running || (begun && !story.done);
+  for (const b of document.querySelectorAll('[data-scenario]')) b.disabled = running || byHand;
+  if (s && ownStart && s.started >= ownStart) ownRun = s.started;
+  const theirs = running && !(s && s.started === ownRun);
+  $('#watch-note').hidden = !(theirs || byHand);
+  $('#watch-text').textContent = theirs ? `A live demo is running: “${SCENARIOS[state.autoplay]}”. You can watch it here; the scenarios free up when it ends.`
+    : byHand ? `Someone is operating the apps by hand until ${utc(driver.until)} UTC. You can watch; the scenarios free up then.` : '';
+  $('#start-lead').textContent = `${story.done ? 'Pick one to run a new trade.' : 'Pick what to see.'} It operates both owner apps for you: each signs with its own keys and sends real, proved transactions to private Zebra and Anvil chains. About two minutes, mostly proving.`;
+  $('#start-note').hidden = story.done || running || byHand;
+  $('#start-note').textContent = state.public ? 'Or open Advanced controls to operate both apps by hand.' : 'Or press the highlighted button in each app yourself.';
+  $('#resume').hidden = running || byHand || !begun || story.done || state.now - last < 90;
   $('#stage-clock').hidden = !state.autoplay || !s;
   if (state.autoplay && s) $('#stage-clock').textContent = `Autoplay · ${SCENARIOS[s.path]} · ${clock(Math.max(0, state.now - s.started))}`;
   $('#result').hidden = !story.done;
-  $('.stage-wire').classList.toggle('is-start', !$('#start').hidden);
+  $('.stage-wire').classList.toggle('is-start', !$('#start').hidden && !story.done);
   $('.stage-wire').classList.toggle('is-done', story.done);
   if (story.done) {
     const {title, lines} = summary(state, story);
-    $('#result-title').textContent = title;
+    $('#result-title').textContent = `Last run · ${title}`;
     if ($('#result-list').dataset.key !== JSON.stringify(lines)) {
       $('#result-list').dataset.key = JSON.stringify(lines);
       $('#result-list').replaceChildren(...lines.map(line => el('li', '', line)));
     }
-    const ran = s ? s.path : (story.refund ? 'refund' : 'success');
-    $('[data-again]').dataset.again = ran;
-    Object.keys(SCENARIOS).filter(p => p !== ran).forEach((path, i) => {
-      const b = document.querySelector(`[data-other="${i}"]`);
-      b.dataset.path = path;
-      b.textContent = `Try: ${SCENARIOS[path]}`;
-      b.classList.toggle('is-pick', path === PICK);
-    });
-    for (const b of document.querySelectorAll('#result button')) b.disabled = watching;
   }
+  sequence(state, story);
+  // Relay envelopes fold into one row; the chain events follow in protocol order.
+  const relay = state.events.filter(e => e.chain === 'relay');
+  const identities = relay.filter(e => e.kind === 'manifest').length;
+  $('#relay-box').hidden = !relay.length;
+  $('#relay-count').textContent = `Relay · ${relay.length} message${relay.length === 1 ? '' : 's'}`;
+  $('#relay-split').textContent = `${identities} public ${identities === 1 ? 'identity' : 'identities'} · ${relay.length - identities} sealed`;
+  const relayList = $('#relay-list');
+  if (relayList.childElementCount !== relay.length) relayList.replaceChildren(...relay.map(e => item(describe(e, names), true)));
   const wire = $('#wire');
-  // Events only accumulate; a shorter list means a new network, so start over.
-  if (wire.childElementCount > state.events.length) wire.replaceChildren();
-  if (wire.childElementCount < state.events.length) {
-    for (const e of state.events.slice(wire.childElementCount)) {
-      const [kind, title, detail] = describe(e, names);
-      const item = el('li', `wire-item is-${kind.split(' ').join(' is-')}`);
-      item.append(el('span', 'wire-badge', kind.split(' ')[0].toUpperCase()));
-      const text = el('div'); text.append(el('p', 'wire-title', title));
-      if (detail) text.append(el('p', 'wire-detail', detail));
-      item.append(text);
-      wire.append(item);
-    }
+  const entries = inOrder(state.events);
+  const refunding = entries.some(x => x.role === 'refunded' || x.role === 'A' || x.role === 'R');
+  const STEP = {F: '2', locked: '3', claimed: '4', C: '5', refunded: '↩', A: '↩', R: '↩', withdrawn: refunding ? '↩' : '4'};
+  $('#receipts-head').hidden = !relay.length && !entries.length;
+  const key = entries.map(x => x.i).join(',');
+  if (wire.dataset.key !== key) {
+    // Events only accumulate; fewer of them means a new network.
+    if (entries.length < wire.childElementCount) shown.events = new Set();
+    wire.dataset.key = key;
+    wire.replaceChildren(...entries.map(x => item(describe(x.e, names, x.role), shown.events.has(x.i), STEP[x.role])));
+    for (const x of entries) shown.events.add(x.i);
     wire.scrollTop = wire.scrollHeight;
   }
   const zcash = state.events.filter(e => e.chain === 'zcash');
@@ -289,6 +337,35 @@ function render(state) {
   $('#obs-eth').textContent = locked ? eth(locked.amount_wei) : 'nothing yet';
   $('#obs-eth-note').textContent = ethEvents.map(e => e.event).join(' → ') || 'public by design';
   $('#obs-relay').textContent = `${sealed} sealed`;
+}
+
+// The five-step diagram, lit from public events only: done, the step under
+// way, still to come, or the branch this trade did not take.
+function sequence(state, story) {
+  const ev = state.events;
+  const zcash = ev.filter(e => e.chain === 'zcash');
+  const has = (kind) => ev.some(e => e.chain === 'ethereum' && e.event === kind);
+  const funded = zcash.some(e => !e.transparent_outputs.length && !e.transparent_inputs);
+  const shielded = zcash.filter(e => !e.transparent_outputs.length && !e.transparent_inputs).length;
+  const coin = zcash.some(e => e.transparent_outputs.length && !e.transparent_inputs);
+  const back = zcash.some(e => e.transparent_inputs);
+  const sealed = ev.some(e => e.chain === 'relay' && e.kind === 'sealed');
+  const begun = sealed || Boolean(state.autoplay);
+  const path = story.refund || (state.scenario && state.scenario.path === 'refund' && !has('claimed')) ? 'refund'
+    : has('claimed') || (state.scenario && state.scenario.path !== 'refund') ? 'swap' : '';
+  const done = {1: sealed || funded, 2: funded, 3: has('locked'), 4: has('claimed'), 5: has('claimed') && shielded >= 2,
+    settled: has('claimed') && shielded >= 2 && has('withdrawn'), refund: has('refunded') || coin || back,
+    'eth-back': has('refunded'), 'zec-back': back};
+  const order = path === 'refund' ? ['1', '2', '3', 'eth-back', 'zec-back'] : ['1', '2', '3', '4', '5'];
+  const now = begun ? order.find(s => !done[s]) : undefined;
+  const off = path === 'refund' ? ['4', '5', 'settled'] : path === 'swap' ? ['refund', 'eth-back', 'zec-back'] : [];
+  for (const g of document.querySelectorAll('#stage-seq .sq-step')) {
+    const s = g.dataset.step;
+    const lit = done[s] || (s === 'refund' && path === 'refund') || (s === 'settled' && done.settled);
+    g.setAttribute('class', `sq-step ${off.includes(s) ? 'is-off' : s === now ? 'is-now' : lit ? 'is-done' : 'is-todo'}`);
+  }
+  // An SVG element has no hidden property, so toggle the attribute itself.
+  $('#sq-bob-down').toggleAttribute('hidden', !(state.running && state.running.bob === false));
 }
 
 async function poll() {

@@ -65,14 +65,22 @@ through the apps' own page endpoints, never touching either app's keys:
 | **2 · Bob's app crashes** | The same, but Bob's app is killed (SIGKILL) right after Alice's claim and restarted eight seconds later. It resumes from its own journal, reads t from Ethereum and claims the ZEC. |
 | **3 · Both refund** | Alice never claims. ETH time passes, Bob refunds his ETH, the native refund matures, then A (the coin her refund needs) and her refund R appear on Zcash. |
 
-While a scenario runs, the column shows its clock. At the end a result card sums
-up what each chain and the relay showed, from public data only; the ZEC amount
-appears only inside the apps. **Run it again** and **Try:** buttons start a fresh
+While a scenario runs, the column shows its clock and the five-step diagram
+from the landing page, lit from public events only: done, under way, still to
+come, or the branch this trade did not take; Bob's lane says "stopped" while his
+app is down. Below it, **Public receipts** list what the relay and both chains
+recorded, each numbered with its diagram step: the relay's messages fold into
+one row (open it to see each), and every Zcash and Ethereum entry gives its
+block, what the node checked and its transaction ID. They follow protocol order,
+since observation times on two chains do not order them reliably. At the end
+the three scenarios come back above the diagram, and a **Last run** card says
+how long it took, what the relay never saw and whether Bob's app recovered; the
+ZEC amount appears only inside the apps. Picking a scenario after a finished run starts a fresh
 trade (new keys, a new escrow order and a new shared note; the previous trade
 stays on disk). A trade left part-way for 90 seconds offers Continue or Start
-over. The bar above the apps has the same scenarios, plus **Stop / Restart Bob's
-app**, **ETH +61 min** and **Zcash +24 blocks** (stand-ins for time passing on a
-public chain) and **New trade**.
+over. The bar above the apps has the same scenarios; **Advanced controls** opens
+**Stop / Restart Bob's app**, **ETH +61 min** and **Zcash +24 blocks** (stand-ins
+for time passing on a public chain) and **New trade**.
 
 Measured on an Apple M1 with 16 GiB, each from a fresh trade: the swap took
 3:32 and 3:42, Bob's app crashing 3:47, both refund 3:37, mostly proving
@@ -208,15 +216,16 @@ on the firewall and starts everything. Running it again rebuilds and keeps the
 chain and trades. Then open `https://HOST`. The first start activates NU7 and
 prepares a trade; allow a minute or two.
 
-### One driver at a time
+### One scenario at a time
 
-Everyone sees the same trade. The first visitor to press a stage control gets
-the controls. That visitor can also press the buttons inside both apps. Everyone
-else watches live; their buttons are disabled and the stage says until when.
-The controls free up five minutes after the driver's last action, or two
-minutes after Autoplay stops, whichever is later. Pressing on behalf of both owners is a demo
-convenience: in a real deployment each owner runs their own app on their own
-device.
+Everyone sees the same trade. Any visitor can start a scenario while none is
+running; while one runs, everyone else watches it live, with the three
+scenarios greyed out and a note saying why, and can start the next one as soon
+as it ends. Operating the apps by hand goes to one visitor at a time: the first
+press of an **Advanced controls** button hands that visitor the controls, which
+let them also press the buttons inside both apps, until five minutes after
+their last action. Pressing on behalf of both owners is a demo convenience: in
+a real deployment each owner runs their own app on their own device.
 
 ### Chain capacity
 
