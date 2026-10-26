@@ -1,0 +1,127 @@
+{
+  "date": "2026-10-21",
+  "scope": "Both exits of the two public V2 runs (004 settled, 005 no reveal) were fixed before funding.",
+  "runs": [
+    {
+      "run": "004",
+      "outcome": "settled",
+      "agreement_digest": "4ee42202523b8c2522c9a2fb2cccc05041edcab748081ead0c3935d312f9d70f",
+      "agreement_in_lock_calldata": {
+        "lock_txid": "0x50df988d4b22b9caa7120f967ac33c1bb52e108d3884c985f30f367ff13da86c",
+        "sepolia_block": 11958852,
+        "calldata_contains_agreement_digest": true,
+        "explorer": "https://sepolia.etherscan.io/tx/0x50df988d4b22b9caa7120f967ac33c1bb52e108d3884c985f30f367ff13da86c"
+      },
+      "agreement_commits_to": {
+        "funding_txid": "f7f837c78b8fce3bf6b209c6efbe2c9e231b65eaeb9b92b16b0304c1c3356b1b",
+        "exit_bundle_digest": "2606baef661f5919df47ab3cba85adcdcfe2418e61c1afaf7accf0ce9a4228eb",
+        "native_refund_lock": {
+          "kind": "timestamp",
+          "value": 1792573238
+        }
+      },
+      "both_owner_signatures_on_agreement_verified_before_lock": true,
+      "owner_receipts_before_funding": {
+        "alice": {
+          "bundle_digest": "2606baef661f5919df47ab3cba85adcdcfe2418e61c1afaf7accf0ce9a4228eb",
+          "native_exit_bundle_verified": true,
+          "conditional_claim_verified": true,
+          "refund_shielded_and_auxiliary_signatures_verified": true,
+          "funding_authorized_at_receipt": false
+        },
+        "bob": {
+          "bundle_digest": "2606baef661f5919df47ab3cba85adcdcfe2418e61c1afaf7accf0ce9a4228eb",
+          "native_exit_bundle_verified": true,
+          "conditional_claim_verified": true,
+          "refund_shielded_and_auxiliary_signatures_verified": true,
+          "funding_authorized_at_receipt": false
+        }
+      },
+      "exits_in_the_bundle": {
+        "claim_C_effects_txid": "4e9e560d897e154daa448186e742b1022d1a9f70e332a0d7ca06ea34d2ba7dc9",
+        "refund_R_effects_txid": "4396b109286e6427f2a220908dcdab90501b4c24604a810225469bb36e918165"
+      },
+      "on_chain": {
+        "funding_F": {
+          "txid": "f7f837c78b8fce3bf6b209c6efbe2c9e231b65eaeb9b92b16b0304c1c3356b1b",
+          "zcash_height": 4523750
+        },
+        "mined_exit": "C",
+        "mined_txid": "4e9e560d897e154daa448186e742b1022d1a9f70e332a0d7ca06ea34d2ba7dc9",
+        "zcash_height": 4524018,
+        "mined_exit_matches_prepared": true,
+        "unused_exit": "R",
+        "unused_txid": "4396b109286e6427f2a220908dcdab90501b4c24604a810225469bb36e918165",
+        "unused_exit_mined": false
+      }
+    },
+    {
+      "run": "005",
+      "outcome": "no reveal; both refund",
+      "agreement_digest": "93c2374c1db2d79858dd1d2f7f3477ff230ce6afb1ec89f23586b0b8116ea698",
+      "agreement_in_lock_calldata": {
+        "lock_txid": "0xc602d03ba4efcfc026bc3cc2f70465ffa7d62a823b9c8e771ceded1383e3c86b",
+        "sepolia_block": 11958806,
+        "calldata_contains_agreement_digest": true,
+        "explorer": "https://sepolia.etherscan.io/tx/0xc602d03ba4efcfc026bc3cc2f70465ffa7d62a823b9c8e771ceded1383e3c86b"
+      },
+      "agreement_commits_to": {
+        "funding_txid": "58de551b23bad2fe0e501b9ce5e08570340b69fb2bdcfbffa24b401f691d33b9",
+        "exit_bundle_digest": "53356f0173afe803f5806b56e32431fe0271f13c6ec1b311cacbbb6220cf96fc",
+        "native_refund_lock": {
+          "kind": "timestamp",
+          "value": 1792572653
+        }
+      },
+      "both_owner_signatures_on_agreement_verified_before_lock": true,
+      "owner_receipts_before_funding": {
+        "alice": {
+          "bundle_digest": "53356f0173afe803f5806b56e32431fe0271f13c6ec1b311cacbbb6220cf96fc",
+          "native_exit_bundle_verified": true,
+          "conditional_claim_verified": true,
+          "refund_shielded_and_auxiliary_signatures_verified": true,
+          "funding_authorized_at_receipt": false
+        },
+        "bob": {
+          "bundle_digest": "53356f0173afe803f5806b56e32431fe0271f13c6ec1b311cacbbb6220cf96fc",
+          "native_exit_bundle_verified": true,
+          "conditional_claim_verified": true,
+          "refund_shielded_and_auxiliary_signatures_verified": true,
+          "funding_authorized_at_receipt": false
+        }
+      },
+      "exits_in_the_bundle": {
+        "claim_C_effects_txid": "f334f1fc5ff1ec04b619a8649dd5a4438c518065e89d9ab9a9d82d42f09f3e74",
+        "refund_R_effects_txid": "9975ba99fd49458396b74d025df051111c0ce8e35469c1919349e96f8878b774"
+      },
+      "on_chain": {
+        "funding_F": {
+          "txid": "58de551b23bad2fe0e501b9ce5e08570340b69fb2bdcfbffa24b401f691d33b9",
+          "zcash_height": 4523733
+        },
+        "mined_exit": "R",
+        "mined_txid": "9975ba99fd49458396b74d025df051111c0ce8e35469c1919349e96f8878b774",
+        "zcash_height": 4525161,
+        "mined_exit_matches_prepared": true,
+        "unused_exit": "C",
+        "unused_txid": "f334f1fc5ff1ec04b619a8649dd5a4438c518065e89d9ab9a9d82d42f09f3e74",
+        "unused_exit_mined": false
+      }
+    }
+  ],
+  "how_the_links_hold": [
+    "v6 txids exclude anchors, proofs and signatures, so an exit's txid is fixed when it is prepared.",
+    "The agreement digest and the bundle digest are SHA-256 over compact JSON with sorted keys, as in funding_consent::hash.",
+    "The source signer refuses to sign F until both owners have signed the agreement, and the owners sign only after their receipts."
+  ],
+  "what_anyone_can_check": [
+    "The Sepolia lock calldata contains the agreement digest.",
+    "F and the mined exit are on the Zcash testnet with the listed txids; the unused exit's txid is not."
+  ],
+  "limits": [
+    "The agreement and the bundle are not published: they hold one-time receive addresses and PCZTs. The digest links were checked from the owners' private files with this script.",
+    "The lock is mined after F, so its timestamp shows both exits were fixed before any ETH moved and before t was revealed. That they were accepted before F was broadcast rests on the owners' receipts and the source signer's check, not on an external timestamp."
+  ],
+  "command": "python3 scripts/export_prefunding_evidence.py evidence/2026-10-21-prefunding-exits.json 004=.local/public-launch-004 005=.local/public-launch-005",
+  "private_material_committed": false
+}

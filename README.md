@@ -146,6 +146,12 @@ Zcash public testnet (Ironwood) and Sepolia, 0.001 test ZEC for 0.001 Sepolia ET
 The Zcash explorer shows that F, C and R are shielded but not their amounts or
 recipients; each record holds the receiving wallet's own decryption.
 
+**Both exits were fixed before funding.** In each run the agreement both owners
+signed commits to the exit bundle with C and R, and its digest is in the Sepolia
+lock. The mined C (settled run) and R (refund run) have exactly the txids
+prepared before funding, and the other prepared exit never appeared
+([pre-funding evidence](evidence/2026-10-21-prefunding-exits.json)).
+
 On Sepolia the V2 escrow used 295,236 gas for a settled swap (lock, claim,
 withdraw) and 215,713 for a refund, against 1,420,389 and 974,494 for V1. It
 checks t·G = T with a width-4 fixed-base comb table and keeps each order in one

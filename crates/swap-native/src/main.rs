@@ -663,6 +663,14 @@ fn main() -> Result<()> {
             return Ok(());
         }
         Some("regtest-inspect") if a.len() == 3 => regtest_swap::inspect(Path::new(&a[2]))?,
+        // The v6 effects txid of a PCZT stored as hex. It is fixed before any
+        // anchor, proof or signature exists, so an exit prepared before funding
+        // can be matched with the transaction mined later.
+        Some("pczt-effects-txid") if a.len() == 3 => {
+            let raw = hex::decode(std::fs::read_to_string(&a[2])?.trim())?;
+            let pczt = pczt::Pczt::parse(&raw).map_err(err)?;
+            serde_json::json!({"txid": regtest_swap::effects_txid(&pczt)?.to_string()})
+        }
         // Public receive address of a local wallet or watch-only workspace;
         // lets owner tooling bind its own key to an address-only bundle.
         Some("wallet-receiver") if a.len() == 3 => serde_json::json!({

@@ -23,6 +23,19 @@ and R; her wallet holds the returned 0.001 ZEC. Three tool defects found and
 fixed on the way (claim resend window, stale action directory, native tip
 race). [Record](../evidence/2026-10-21-public-testnet-v2.json).
 
+**Both exits fixed before funding, 2026-10-21:** for runs 004 and 005, the
+agreement both owners signed commits to the exit bundle with C and R, and its
+digest is in each Sepolia lock. The mined C (004) and R (005) have exactly the
+prepared v6 txids; the other prepared exit never appeared. Built from the owners'
+private files by `scripts/export_prefunding_evidence.py`, which publishes only
+digests, txids and flags. [Record](../evidence/2026-10-21-prefunding-exits.json).
+
+| | Settled run (004) | Refund run (005) |
+|---|---|---|
+| Agreement digest, in the Sepolia lock | [`4ee42202…`](https://sepolia.etherscan.io/tx/0x50df988d4b22b9caa7120f967ac33c1bb52e108d3884c985f30f367ff13da86c) | [`93c2374c…`](https://sepolia.etherscan.io/tx/0xc602d03ba4efcfc026bc3cc2f70465ffa7d62a823b9c8e771ceded1383e3c86b) |
+| Claim C, txid prepared before funding | [`4e9e560d…`](https://testnet.zecblock.com/tx/4e9e560d897e154daa448186e742b1022d1a9f70e332a0d7ca06ea34d2ba7dc9) **mined** | `f334f1fc…` never mined |
+| Refund R, txid prepared before funding | `4396b109…` never mined | [`9975ba99…`](https://testnet.zecblock.com/tx/9975ba99fd49458396b74d025df051111c0ce8e35469c1919349e96f8878b774) **mined** |
+
 **Public testnet refund, 2026-10-20:** a second funded trade where nobody
 revealed t. After the ETH deadline Bob refunded and withdrew exactly 0.001 ETH;
 after the Zcash refund time Alice sent A (the 20,000-zatoshi coin) and her
