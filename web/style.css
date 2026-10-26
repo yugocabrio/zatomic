@@ -483,6 +483,7 @@ body[data-role="alice"] .p-get strong, body[data-role="bob"] .p-give strong { co
 .privacy { padding-top: 56px; }
 .privacy .matrix-table tbody th { width: 22%; }
 .privacy .matrix-table tbody td:last-child { width: auto; }
+.privacy .matrix-table td b { font-weight: 650; }
 .site-foot a { color: inherit; }
 
 /* Stage controls */
@@ -618,7 +619,6 @@ body[data-role="alice"] .p-get strong, body[data-role="bob"] .p-give strong { co
 .steps-branch h3 { font-size: 16px; }
 .steps-branch p { font-size: 14.5px; line-height: 1.6; color: var(--ink-2); }
 .steps-branch b { color: var(--ink); }
-.how .fineprint { margin-top: 12px; }
 
 /* Lighter front page: proof cards, comparison cards, expandable flow */
 .proof-strip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -699,6 +699,7 @@ body.landing { --paper: #ffffff; --surface: #ffffff; --sunken: #f3f4f3; --ink: #
 .landing .zatomic-panel .zp-lead .kicker { color: #946300; }
 .landing .zatomic-panel .zp-points li { border-left-color: #e0a51b; }
 .landing .zatomic-panel .zp-proof b { color: #946300; }
+.zatomic-panel strong { color: var(--ink); font-weight: 650; }
 .landing .facts li { border-top-color: #e0a51b; }
 .landing .steps-result { background: #ffffff; border: 1px solid var(--line); border-left: 3px solid #e0a51b; }
 .landing .evidence-grid a[href*="public-testnet"] { border-color: #e0a51b; }
@@ -777,7 +778,6 @@ body.landing { --paper: #ffffff; --surface: #ffffff; --sunken: #f3f4f3; --ink: #
 .exits-figure .svg-big-title { font-size: 18px; }
 .exits-figure .svg-big-sub, .exits-figure .svg-refund { font-size: 14.5px; }
 .exits-figure svg, .how-figure svg { display: block; width: 100%; height: auto; }
-.how-figure figcaption { font-size: 13px; color: var(--muted); padding: 8px 4px 0; }
 .svg-node-key { stroke: #e0a51b; stroke-width: 1.5; }
 .svg-big-title { font: 700 16px var(--sans); fill: var(--ink); }
 .svg-big-sub { font: 13px var(--mono); fill: var(--ink-2); }

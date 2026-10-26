@@ -34,9 +34,9 @@ function describe(e, names) {
     return ['relay', `${who(e.from)} → ${who(e.to)}: sealed message`, `${(e.bytes || 0).toLocaleString()} bytes · the relay cannot open it`];
   }
   if (e.chain === 'zcash') {
-    if (e.transparent_inputs) return ['zec warn', 'Zcash: Alice’s refund, time-locked by spending her refund coin',
+    if (e.transparent_inputs) return ['zec warn', 'Zcash: Alice’s refund R, time-locked by spending the coin from A',
       `Her ZEC returns shielded${e.transparent_outputs.length ? ` · ${e.transparent_outputs.map(zec).join(', ')} change back to the coin’s transparent address` : ''}`];
-    if (e.transparent_outputs.length) return ['zec warn', `Zcash: Alice’s refund coin, ${e.transparent_outputs.map(zec).join(', ')} to a transparent address`, 'Appears only on the refund path'];
+    if (e.transparent_outputs.length) return ['zec warn', `Zcash: A, the coin Alice’s refund needs, ${e.transparent_outputs.map(zec).join(', ')} to a transparent address`, 'Appears only on the refund path'];
     return ['zec', 'Zcash: shielded transaction', `${e.actions} actions · amount, sender and recipient hidden · block #${e.height}`];
   }
   if (e.event === 'locked') return ['eth', `Ethereum: ${who(e.maker)} locks ${eth(e.amount_wei)} for ${who(e.recipient)}`, 'Claimable only with the secret t'];
@@ -70,7 +70,7 @@ function narrate(events) {
     ] : [
       [true, 'Bob never locks: the ETH deadline passes', 'Nothing moved on Ethereum, so there is nothing to claim.'],
     ]),
-    [Boolean(coin), 'Alice creates her refund coin', 'Her private auxiliary transaction appears only now, on the refund path.'],
+    [Boolean(coin), 'Alice creates the coin her refund needs', 'Her private auxiliary transaction appears only now, on the refund path.'],
     [Boolean(back), 'Alice’s ZEC comes back', 'Her pre-signed refund is valid only after the refund time.'],
   ] : [...opening,
     [Boolean(locked), 'Bob locks ETH', 'Public on Ethereum: amount, both addresses and the point T.'],
@@ -114,7 +114,7 @@ function summary(state, story) {
   const lines = story.refund ? [
     locked ? `Ethereum: ${eth(locked.amount_wei)} locked, then refunded to Bob after the expiry and withdrawn. t was never revealed.`
       : 'Ethereum: Bob never locked, so nothing moved there and t was never revealed.',
-    'Zcash: Alice’s pre-signed refund returned her ZEC. Only on this path do transparent outputs appear: her 20,000-zatoshi refund coin and 15,000 zatoshi returned to the same address.',
+    'Zcash: Alice’s pre-signed refund returned her ZEC. Only on this path do transparent outputs appear: the 20,000-zatoshi coin her refund needs, made from her own change, and 15,000 zatoshi returned to the same address.',
   ] : [
     `Ethereum: ${locked ? eth(locked.amount_wei) : 'the ETH'} locked by Bob, claimed with t, withdrawn by Alice.`,
     `Zcash: ${zcash.length} shielded transactions. No amount, no address, nothing transparent.`,

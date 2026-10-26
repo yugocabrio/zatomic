@@ -44,8 +44,8 @@ Ethereum, routing through solvers and public viewing keys, or using transparent 
   transparent input with a non-final sequence number, so Alice prepares a private
   transaction A that turns a little of her own shielded change into a small
   transparent coin, and R spends that coin. If nobody reveals t, Bob takes his ETH
-  back after the deadline, and after the Zcash deadline Alice sends A, then R, and
-  recovers her ZEC without Bob. A settled swap sends neither A nor R.
+  back after the ETH deadline. Once that refund is final, Alice sends A, and after
+  the Zcash deadline she sends R and recovers her ZEC without Bob. A settled swap sends neither A nor R.
 - **Signed before the note exists.** v6 transactions keep the anchor and proofs
   outside what spend signatures sign
   ([ZIP 229](https://github.com/zcash/zips/blob/929a92f7383e036b6f6a48f43ec88c5bdd130003/zips/zip-0229.md#anchor-commitment-version-6)),
@@ -72,8 +72,8 @@ The [protocol in one page](docs/protocol.md) explains each step.
    T = t·G.
 4. Alice claims the ETH by revealing t. Bob reads t, completes C's signature with
    s = ŝ + t and broadcasts C, receiving the ZEC shielded.
-5. If t is never revealed, Bob refunds his ETH after the ETH deadline, and after
-   the later Zcash deadline Alice sends A and then her refund R.
+5. If t is never revealed, Bob refunds his ETH after the ETH deadline. Alice then
+   sends A, and after the later Zcash deadline her refund R.
 
 C and R spend the same note, so they share a nullifier: only one can ever be
 mined.
@@ -107,11 +107,11 @@ who have already agreed a price pays for it.
   primitives, even a chain like Bitcoin that cannot verify another curve, and a
   refund can stay fully shielded. Zatomic instead verifies the Pallas relation
   directly on Ethereum: no cross-group DLEQ, but Pallas arithmetic in the EVM.
-  Shielded notes have no lock time, so in such designs the shielded coins come
-  back only when the counterparty's refund on the other chain reveals a key
-  share; if the counterparty vanishes, a penalty pays out their asset and the
-  shielded coins stay locked. Zatomic's refund is enforced by Zcash itself, at
-  the cost of a small transparent coin on the refund path.
+  In Monero-style refund/punish constructions, recovering the shielded asset may
+  depend on a refund on the other chain revealing a key share; otherwise, a
+  penalty on that chain can serve as the fallback. Zatomic instead gives Alice a
+  pre-signed refund enforced by Zcash consensus itself, at the cost of a small
+  transparent coin on the refund path.
 
 Zatomic needs no solver, pool or bridge, and asks Ethereum to verify no Zcash
 history: the escrow checks one Pallas relation, t·G = T. A settled swap's two
@@ -140,7 +140,7 @@ Zcash public testnet (Ironwood) and Sepolia, 0.001 test ZEC for 0.001 Sepolia ET
 | Date | Escrow | Outcome | Transactions | Record |
 |---|---|---|---|---|
 | 2026-10-21 | V2 (shipped) | Settled; Zcash saw two fully shielded transactions | [F, Alice funds](https://testnet.zecblock.com/tx/f7f837c78b8fce3bf6b209c6efbe2c9e231b65eaeb9b92b16b0304c1c3356b1b) · [claim(t), Alice takes the ETH](https://sepolia.etherscan.io/tx/0x86221a6af9fb80498bbc9a146624a2c1b7dc403cbaf969ea73bae6e53ec29e3a) · [C, Bob takes the ZEC](https://testnet.zecblock.com/tx/4e9e560d897e154daa448186e742b1022d1a9f70e332a0d7ca06ea34d2ba7dc9) | [record](evidence/2026-10-21-public-testnet-v2.json) |
-| 2026-10-21 | V2 (shipped) | Nobody revealed t; both sides refunded | [refund, Bob takes his ETH back](https://sepolia.etherscan.io/tx/0x83af549b669e2cfec954640f7991941fb79d61c695ec0dfc68296a4aafb1645b) · [A, Alice's refund coin](https://testnet.zecblock.com/tx/487de8134e142621411f54751aa576af47e0ca61d89e68ed5123ae905b989537) · [R, Alice takes her ZEC back](https://testnet.zecblock.com/tx/9975ba99fd49458396b74d025df051111c0ce8e35469c1919349e96f8878b774) | same record |
+| 2026-10-21 | V2 (shipped) | Nobody revealed t; both sides refunded | [refund, Bob takes his ETH back](https://sepolia.etherscan.io/tx/0x83af549b669e2cfec954640f7991941fb79d61c695ec0dfc68296a4aafb1645b) · [A, Alice makes the coin R needs](https://testnet.zecblock.com/tx/487de8134e142621411f54751aa576af47e0ca61d89e68ed5123ae905b989537) · [R, Alice takes her ZEC back](https://testnet.zecblock.com/tx/9975ba99fd49458396b74d025df051111c0ce8e35469c1919349e96f8878b774) | same record |
 | 2026-10-20 | V1 | Nobody revealed t; both sides refunded | | [record](evidence/2026-10-20-public-testnet-refund.json) |
 | 2026-10-18 | V1 | Settled | | [record](evidence/2026-10-18-public-testnet-swap.json) |
 

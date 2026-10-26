@@ -17,7 +17,7 @@ no scripts: it moves only with a valid spend signature from its key.
 
 **One key, two exits.** A FROST DKG gives Alice and Bob a fresh 2-of-2 spend key.
 The joint note is an ordinary Ironwood shielded note whose spend authorization key
-is that FROST key, so neither can spend it alone. Before Alice funds it, both
+is that FROST key, so neither can authorize a spend of it alone. Before Alice funds it, both
 exits from that note are prepared and checked by both sides:
 
 ![The joint note and its two exits, both prepared before F is sent](images/two-exits.png)
@@ -105,9 +105,9 @@ the ETH expiry. Both sides watch their deadlines, and recovery assumes that
 inclusion and reorgs stay within the timing window.
 
 **Outcomes.** If t is revealed, Alice withdraws the ETH and Bob completes C, even
-with Alice offline. If nobody reveals t, Bob refunds his ETH after the expiry,
-and after the native refund time Alice sends A and R and gets her ZEC back,
-shielded.
+with Alice offline. If nobody reveals t, Bob refunds his ETH after the expiry;
+Alice then sends A, and after the native refund time she sends R and gets her
+ZEC back, shielded.
 
 ![The five steps: thick arrows move funds, a check marks where each side receives the other's asset](images/five-steps.png)
 

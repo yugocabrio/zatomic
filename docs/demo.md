@@ -63,7 +63,7 @@ through the apps' own page endpoints, never touching either app's keys:
 |---|---|
 | **1 · The swap** | Every step to settlement: two shielded Zcash transactions, lock, claim and withdraw on Ethereum. |
 | **2 · Bob's app crashes** | The same, but Bob's app is killed (SIGKILL) right after Alice's claim and restarted eight seconds later. It resumes from its own journal, reads t from Ethereum and claims the ZEC. |
-| **3 · Both refund** | Alice never claims. ETH time passes, Bob refunds his ETH, the native refund matures, then Alice's refund coin and her refund appear on Zcash. |
+| **3 · Both refund** | Alice never claims. ETH time passes, Bob refunds his ETH, the native refund matures, then A (the coin her refund needs) and her refund R appear on Zcash. |
 
 While a scenario runs, the column shows its clock. At the end a result card sums
 up what each chain and the relay showed, from public data only; the ZEC amount

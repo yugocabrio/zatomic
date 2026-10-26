@@ -102,7 +102,7 @@ Primary references checked: [RFC 9591](https://www.rfc-editor.org/rfc/rfc9591.ht
 [ZIP 374](https://zips.z.cash/zip-0374). These specify the base construction and
 transaction format; they do not prove this adaptor extension secure.
 
-## Independent arithmetic cross-check
+## Separate Python arithmetic cross-check
 
 `audit_transcript` generates three disposable transcripts through the actual DKG
 and custom signer, with randomizers 0, random and q−1; current `reddsa 0.6.1`
