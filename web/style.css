@@ -582,6 +582,7 @@ body[data-role="alice"] .p-get strong, body[data-role="bob"] .p-give strong { co
 .record .stage-controls, .record .stage-links, .record .stage-foot .stage-link { display: none; }
 .record .stage-step { font-size: 24px; }
 .record .stage-caption { font-size: 15px; }
+.record .wire { flex: none; overflow: visible; }
 .stage-wire { overflow-y: auto; }
 .stage-wire.is-start .wire, .stage-wire.is-start .observer, .stage-wire.is-done .observer { display: none; }
 /* Outside ?record the stage is one scrolling page: the app frames take the

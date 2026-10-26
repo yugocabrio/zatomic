@@ -94,7 +94,7 @@ function renderAction(action) {
   box.append(button);
   if (view.public && !LEASE) {
     button.disabled = true;
-    box.append(el('p', 'p-note', 'Watching. To press this, take the controls on the stage page.'));
+    box.append(el('p', 'p-note', 'The demo’s Autoplay presses this. To press it yourself, open Advanced controls on the stage.'));
   }
 }
 

@@ -292,7 +292,8 @@ function render(state) {
   const s = state.scenario;
   // The scenario picker is the way in, also after a finished run. Someone
   // watching a run they did not start sees why the picker is locked.
-  $('#start').hidden = running || (begun && !story.done);
+  // A recording (?record, driven by keys 1-3) ends on the result, not the picker.
+  $('#start').hidden = running || (begun && !story.done) || (RECORD && story.done);
   for (const b of document.querySelectorAll('[data-scenario]')) b.disabled = running || byHand;
   if (s && ownStart && s.started >= ownStart) ownRun = s.started;
   const theirs = running && !(s && s.started === ownRun);
@@ -306,6 +307,7 @@ function render(state) {
   $('#stage-clock').hidden = !state.autoplay || !s;
   if (state.autoplay && s) $('#stage-clock').textContent = `Autoplay · ${SCENARIOS[s.path]} · ${clock(Math.max(0, state.now - s.started))}`;
   $('#result').hidden = !story.done;
+  if (!story.done) shown.result = false;
   $('.stage-wire').classList.toggle('is-start', !$('#start').hidden && !story.done);
   $('.stage-wire').classList.toggle('is-done', story.done);
   if (story.done) {
@@ -315,6 +317,8 @@ function render(state) {
       $('#result-list').dataset.key = JSON.stringify(lines);
       $('#result-list').replaceChildren(...lines.map(line => el('li', '', line)));
     }
+    if (RECORD && !shown.result) requestAnimationFrame(() => $('#result').scrollIntoView({block: 'nearest'}));
+    shown.result = true;
   }
   sequence(state, story);
   // Relay envelopes fold into one row; the chain events follow in protocol order.
@@ -327,6 +331,8 @@ function render(state) {
   if (relayList.childElementCount !== relay.length) relayList.replaceChildren(...relay.map(e => item(describe(e, names), true)));
   const wire = $('#wire');
   const entries = inOrder(state.events);
+  // A recording starts each trade at the top of the column.
+  if (RECORD && !entries.length && !story.done && $('.stage-wire').scrollTop) $('.stage-wire').scrollTo({top: 0});
   const refunding = entries.some(x => x.role === 'refunded' || x.role === 'A' || x.role === 'R');
   const STEP = {F: '2', locked: '3', claimed: '4', C: '5', refunded: '↩', A: '↩', R: '↩', withdrawn: refunding ? '↩' : '4'};
   $('#receipts-head').hidden = !relay.length && !entries.length;
@@ -338,6 +344,8 @@ function render(state) {
     wire.replaceChildren(...entries.map(x => item(describe(x.e, names, x.role), shown.events.has(x.i), STEP[x.role])));
     for (const x of entries) shown.events.add(x.i);
     wire.scrollTop = wire.scrollHeight;
+    // A recording keeps the newest receipt in view, under the step it lit.
+    if (RECORD && entries.length && !story.done) requestAnimationFrame(() => $('.stage-wire').scrollTo({top: $('.stage-wire').scrollHeight, behavior: 'smooth'}));
   }
   const zcash = state.events.filter(e => e.chain === 'zcash');
   const ethEvents = state.events.filter(e => e.chain === 'ethereum');
