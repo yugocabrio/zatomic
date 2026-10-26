@@ -74,8 +74,10 @@ one row (open it to see each), and every Zcash and Ethereum entry gives its
 block, what the node checked and its transaction ID. They follow protocol order,
 since observation times on two chains do not order them reliably. At the end
 the three scenarios come back above the diagram, and a **Last run** card says
-how long it took, what the relay never saw and whether Bob's app recovered; the
-ZEC amount appears only inside the apps. Picking a scenario after a finished run starts a fresh
+how long it took, what each side got on which chain, whether both apps
+confirmed their own payouts (an Autoplay ends only once they have), whether
+Bob's app recovered, and that the relay never saw the amounts; the ZEC amount
+appears only inside the apps. Picking a scenario after a finished run starts a fresh
 trade (new keys, a new escrow order and a new shared note; the previous trade
 stays on disk). A trade left part-way for 90 seconds offers Continue or Start
 over. The bar above the apps has the same scenarios; **Advanced controls** opens

@@ -137,23 +137,35 @@ addEventListener('message', (event) => {
 });
 const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
-// The end of a trade, from public data only: the ZEC amount and receive
-// addresses are visible inside the apps, never here.
+// The end of a trade. The chain lines come from public data; the amounts and
+// receive addresses stay inside the apps. An Autoplay that ran to the end
+// waited for each app to confirm its own payout, so it can say so.
 function summary(state, story) {
-  const locked = state.events.find(e => e.chain === 'ethereum' && e.event === 'locked');
+  const find = (kind) => state.events.find(e => e.chain === 'ethereum' && e.event === kind);
+  const locked = find('locked');
   const relay = state.events.filter(e => e.chain === 'relay');
   const sealed = relay.filter(e => e.kind === 'sealed').length;
   const s = state.scenario;
-  const took = s && s.ended && s.ended >= s.started ? ` in ${clock(s.ended - s.started)}` : '';
-  // The receipts below carry each transaction; this card keeps what stayed
-  // private and what recovered.
-  const lines = story.refund && !locked ? ['Bob never locked, so nothing moved on Ethereum and t was never revealed.'] : [];
-  lines.push(`Relay: ${relay.length} messages, ${sealed} sealed. It never saw the amounts.`);
+  const took = s && s.ended && s.ended >= s.started ? ` · ${clock(s.ended - s.started)}` : '';
+  const amount = locked ? eth(locked.amount_wei) : 'the ETH';
+  const lines = !story.refund ? [
+    `Alice: claimed ${amount} with t on Anvil and withdrew it.`,
+    'Bob: his claim C, completed with that t, was mined on Zebra.',
+  ] : locked ? [
+    `Bob: refunded and withdrew ${amount} on Anvil. No secret was revealed.`,
+    'Alice: her time-locked refund R was mined on Zebra after its lock time.',
+  ] : [
+    'Bob never locked, so nothing moved on Ethereum and no secret was revealed.',
+    'Alice: her time-locked refund R was mined on Zebra after its lock time.',
+  ];
+  if (s && s.confirmed) lines.push(story.refund
+    ? 'Both apps confirmed it themselves: Bob’s ETH is withdrawn, and Alice’s wallet decrypted her returned shielded ZEC.'
+    : 'Both apps confirmed it themselves: Alice’s ETH withdrawal is checked, and Bob’s wallet decrypted his shielded ZEC.');
   if ((state.interrupted || []).includes('bob')) lines.push(story.refund
     ? 'Bob’s app was stopped during the trade. Neither refund needed anything from the other side.'
     : 'Bob’s app was killed mid-swap. It resumed from its own journal and claimed with t from Ethereum, needing nothing from Alice.');
-  lines.push('Each app shows what its owner received. The exact ZEC amount appears only there, though the public ETH amount hints at it via the market price.');
-  return {title: (story.refund ? 'Both refunded' : 'Swap settled') + took, lines};
+  lines.push(`The relay carried ${sealed} sealed messages and never saw the trade amounts. The exact ZEC amount appears only inside the apps.`);
+  return {title: (story.refund ? (locked ? 'Both assets recovered' : 'Alice’s ZEC recovered') : 'Swap settled') + took, lines};
 }
 
 async function send(body) {

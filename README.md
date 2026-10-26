@@ -6,7 +6,7 @@
 
 [Live demo](https://162-55-186-88.sslip.io) · [Public testnet runs](#public-testnet-runs) · [Protocol in one page](docs/protocol.md)
 
-![Zatomic stage after a settled swap: Alice’s and Bob’s apps, and between them only what an outside observer saw](docs/images/stage-swap.png)
+![Zatomic stage after a settled swap: Alice’s and Bob’s apps, and between them the five-step diagram, the result and the execution receipts](docs/images/stage-swap.png)
 
 Zatomic swaps native shielded ZEC for ETH between two parties who have already
 agreed a trade. There is no bridge, no wrapped ZEC and no custodian or solver.

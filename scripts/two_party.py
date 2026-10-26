@@ -335,6 +335,10 @@ class Network:
                     except OSError:
                         views[r] = None
                 if all(v and v.get('complete') for v in views.values()):
+                    # Each app reports complete only once it has checked its
+                    # own payout; the stage may then say both confirmed.
+                    if self.scenario:
+                        self.scenario['confirmed'] = True
                     self.note('Autoplay: both owners finished')
                     return
                 acted = False
