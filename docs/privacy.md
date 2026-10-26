@@ -19,7 +19,7 @@ against the code, not taken on trust.
 ## Details and limits
 
 **One scalar, unlinkable to third parties.** Bob's Zcash claim signature is
-`(R̂, s)` with `s = ŝ + t`. Someone who sees `t` on Ethereum and every Zcash
+$`(\hat R, s)`$ with $`s = \hat s + t`$. Someone who sees `t` on Ethereum and every Zcash
 signature still can't tell which signature it completed. That would require the
 pre-signature `ŝ`, which only Alice and Bob hold. This is a statement about the
 scalar alone: timing, the small Ironwood pool and the `expiry_height = 0` marker

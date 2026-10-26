@@ -38,13 +38,16 @@ separately.
 **Why t completes C.** A RedPallas signature (R, s) on key X and message m, with
 challenge c = H(R, X, m), verifies when s·G = R + c·X. Alice picks t and shares
 only T = t·G, where G is the RedPallas SpendAuth base. The two signers shift
-their aggregate FROST nonce point R by T, giving R̂ = R + T, and compute their
-partial signatures with the challenge c derived from R̂. The shares add up to a
+their aggregate FROST nonce point R by T, giving $`\hat R = R + T`$, and compute
+their partial signatures with the challenge c derived from $`\hat R`$. The shares add up to a
 pre-signature for C that is one secret short, for the randomized spend key X′:
 
-    ŝ·G = R̂ − T + c·X′
+```math
+\hat s \cdot G = \hat R - T + c \cdot X'
+```
 
-Adding t gives s = ŝ + t, and s·G = R̂ + c·X′ is an ordinary valid signature.
+Adding t gives $`s = \hat s + t`$, and $`s \cdot G = \hat R + c \cdot X'`$ is an ordinary
+valid signature.
 Claiming the ETH publishes t, and the escrow checks t·G = T on Pallas itself, so
 no cross-curve proof is needed.
 
@@ -60,16 +63,21 @@ Dᵢ = dᵢ·G and Eᵢ = eᵢ·G. ρᵢ is FROST's binding factor and α the ra
 applies to the spend key. The only change from plain FROST is the nonce point
 used for the challenge:
 
-    X′ = X + α·G
-    R  = Σ (Dᵢ + ρᵢ·Eᵢ)                 plain FROST nonce point
-    R̂  = R + T                          shifted by the adaptor point
-    c  = H(R̂ ‖ X′ ‖ sighash of C)
-    ẑᵢ = dᵢ + ρᵢ·eᵢ + λᵢ·c·(xᵢ + α)     each signer's partial signature
-    ŝ  = ẑ_A + ẑ_B                      so ŝ·G = R + c·X′ = R̂ − T + c·X′
-    s  = ŝ + t                          once Alice's claim makes t public
+```math
+\begin{aligned}
+X' &= X + \alpha G \\
+R &= \textstyle\sum_i (D_i + \rho_i E_i) && \text{plain FROST nonce point} \\
+\hat R &= R + T && \text{shifted by the adaptor point} \\
+c &= H(\hat R \parallel X' \parallel \text{sighash of } C) \\
+\hat z_i &= d_i + \rho_i e_i + \lambda_i c\,(x_i + \alpha) && \text{each signer's partial signature} \\
+\hat s &= \hat z_A + \hat z_B && \text{so } \hat s G = R + cX' = \hat R - T + cX' \\
+s &= \hat s + t && \text{once Alice's claim makes } t \text{ public}
+\end{aligned}
+```
 
-Bob checks ŝ·G + T = R̂ + c·X′, which needs only T, not t. Alice, who knows t,
-releases her share ẑ_A only after Bob's ẑ_B verifies against the same nonce
+Bob checks $`\hat s \cdot G + T = \hat R + c \cdot X'`$, which needs only T, not t. Alice,
+who knows t, releases her share $`\hat z_A`$ only after Bob's $`\hat z_B`$ verifies
+against the same nonce
 commitments. Otherwise Bob could shift his commitment by −T and turn Alice's share
 into a valid signature without t; [security](security.md#adaptor-share-release-order)
 describes that attack, its fix and the regression tests.

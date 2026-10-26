@@ -31,13 +31,14 @@ Ethereum, routing through solvers and public viewing keys, or using transparent 
 - **FROST, joint custody.** Alice funds a shielded note whose spend key is a
   fresh 2-of-2 FROST key, so neither side can spend it alone.
 - **Adaptor signature, Bob claims alone.** Before Alice funds the note, both
-  sign Bob's claim C with their nonce point shifted by T = t·G, R̂ = R + T, so
+  sign Bob's claim C with their nonce point shifted by T = t·G, giving $`\hat R = R + T`$, so
   their partial signatures add up to a pre-signature one secret short:
-  ŝ·G = R̂ − T + c·X′. Bob checks it himself, without knowing t
+  $`\hat s \cdot G = \hat R - T + c \cdot X'`$. Bob checks it himself, without knowing t
   ([how the two signers compute ŝ](docs/protocol.md#how-the-pre-signature-is-computed)).
 - **Escrow on Ethereum.** Bob locks ETH to T. Alice claims it with t; the escrow
   checks t·G = T on Pallas, and the same t completes their FROST adaptor
-  pre-signature into Bob's valid signature: s = ŝ + t gives s·G = R̂ + c·X′. After locking, Bob needs nothing more from Alice.
+  pre-signature into Bob's valid signature: $`s = \hat s + t`$ gives
+  $`s \cdot G = \hat R + c \cdot X'`$. After locking, Bob needs nothing more from Alice.
 - **Lock time, Alice refunds alone.** Before funding, both also fully sign
   Alice's refund R. Zcash enforces a lock time only when a transaction has a
   transparent input with a non-final sequence number, so Alice prepares a private
@@ -137,8 +138,8 @@ Zcash public testnet (Ironwood) and Sepolia, 0.001 test ZEC for 0.001 Sepolia ET
 
 | Date | Escrow | Outcome | Transactions | Record |
 |---|---|---|---|---|
-| 2026-10-21 | V2 (shipped) | Settled; Zcash saw two fully shielded transactions | [F](https://testnet.zecblock.com/tx/f7f837c78b8fce3bf6b209c6efbe2c9e231b65eaeb9b92b16b0304c1c3356b1b) · [ETH claim(t)](https://sepolia.etherscan.io/tx/0x86221a6af9fb80498bbc9a146624a2c1b7dc403cbaf969ea73bae6e53ec29e3a) · [ZEC claim C](https://testnet.zecblock.com/tx/4e9e560d897e154daa448186e742b1022d1a9f70e332a0d7ca06ea34d2ba7dc9) | [record](evidence/2026-10-21-public-testnet-v2.json) |
-| 2026-10-21 | V2 (shipped) | Nobody revealed t; both sides refunded | [ETH refund](https://sepolia.etherscan.io/tx/0x83af549b669e2cfec954640f7991941fb79d61c695ec0dfc68296a4aafb1645b) · [A](https://testnet.zecblock.com/tx/487de8134e142621411f54751aa576af47e0ca61d89e68ed5123ae905b989537) · [ZEC refund R](https://testnet.zecblock.com/tx/9975ba99fd49458396b74d025df051111c0ce8e35469c1919349e96f8878b774) | same record |
+| 2026-10-21 | V2 (shipped) | Settled; Zcash saw two fully shielded transactions | [F, Alice funds](https://testnet.zecblock.com/tx/f7f837c78b8fce3bf6b209c6efbe2c9e231b65eaeb9b92b16b0304c1c3356b1b) · [claim(t), Alice takes the ETH](https://sepolia.etherscan.io/tx/0x86221a6af9fb80498bbc9a146624a2c1b7dc403cbaf969ea73bae6e53ec29e3a) · [C, Bob takes the ZEC](https://testnet.zecblock.com/tx/4e9e560d897e154daa448186e742b1022d1a9f70e332a0d7ca06ea34d2ba7dc9) | [record](evidence/2026-10-21-public-testnet-v2.json) |
+| 2026-10-21 | V2 (shipped) | Nobody revealed t; both sides refunded | [refund, Bob takes his ETH back](https://sepolia.etherscan.io/tx/0x83af549b669e2cfec954640f7991941fb79d61c695ec0dfc68296a4aafb1645b) · [A, Alice's refund coin](https://testnet.zecblock.com/tx/487de8134e142621411f54751aa576af47e0ca61d89e68ed5123ae905b989537) · [R, Alice takes her ZEC back](https://testnet.zecblock.com/tx/9975ba99fd49458396b74d025df051111c0ce8e35469c1919349e96f8878b774) | same record |
 | 2026-10-20 | V1 | Nobody revealed t; both sides refunded | | [record](evidence/2026-10-20-public-testnet-refund.json) |
 | 2026-10-18 | V1 | Settled | | [record](evidence/2026-10-18-public-testnet-swap.json) |
 

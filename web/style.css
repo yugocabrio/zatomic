@@ -724,7 +724,7 @@ body.landing { --paper: #ffffff; --surface: #ffffff; --sunken: #f3f4f3; --ink: #
 .run-tag { font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
 .run h3 { font-size: 19px; letter-spacing: -.01em; }
 .run ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
-.run-links { display: flex; flex-wrap: wrap; gap: 8px 16px; font: 600 13px var(--mono); }
+.run-links { display: grid; gap: 6px; margin-top: 6px; font: 600 13px var(--mono); }
 .run-links a { color: var(--ink); }
 .tx-details { margin-top: 18px; }
 .tx-details > summary { cursor: pointer; width: fit-content; font-weight: 650; font-size: 15px; color: var(--ink); padding: 8px 0; }
