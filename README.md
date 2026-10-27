@@ -4,7 +4,7 @@
 
 **Atomic swaps of shielded ZEC for ETH, with both exits prepared before funding.**
 
-[Live demo](https://162-55-186-88.sslip.io) · [Public testnet runs](#public-testnet-runs) · [Protocol in one page](docs/protocol.md)
+[Live demo](https://162-55-186-88.sslip.io) · [Demo video](https://www.youtube.com/watch?v=HyIur2ay5FQ) · [Public testnet runs](#public-testnet-runs) · [Protocol in one page](docs/protocol.md)
 
 ![Zatomic stage after a settled swap: Alice’s and Bob’s apps, and between them the five-step diagram, the result and the execution receipts](docs/images/stage-swap.png)
 
